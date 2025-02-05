@@ -1190,6 +1190,8 @@ bool CNPC_Combine::CanOrderSurrender()
 
 	return m_iCanOrderSurrender == TRS_TRUE;
 #endif
+	
+	return false;
 }
 
 //-----------------------------------------------------------------------------
