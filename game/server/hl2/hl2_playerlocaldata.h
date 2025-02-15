@@ -40,6 +40,11 @@ public:
 	CNetworkVar( bool,	m_bDisplayReticle );
 	CNetworkVar( bool,	m_bStickyAutoAim );
 	CNetworkVar( bool,	m_bAutoAimTarget );
+	CNetworkVar( bool,	m_SMG1_GL_Loaded);
+	CNetworkVar( bool,	m_AR1M1_GL_Loaded);
+	CNetworkVar( bool,	m_SMG1_GL_action_failed);
+	CNetworkVar( bool,	m_AR1M1_GL_action_failed);
+
 #ifdef HL2_EPISODIC
 	CNetworkVar( float, m_flFlashBattery );
 	CNetworkVar( Vector, m_vecLocatorOrigin );

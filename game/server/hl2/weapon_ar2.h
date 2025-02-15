@@ -20,45 +20,48 @@
 class CWeaponAR2 : public CHLMachineGun
 {
 public:
-	DECLARE_CLASS( CWeaponAR2, CHLMachineGun );
+	DECLARE_CLASS(CWeaponAR2, CHLMachineGun);
 
 	CWeaponAR2();
 
 	DECLARE_SERVERCLASS();
 
-	void	ItemPostFrame( void );
-	void	Precache( void );
-	
-	void	SecondaryAttack( void );
-	void	DelayedAttack( void );
+	void	ItemPostFrame(void);
+	void	Precache(void);
+	bool	Deploy(void);
 
-	const char *GetTracerType( void ) { return "AR2Tracer"; }
+	void	PrimaryAttack(void);
+	void	SecondaryAttack(void);
+	void	HoldIronsight(void);
+	void	DelayedAttack(void);
 
-	void	AddViewKick( void );
+	const char *GetTracerType(void) { return "AR2Tracer"; }
 
-	void	FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles );
-	void	FireNPCSecondaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles );
-	void	Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
-	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
+	void	AddViewKick(void);
 
-	int		GetMinBurst( void ) { return 2; }
-	int		GetMaxBurst( void ) { return 5; }
-	float	GetFireRate( void ) { return 0.1f; }
+	void	FireNPCPrimaryAttack(CBaseCombatCharacter *pOperator, bool bUseWeaponAngles);
+	void	FireNPCSecondaryAttack(CBaseCombatCharacter *pOperator, bool bUseWeaponAngles);
+	void	Operator_ForceNPCFire(CBaseCombatCharacter  *pOperator, bool bSecondary);
+	void	Operator_HandleAnimEvent(animevent_t *pEvent, CBaseCombatCharacter *pOperator);
 
-	bool	CanHolster( void );
-	bool	Reload( void );
+	int		GetMinBurst(void) { return 4; }
+	int		GetMaxBurst(void) { return 5; }
+	float	GetFireRate(void) { return 0.1f; }
 
-	int		CapabilitiesGet( void ) { return bits_CAP_WEAPON_RANGE_ATTACK1; }
+	bool	CanHolster(void);
+	bool	Reload(void);
 
-	Activity	GetPrimaryAttackActivity( void );
-	
-	void	DoImpactEffect( trace_t &tr, int nDamageType );
+	int		CapabilitiesGet(void) { return bits_CAP_WEAPON_RANGE_ATTACK1; }
 
-	virtual const Vector& GetBulletSpread( void )
+	Activity	GetPrimaryAttackActivity(void);
+
+	void	DoImpactEffect(trace_t &tr, int nDamageType);
+
+	virtual const Vector& GetBulletSpread(void)
 	{
 		static Vector cone;
-		
-		cone = VECTOR_CONE_3DEGREES;
+
+		cone = VECTOR_CONE_2DEGREES;
 
 		return cone;
 	}
@@ -70,9 +73,11 @@ protected:
 	float					m_flDelayedFire;
 	bool					m_bShotDelayed;
 	int						m_nVentPose;
-	
+
 	DECLARE_ACTTABLE();
 	DECLARE_DATADESC();
+private:
+	void	SetSkin(int skinNum);
 };
 
 

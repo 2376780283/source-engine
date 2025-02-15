@@ -1756,6 +1756,8 @@ CollideType_t C_BaseAnimating::GetCollideType( void )
 	return BaseClass::GetCollideType();
 }
 
+ConVar ai_death_pose_enabled("ai_death_pose_enabled", "1", FCVAR_NONE, "Toggles the death pose fix code, which cancels sequence transitions while a NPC is ragdolling.");
+
 //-----------------------------------------------------------------------------
 // Purpose: if the active sequence changes, keep track of the previous ones and decay them based on their decay rate
 //-----------------------------------------------------------------------------
@@ -1767,6 +1769,12 @@ void C_BaseAnimating::MaintainSequenceTransitions( IBoneSetup &boneSetup, float 
 		return;
 
 	if ( prediction->InPrediction() )
+	{
+		m_nPrevNewSequenceParity = m_nNewSequenceParity;
+		return;
+	}
+
+	if (IsAboutToRagdoll() && ai_death_pose_enabled.GetBool())
 	{
 		m_nPrevNewSequenceParity = m_nNewSequenceParity;
 		return;
@@ -3314,20 +3322,40 @@ void C_BaseAnimating::ProcessMuzzleFlashEvent()
 		//FIXME: We should really use a named attachment for this
 		if ( m_Attachments.Count() > 0 )
 		{
-			Vector vAttachment;
-			QAngle dummyAngles;
-			GetAttachment( 1, vAttachment, dummyAngles );
+			//old
+			//Vector vAttachment;
+			//QAngle dummyAngles;
+			//GetAttachment( 1, vAttachment, dummyAngles );
+			//
+			//// Make an elight
+			//dlight_t *el = effects->CL_AllocElight( LIGHT_INDEX_MUZZLEFLASH + index );
+			//el->origin = vAttachment;
+			//el->radius = random->RandomInt( 32, 64 ); 
+			//el->decay = el->radius / 0.05f;
+			//el->die = gpGlobals->curtime + 0.05f;
+			//el->color.r = 255;
+			//el->color.g = 192;
+			//el->color.b = 64;
+			//el->color.exponent = 5;
 
-			// Make an elight
-			dlight_t *el = effects->CL_AllocElight( LIGHT_INDEX_MUZZLEFLASH + index );
-			el->origin = vAttachment;
-			el->radius = random->RandomInt( 32, 64 ); 
-			el->decay = el->radius / 0.05f;
-			el->die = gpGlobals->curtime + 0.05f;
-			el->color.r = 255;
-			el->color.g = 192;
-			el->color.b = 64;
-			el->color.exponent = 5;
+			//new from vdc
+			Vector vAttachment, vAng;
+			QAngle angles;
+			GetAttachment(1, vAttachment, angles); // set 1 instead "attachment"
+
+			AngleVectors(angles, &vAng);
+			vAttachment += vAng * 2;
+
+			dlight_t *dl = effects->CL_AllocDlight(index);
+			//dlight_t *dl = effects->CL_AllocElight
+			dl->origin = vAttachment;
+			dl->color.r = 255;
+			dl->color.g = 220;
+			dl->color.b = 96;
+			dl->die = gpGlobals->curtime + 0.03f;
+			dl->radius = random->RandomFloat(64.0f, 128.0f);
+			dl->decay = 128.0f;
+
 		}
 	}
 }

@@ -37,6 +37,7 @@ private:
 	bool	m_bNeedPump;		// When emptied completely
 	bool	m_bDelayedFire1;	// Fire primary when finished reloading
 	bool	m_bDelayedFire2;	// Fire secondary when finished reloading
+	float	m_flReloadEnd;	// when all animations on ending the reload actually end
 
 public:
 	void	Precache( void );
@@ -45,8 +46,8 @@ public:
 
 	virtual const Vector& GetBulletSpread( void )
 	{
-		static Vector vitalAllyCone = VECTOR_CONE_3DEGREES;
-		static Vector cone = VECTOR_CONE_10DEGREES;
+		static Vector vitalAllyCone = VECTOR_CONE_5DEGREES;
+		static Vector cone = VECTOR_CONE_5DEGREES;
 
 		if( GetOwner() && (GetOwner()->Classify() == CLASS_PLAYER_ALLY_VITAL) )
 		{
@@ -76,8 +77,10 @@ public:
 	void ItemHolsterFrame( void );
 	void ItemPostFrame( void );
 	void PrimaryAttack( void );
+	void	HoldIronsight(void);
 	void SecondaryAttack( void );
 	void DryFire( void );
+	bool Deploy(void);
 
 	void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, bool bUseWeaponAngles );
 	void Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
@@ -99,6 +102,7 @@ BEGIN_DATADESC( CWeaponShotgun )
 	DEFINE_FIELD( m_bNeedPump, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bDelayedFire1, FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_bDelayedFire2, FIELD_BOOLEAN ),
+	DEFINE_FIELD( m_flReloadEnd, FIELD_TIME),
 
 END_DATADESC()
 
@@ -266,7 +270,29 @@ float CWeaponShotgun::GetFireRate()
 
 	return 0.7;
 }
+bool CWeaponShotgun::Deploy(void)
+{
+	Msg("SDE_SMG!_deploy\n");
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+	{
+		pPlayer->ShowCrosshair(true);
+	}
 
+	if (m_bBoltRequired && m_iClip1)
+		m_bBoltRequired = false;
+
+	bool return_value = BaseClass::Deploy();
+	
+	if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType))
+		m_flReloadEnd = gpGlobals->curtime + SequenceDuration() + 0.1f; // a little past deploy animation as reloading will follow
+	else
+		m_flReloadEnd = gpGlobals->curtime + SequenceDuration();
+
+	m_bInReload = true; // to suppress toggle ironsight in deploy bolting animation
+	
+	return return_value;
+}
 //-----------------------------------------------------------------------------
 // Purpose: Override so only reload one shell at a time
 // Input  :
@@ -290,10 +316,10 @@ bool CWeaponShotgun::StartReload( void )
 	//NOTENOTE: This is kinda lame because the player doesn't get strong feedback on when the reload has finished,
 	//			without the pump.  Technically, it's incorrect, but it's good for feedback...
 
-	if (m_iClip1 <= 0)
+	/*if (m_iClip1 <= 0)
 	{
 		m_bNeedPump = true;
-	}
+	}*/
 
 	int j = MIN(1, pOwner->GetAmmoCount(m_iPrimaryAmmoType));
 
@@ -307,8 +333,12 @@ bool CWeaponShotgun::StartReload( void )
 
 	pOwner->m_flNextAttack = gpGlobals->curtime;
 	m_flNextPrimaryAttack = gpGlobals->curtime + SequenceDuration();
+	m_flReloadEnd = m_flNextPrimaryAttack + 0.1f; // moved a little past primary attack
 
 	m_bInReload = true;
+
+	DisableIronsights();
+
 	return true;
 }
 
@@ -319,6 +349,7 @@ bool CWeaponShotgun::StartReload( void )
 //-----------------------------------------------------------------------------
 bool CWeaponShotgun::Reload( void )
 {
+	DisableIronsights();
 	// Check that StartReload was called first
 	if (!m_bInReload)
 	{
@@ -329,6 +360,9 @@ bool CWeaponShotgun::Reload( void )
 	
 	if ( pOwner == NULL )
 		return false;
+
+	if (pOwner->IsPlayer())
+		((CBasePlayer*)pOwner)->ShowCrosshair(true); // show crosshair to fix crosshair for reloading weapons in toggle ironsight
 
 	if (pOwner->GetAmmoCount(m_iPrimaryAmmoType) <= 0)
 		return false;
@@ -348,6 +382,7 @@ bool CWeaponShotgun::Reload( void )
 
 	pOwner->m_flNextAttack = gpGlobals->curtime;
 	m_flNextPrimaryAttack = gpGlobals->curtime + SequenceDuration();
+	m_flReloadEnd = m_flNextPrimaryAttack + 0.1f; // moved a little past primary attack
 
 	return true;
 }
@@ -366,14 +401,25 @@ void CWeaponShotgun::FinishReload( void )
 	
 	if ( pOwner == NULL )
 		return;
+	
+	if (m_bBoltRequired)
+	{
+		//Pump();
+		SendWeaponAnim(ACT_SHOTGUN_RELOAD_FINISH);
+		m_flNextPrimaryAttack = m_flNextSecondaryAttack = m_flReloadEnd = gpGlobals->curtime + SequenceDuration();
+		m_bBoltRequired = false;	
+	}
 
-	m_bInReload = false;
+	else
+	{
+		m_bNeedPump = false;
+		SendWeaponAnim(ACT_VM_RELOAD_NOBOLD);
+		pOwner->m_flNextAttack = gpGlobals->curtime;
+		m_flNextPrimaryAttack = m_flNextSecondaryAttack = m_flReloadEnd = gpGlobals->curtime + SequenceDuration();
+	}
 
-	// Finish reload animation
-	SendWeaponAnim( ACT_SHOTGUN_RELOAD_FINISH );
+	//SendWeaponAnim(ACT_SHOTGUN_RELOAD_FINISH);
 
-	pOwner->m_flNextAttack = gpGlobals->curtime;
-	m_flNextPrimaryAttack = gpGlobals->curtime + SequenceDuration();
 }
 
 //-----------------------------------------------------------------------------
@@ -450,10 +496,20 @@ void CWeaponShotgun::PrimaryAttack( void )
 		return;
 	}
 
+	if (m_bBoltRequired && m_iClip1 > 0) // if reloading from the empty magazine, interrupt loading and chamber a round
+	{
+		SendWeaponAnim(ACT_SHOTGUN_RELOAD_FINISH);
+		m_flNextPrimaryAttack = m_flNextSecondaryAttack = m_flReloadEnd = gpGlobals->curtime + SequenceDuration();
+		//Pump();
+		m_bBoltRequired = false;
+		return;
+	}
+
 	// MUST call sound before removing a round from the clip of a CMachineGun
 	WeaponSound(SINGLE);
 
 	pPlayer->DoMuzzleFlash();
+
 
 	SendWeaponAnim( ACT_VM_PRIMARYATTACK );
 
@@ -467,7 +523,7 @@ void CWeaponShotgun::PrimaryAttack( void )
 	Vector	vecSrc		= pPlayer->Weapon_ShootPosition( );
 	Vector	vecAiming	= pPlayer->GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );	
 
-	pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 1.0 );
+	pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 1.0 ); //suda posmitret pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 1.0 );
 	
 	// Fire the bullets, and force the first shot to be perfectly accuracy
 	pPlayer->FireBullets( sk_plr_num_shotgun_pellets.GetInt(), vecSrc, vecAiming, GetBulletSpread(), MAX_TRACE_LENGTH, m_iPrimaryAmmoType, 0, -1, -1, 0, NULL, true, true );
@@ -485,11 +541,27 @@ void CWeaponShotgun::PrimaryAttack( void )
 	if( m_iClip1 )
 	{
 		// pump so long as some rounds are left.
-		m_bNeedPump = true;
+		//m_bNeedPump = true;
 	}
 
 	m_iPrimaryAttacks++;
 	gamestats->Event_WeaponFired( pPlayer, true, GetClassname() );
+}
+
+void CWeaponShotgun::HoldIronsight(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+
+	if (pPlayer->m_afButtonPressed & IN_IRONSIGHT)
+	{
+		EnableIronsights();
+		pPlayer->ShowCrosshair(false);
+	}
+	if (pPlayer->m_afButtonReleased & IN_IRONSIGHT)
+	{
+		DisableIronsights();
+		pPlayer->ShowCrosshair(true);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -499,54 +571,56 @@ void CWeaponShotgun::PrimaryAttack( void )
 //-----------------------------------------------------------------------------
 void CWeaponShotgun::SecondaryAttack( void )
 {
-	// Only the player fires this way so we can cast
-	CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );
-
-	if (!pPlayer)
+	if (m_bInReload && m_iClip1 > 0)
 	{
-		return;
+		FinishReload();
 	}
-
-	pPlayer->m_nButtons &= ~IN_ATTACK2;
-	// MUST call sound before removing a round from the clip of a CMachineGun
-	WeaponSound(WPN_DOUBLE);
-
-	pPlayer->DoMuzzleFlash();
-
-	SendWeaponAnim( ACT_VM_SECONDARYATTACK );
-
-	// player "shoot" animation
-	pPlayer->SetAnimation( PLAYER_ATTACK1 );
-
-	// Don't fire again until fire animation has completed
-	m_flNextPrimaryAttack = gpGlobals->curtime + SequenceDuration();
-	m_iClip1 -= 2;	// Shotgun uses same clip for primary and secondary attacks
-
-	Vector vecSrc	 = pPlayer->Weapon_ShootPosition();
-	Vector vecAiming = pPlayer->GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );	
-
-	// Fire the bullets
-	pPlayer->FireBullets( 12, vecSrc, vecAiming, GetBulletSpread(), MAX_TRACE_LENGTH, m_iPrimaryAmmoType, 0, -1, -1, 0, NULL, false, false );
-	pPlayer->ViewPunch( QAngle(random->RandomFloat( -5, 5 ),0,0) );
-
-	pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 1.0 );
-
-	CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_SHOTGUN, 0.2 );
-
-	if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType) <= 0)
-	{
-		// HEV suit - indicate out of ammo condition
-		pPlayer->SetSuitUpdate("!HEV_AMO0", FALSE, 0); 
-	}
-
-	if( m_iClip1 )
-	{
-		// pump so long as some rounds are left.
-		m_bNeedPump = true;
-	}
-
-	m_iSecondaryAttacks++;
-	gamestats->Event_WeaponFired( pPlayer, false, GetClassname() );
+	//// Only the player fires this way so we can cast
+	//CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );
+	//
+	//if (!pPlayer)
+	//	return;
+	//
+	//pPlayer->m_nButtons &= ~IN_ATTACK2;
+	//// MUST call sound before removing a round from the clip of a CMachineGun
+	//WeaponSound(WPN_DOUBLE);
+	//
+	//pPlayer->DoMuzzleFlash();
+	//
+	//SendWeaponAnim( ACT_VM_SECONDARYATTACK );
+	//
+	//// player "shoot" animation
+	//pPlayer->SetAnimation( PLAYER_ATTACK1 );
+	//
+	//// Don't fire again until fire animation has completed
+	//m_flNextPrimaryAttack = gpGlobals->curtime + SequenceDuration();
+	//m_iClip1 -= 2;	// Shotgun uses same clip for primary and secondary attacks
+	//
+	//Vector vecSrc	 = pPlayer->Weapon_ShootPosition();
+	//Vector vecAiming = pPlayer->GetAutoaimVector( AUTOAIM_SCALE_DEFAULT );	
+	//
+	//// Fire the bullets
+	//pPlayer->FireBullets( 12, vecSrc, vecAiming, GetBulletSpread(), MAX_TRACE_LENGTH, m_iPrimaryAmmoType, 0, -1, -1, 0, NULL, false, false );
+	//pPlayer->ViewPunch( QAngle(random->RandomFloat( -5, 5 ),0,0) );
+	//
+	//pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 1.0 );
+	//
+	//CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_SHOTGUN, 0.2 );
+	//
+	//if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType) <= 0)
+	//{
+	//	// HEV suit - indicate out of ammo condition
+	//	pPlayer->SetSuitUpdate("!HEV_AMO0", FALSE, 0); 
+	//}
+	//
+	//if( m_iClip1 )
+	//{
+	//	// pump so long as some rounds are left.
+	//	m_bNeedPump = true;
+	//}
+	//
+	//m_iSecondaryAttacks++;
+	//gamestats->Event_WeaponFired( pPlayer, false, GetClassname() );
 }
 	
 //-----------------------------------------------------------------------------
@@ -554,29 +628,40 @@ void CWeaponShotgun::SecondaryAttack( void )
 //-----------------------------------------------------------------------------
 void CWeaponShotgun::ItemPostFrame( void )
 {
-	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
+	CBasePlayer *pOwner = ToBasePlayer(GetOwner());
 	if (!pOwner)
 	{
 		return;
 	}
 
+	if (!m_bInReload)
+		HoldIronsight();
+
+	DisplaySDEHudHint(); //added
+
+	if (!m_bBoltRequired && m_iClip1 < 1)
+		m_bBoltRequired = true;
+
 	if (m_bInReload)
 	{
+		if (m_flReloadEnd <= gpGlobals->curtime)
+		{
+			m_bInReload = false; // moved here to not happen before loading animations finish
+			return;
+		}
 		// If I'm primary firing and have one round stop reloading and fire
 		if ((pOwner->m_nButtons & IN_ATTACK ) && (m_iClip1 >=1))
 		{
-			m_bInReload		= false;
 			m_bNeedPump		= false;
 			m_bDelayedFire1 = true;
 		}
 		// If I'm secondary firing and have one round stop reloading and fire
-		else if ((pOwner->m_nButtons & IN_ATTACK2 ) && (m_iClip1 >=2))
+		else if ((pOwner->m_nButtons & IN_ATTACK2 ) && (m_iClip1 >=1))
 		{
-			m_bInReload		= false;
 			m_bNeedPump		= false;
 			m_bDelayedFire2 = true;
 		}
-		else if (m_flNextPrimaryAttack <= gpGlobals->curtime)
+		else if (!(m_bDelayedFire1 || m_bDelayedFire2) && m_flNextPrimaryAttack <= gpGlobals->curtime)
 		{
 			// If out of ammo end reload
 			if (pOwner->GetAmmoCount(m_iPrimaryAmmoType) <=0)
@@ -611,18 +696,19 @@ void CWeaponShotgun::ItemPostFrame( void )
 	}
 	
 	// Shotgun uses same timing and ammo for secondary attack
-	if ((m_bDelayedFire2 || pOwner->m_nButtons & IN_ATTACK2)&&(m_flNextPrimaryAttack <= gpGlobals->curtime))
+	if ((m_bDelayedFire2 || pOwner->m_nButtons & IN_ATTACK2) && (m_flNextPrimaryAttack <= gpGlobals->curtime))
 	{
 		m_bDelayedFire2 = false;
-		
-		if ( (m_iClip1 <= 1 && UsesClipsForAmmo1()))
+		m_bDelayedFire1 = false; // in case a different attack click happened very soon after interrupting reload
+
+		if ( (m_iClip1 <= 0 && UsesClipsForAmmo1()))
 		{
-			// If only one shell is left, do a single shot instead	
-			if ( m_iClip1 == 1 )
+			// If only one shell is left, do a single shot instead - irrelevant for SDE
+			/*if ( m_iClip1 == 1 )
 			{
 				PrimaryAttack();
 			}
-			else if (!pOwner->GetAmmoCount(m_iPrimaryAmmoType))
+			else */ if (!pOwner->GetAmmoCount(m_iPrimaryAmmoType))
 			{
 				DryFire();
 			}
@@ -642,7 +728,7 @@ void CWeaponShotgun::ItemPostFrame( void )
 		else
 		{
 			// If the firing button was just pressed, reset the firing time
-			if ( pOwner->m_afButtonPressed & IN_ATTACK )
+			if ( pOwner->m_afButtonPressed & IN_ATTACK2 )
 			{
 				 m_flNextPrimaryAttack = gpGlobals->curtime;
 			}
@@ -652,6 +738,8 @@ void CWeaponShotgun::ItemPostFrame( void )
 	else if ( (m_bDelayedFire1 || pOwner->m_nButtons & IN_ATTACK) && m_flNextPrimaryAttack <= gpGlobals->curtime)
 	{
 		m_bDelayedFire1 = false;
+		m_bDelayedFire2 = false; // in case a different attack click happened very soon after interrupting reload
+
 		if ( (m_iClip1 <= 0 && UsesClipsForAmmo1()) || ( !UsesClipsForAmmo1() && !pOwner->GetAmmoCount(m_iPrimaryAmmoType) ) )
 		{
 			if (!pOwner->GetAmmoCount(m_iPrimaryAmmoType))

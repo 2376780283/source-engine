@@ -324,6 +324,7 @@ FileWeaponInfo_t::FileWeaponInfo_t()
 	iMaxClip2 = 0;
 	iDefaultClip1 = 0;
 	iDefaultClip2 = 0;
+	iDefaultIsFOV = 0; //added
 	iWeight = 0;
 	iRumbleEffect = -1;
 	bAutoSwitchTo = false;
@@ -358,6 +359,31 @@ void FileWeaponInfo_t::Parse( KeyValues *pKeyValuesData, const char *szWeaponNam
 	// Okay, we tried at least once to look this up...
 	bParsedScript = true;
 
+	//new
+	// this just saves off the data in the script file for later use
+	KeyValues *pSights = pKeyValuesData->FindKey("IronSight");
+	if (pSights)
+	{
+		iconCrosshair = 0;
+		vecIronsightPosOffset.x = pSights->GetFloat("forward", 0.0f);
+		vecIronsightPosOffset.y = pSights->GetFloat("right", 0.0f);
+		vecIronsightPosOffset.z = pSights->GetFloat("up", 0.0f);
+
+		angIronsightAngOffset[PITCH] = pSights->GetFloat("pitch", 0.0f);
+		angIronsightAngOffset[YAW] = pSights->GetFloat("yaw", 0.0f);
+		angIronsightAngOffset[ROLL] = pSights->GetFloat("roll", 0.0f);
+
+		flIronsightFOVOffset = pSights->GetFloat("fov", 0.0f);
+	}
+	else
+	{
+		//note: you can set a bool here if you'd like to disable ironsights for weapons with no IronSight-key
+		vecIronsightPosOffset = vec3_origin;
+		angIronsightAngOffset.Init();
+		flIronsightFOVOffset = 0.0f;
+	}
+	//endnew
+
 	// Classname
 	Q_strncpy( szClassName, szWeaponName, MAX_WEAPON_STRING );
 	// Printable name
@@ -383,6 +409,7 @@ void FileWeaponInfo_t::Parse( KeyValues *pKeyValuesData, const char *szWeaponNam
 	iMaxClip2 = pKeyValuesData->GetInt( "clip2_size", WEAPON_NOCLIP );					// Max secondary clips gun can hold (assume they don't use clips by default)
 	iDefaultClip1 = pKeyValuesData->GetInt( "default_clip", iMaxClip1 );		// amount of primary ammo placed in the primary clip when it's picked up
 	iDefaultClip2 = pKeyValuesData->GetInt( "default_clip2", iMaxClip2 );		// amount of secondary ammo placed in the secondary clip when it's picked up
+	iDefaultIsFOV = pKeyValuesData->GetInt("default_dynamic_fov", 45.0f); //added
 	iWeight = pKeyValuesData->GetInt( "weight", 0 );
 
 	iRumbleEffect = pKeyValuesData->GetInt( "rumble", -1 );

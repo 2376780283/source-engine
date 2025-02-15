@@ -49,6 +49,7 @@ public:
 	float		GetDamageForActivity( Activity hitActivity );
 	void		SecondaryAttack( void )	{	return;	}
 
+
 	void		Drop( const Vector &vecVelocity );
 
 

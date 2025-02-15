@@ -49,6 +49,9 @@ public:
 	void	ItemPreFrame( void );
 	void	ItemBusyFrame( void );
 	void	PrimaryAttack( void );
+	void	HoldIronsight(void);
+	bool	Deploy(void);
+
 	void	AddViewKick( void );
 	void	DryFire( void );
 	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
@@ -85,6 +88,7 @@ public:
 			// Old value
 			cone = VECTOR_CONE_4DEGREES;
 		}
+
 
 		return cone;
 	}
@@ -135,6 +139,7 @@ acttable_t	CWeaponPistol::m_acttable[] =
 	{ ACT_IDLE_ANGRY,				ACT_IDLE_ANGRY_PISTOL,			true },
 	{ ACT_RANGE_ATTACK1,			ACT_RANGE_ATTACK_PISTOL,		true },
 	{ ACT_RELOAD,					ACT_RELOAD_PISTOL,				true },
+	{ ACT_VM_RELOAD_NOBOLD,			ACT_RELOAD_PISTOL, true },
 	{ ACT_WALK_AIM,					ACT_WALK_AIM_PISTOL,			true },
 	{ ACT_RUN_AIM,					ACT_RUN_AIM_PISTOL,				true },
 	{ ACT_GESTURE_RANGE_ATTACK1,	ACT_GESTURE_RANGE_ATTACK_PISTOL,true },
@@ -173,7 +178,21 @@ void CWeaponPistol::Precache( void )
 {
 	BaseClass::Precache();
 }
+bool CWeaponPistol::Deploy(void)
+{
 
+	Msg("SDE_SMG!_deploy\n");
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+		pPlayer->ShowCrosshair(true);
+	DisplaySDEHudHint();
+
+	bool return_value = BaseClass::Deploy();
+
+	m_bForbidIronsight = true; // to suppress ironsight during deploy as the weapon is bolted. Behavior of ironsightable weapons that DO bolt on deploy
+
+	return return_value;
+}
 //-----------------------------------------------------------------------------
 // Purpose:
 // Input  :
@@ -300,16 +319,27 @@ void CWeaponPistol::ItemBusyFrame( void )
 //-----------------------------------------------------------------------------
 void CWeaponPistol::ItemPostFrame( void )
 {
+	CBasePlayer *pOwner = ToBasePlayer(GetOwner());
+
+	if (pOwner == NULL)
+		return;
+
+	if (m_bForbidIronsight && gpGlobals->curtime >= m_flNextPrimaryAttack)
+	{
+		m_bForbidIronsight = false;
+		if (!m_iClip1 && pOwner->GetAmmoCount(m_iPrimaryAmmoType))
+			Reload();
+	}
+
+	// Ironsight if not reloading or deploying
+	if (!(m_bInReload || m_bForbidIronsight))
+		HoldIronsight();
+
 	BaseClass::ItemPostFrame();
 
 	if ( m_bInReload )
 		return;
 	
-	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
-
-	if ( pOwner == NULL )
-		return;
-
 	//Allow a refire as fast as the player can click
 	if ( ( ( pOwner->m_nButtons & IN_ATTACK ) == false ) && ( m_flSoonestPrimaryAttack < gpGlobals->curtime ) )
 	{
@@ -343,13 +373,53 @@ Activity CWeaponPistol::GetPrimaryAttackActivity( void )
 //-----------------------------------------------------------------------------
 bool CWeaponPistol::Reload( void )
 {
-	bool fRet = DefaultReload( GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD );
-	if ( fRet )
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
 	{
-		WeaponSound( RELOAD );
-		m_flAccuracyPenalty = 0.0f;
+		pPlayer->ShowCrosshair(true); // show crosshair to fix crosshair for reloading weapons in toggle ironsight
+		SetNextThink(gpGlobals->curtime + 5.2);
+		if (m_iClip1 < 1)
+		{
+			//Msg("SDE_R+ \n");
+			
+			bool fRet = DefaultReload(GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD);
+			if (fRet)
+			{
+				WeaponSound(RELOAD);
+			}
+			return fRet;
+		}
+		else
+		{
+			//Msg("SDE_R- \n");
+			bool fRet = DefaultReload(GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD_NOBOLD);
+			if (fRet)
+			{
+				WeaponSound(RELOAD);
+			}
+			return fRet;
+		}
 	}
-	return fRet;
+	else
+	{
+		return false;
+	}
+}
+
+void CWeaponPistol::HoldIronsight(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+
+	if (pPlayer->m_afButtonPressed & IN_IRONSIGHT)
+	{
+		EnableIronsights();
+		pPlayer->ShowCrosshair(false);
+	}
+	if (pPlayer->m_afButtonReleased & IN_IRONSIGHT)
+	{
+		DisableIronsights();
+		pPlayer->ShowCrosshair(true);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -371,3 +441,6 @@ void CWeaponPistol::AddViewKick( void )
 	//Add it to the view punch
 	pPlayer->ViewPunch( viewPunch );
 }
+
+
+

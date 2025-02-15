@@ -156,8 +156,8 @@ void CFish::Spawn( void )
 	m_perp.z = 0.0f;
 
 	m_speed = 0.0f;
-	m_calmSpeed = RandomFloat( 10.0f, 20.0f );
-	m_panicSpeed = m_calmSpeed * RandomFloat( 4.0f, 5.0f );
+	m_calmSpeed = RandomFloat( 20.0f, 40.0f ); // m_calmSpeed = RandomFloat( 10.0f, 20.0f );
+	m_panicSpeed = m_calmSpeed * RandomFloat( 4.0f, 5.0f ); //m_panicSpeed = m_calmSpeed * RandomFloat( 4.0f, 5.0f );
 	m_desiredSpeed = m_calmSpeed;
 
 	m_turnClockwise = (RandomInt( 0, 100 ) < 50);
@@ -480,22 +480,22 @@ void CFish::Update( float deltaT )
 	Vector vel = m_speed * m_forward;
 
 	// don't allow fish to leave maximum range of pool
-	if (deltaPos.IsLengthGreaterThan( m_pool->GetMaxRange() - safetyMargin ))
-	{
-		Vector toCenter = -deltaPos;
-
-		float radial = DotProduct( toCenter, vel );
-		if (radial < 0.0f)
-		{
-			// heading out of range, zero the radial velocity component
-			toCenter.NormalizeInPlace();
-			Vector perp( -toCenter.y, toCenter.x, 0.0f );
-
-			float side = DotProduct( perp, vel );
-
-			vel = side * perp;
-		}
-	}
+	//if (deltaPos.IsLengthGreaterThan( m_pool->GetMaxRange() - safetyMargin ))
+	//{
+	//	Vector toCenter = -deltaPos;
+	//
+	//	float radial = DotProduct( toCenter, vel );
+	//	if (radial < 0.0f)
+	//	{
+	//		// heading out of range, zero the radial velocity component
+	//		toCenter.NormalizeInPlace();
+	//		Vector perp( -toCenter.y, toCenter.x, 0.0f );
+	//
+	//		float side = DotProduct( perp, vel );
+	//
+	//		vel = side * perp;
+	//	}
+	//}
 
 	SetAbsVelocity( vel );
 
@@ -639,7 +639,7 @@ void CFishPool::FireGameEvent( IGameEvent *event )
 	
 	// the fish panic
 	const float loudRange = 500.0f;
-	const float quietRange = 75.0f;
+	const float quietRange = 140.0f; //const float quietRange = 75.0f;
 
 	float range = (Q_strcmp( "player_footstep", event->GetName() )) ? loudRange : quietRange;
 

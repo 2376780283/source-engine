@@ -28,7 +28,7 @@ ConVar sk_npc_dmg_fraggrenade	( "sk_npc_dmg_fraggrenade","0");
 ConVar sk_fraggrenade_radius	( "sk_fraggrenade_radius", "0");
 
 #define GRENADE_MODEL "models/Weapons/w_grenade.mdl"
-
+#define GRENADE_MODEL3 "models/Weapons/w_spide.mdl"
 class CGrenadeFrag : public CBaseGrenade
 {
 	DECLARE_CLASS( CGrenadeFrag, CBaseGrenade );
@@ -278,6 +278,7 @@ void CGrenadeFrag::VPhysicsUpdate( IPhysicsObject *pPhysics )
 void CGrenadeFrag::Precache( void )
 {
 	PrecacheModel( GRENADE_MODEL );
+	PrecacheModel( GRENADE_MODEL3);
 
 	PrecacheScriptSound( "Grenade.Blip" );
 
@@ -431,7 +432,31 @@ CBaseGrenade *Fraggrenade_Create( const Vector &position, const QAngle &angles, 
 
 	return pGrenade;
 }
+CBaseGrenade *Fraggrenade_Create2(const Vector &position, const QAngle &angles, const Vector &velocity, const AngularImpulse &angVelocity, CBaseEntity *pOwner, float timer, bool combineSpawned)
+{
+	// Don't set the owner here, or the player can't interact with grenades he's thrown
+	CGrenadeFrag *pGrenade = (CGrenadeFrag *)CBaseEntity::Create("item_adot", position, angles, pOwner);
 
+//	pGrenade->SetVelocity(velocity, angVelocity);
+//	pGrenade->SetThrower(ToBaseCombatCharacter(pOwner));
+//	pGrenade->m_takedamage = DAMAGE_EVENTS_ONLY;
+//	pGrenade->SetCombineSpawned(combineSpawned);
+
+	return pGrenade;
+}
+CBaseGrenade *Fraggrenade_Create3(const Vector &position, const QAngle &angles, const Vector &velocity, const AngularImpulse &angVelocity, CBaseEntity *pOwner, float timer, bool combineSpawned)
+{
+	// Don't set the owner here, or the player can't interact with grenades he's thrown
+	CGrenadeFrag *pGrenade = (CGrenadeFrag *)CBaseEntity::Create("weapon_lopata", position, angles, pOwner);
+
+		pGrenade->SetVelocity(velocity, angVelocity);
+		pGrenade->SetThrower(ToBaseCombatCharacter(pOwner));
+		pGrenade->SetThrower(ToBaseCombatCharacter(pOwner));
+		pGrenade->m_takedamage = DAMAGE_EVENTS_ONLY;
+		pGrenade->SetCombineSpawned(combineSpawned);
+
+	return pGrenade;
+}
 bool Fraggrenade_WasPunted( const CBaseEntity *pEntity )
 {
 	const CGrenadeFrag *pFrag = dynamic_cast<const CGrenadeFrag *>( pEntity );

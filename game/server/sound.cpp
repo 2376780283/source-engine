@@ -885,11 +885,14 @@ void CAmbientGeneric::SendSound( SoundFlags_t flags)
 		{
 			UTIL_EmitAmbientSound(pSoundSource->GetSoundSourceIndex(), pSoundSource->GetAbsOrigin(), szSoundFile, 
 						0, SNDLVL_NONE, flags, 0);
+			m_fActive = false;		//added sound fix
 		}
 		else
 		{
 			UTIL_EmitAmbientSound(pSoundSource->GetSoundSourceIndex(), pSoundSource->GetAbsOrigin(), szSoundFile, 
 				(m_dpv.vol * 0.01), m_iSoundLevel, flags, m_dpv.pitch);
+			if (m_fLooping)			//added sound fix
+				m_fActive = true;	//added sound fix
 		}
 	}	
 	else
@@ -899,6 +902,7 @@ void CAmbientGeneric::SendSound( SoundFlags_t flags)
 		{
 			UTIL_EmitAmbientSound(m_nSoundSourceEntIndex, GetAbsOrigin(), szSoundFile, 
 					0, SNDLVL_NONE, flags, 0);
+			m_fActive = false;		//added sound fix
 		}
 	}
 }

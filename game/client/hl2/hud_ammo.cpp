@@ -14,7 +14,10 @@
 #include <vgui_controls/AnimationController.h>
 #include <vgui/ILocalize.h>
 #include <vgui/ISurface.h>
+#include <vgui/IVGui.h>
 #include "ihudlcd.h"
+#include <c_basehlplayer.h>
+//#include <GrenadeLaunchersLoaded.h>
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -363,11 +366,35 @@ public:
 	{
 		m_iAmmo = -1;
 
-		SetHiddenBits( HIDEHUD_HEALTH | HIDEHUD_WEAPONSELECTION | HIDEHUD_PLAYERDEAD | HIDEHUD_NEEDSUIT );
+		m_iSMG1_GL_Loaded = false;
+		m_iAR1M1_GL_Loaded = false;
+		m_iSMG1_GL_action_failed = false;
+		m_iAR1M1_GL_action_failed = false;
+
+		// WeaponZeroSecondaryAmmo_Animated = false;
+
+		//tickstarted = false;
+
+		// ivgui()->AddTickSignal(GetVPanel(), 17); // refresh with 60 fps rate
+
+		SetHiddenBits(HIDEHUD_HEALTH | HIDEHUD_WEAPONSELECTION | HIDEHUD_PLAYERDEAD | HIDEHUD_NEEDSUIT);
 	}
 
 	void Init( void )
 	{
+		/*
+		m_iSMG1_GL_Loaded = false;
+		m_iAR1M1_GL_Loaded = false;
+		m_iSMG1_GL_action_failed = false;
+		m_iAR1M1_GL_action_failed = false;
+		*/
+
+		//tickstarted = false;
+
+		//ivgui()->AddTickSignal(GetVPanel(), 17); // refresh with 60 fps rate
+
+		//ivgui()->AddTickSignal(GetVPanel());
+
 #ifndef HL2MP
 		wchar_t *tempString = g_pVGuiLocalize->Find("#Valve_Hud_AMMO_ALT");
 		if (tempString)
@@ -385,28 +412,100 @@ public:
 	{
 	}
 
-	void SetAmmo( int ammo )
+	// float ZeroSecondaryAmmo_Previous_Start_Time;
+
+	bool SMG1_GL_Loaded;
+	bool AR1M1_GL_Loaded;
+
+	void SetAmmo(int ammo, C_BaseHLPlayer *HLPlayer, const char* ActiveWeaponName, bool SMG1_GL_Loaded, bool AR1M1_GL_Loaded)
+	//void SetAmmo(int ammo)
 	{
-		if (ammo != m_iAmmo)
+
+		/*bool SMG1_GLAF = HLPlayer->Get_SMG1_GLAF();
+		bool AR1M1_GLAF = HLPlayer->Get_AR1M1_GLAF();
+
+		if ((SMG1_GLAF && strcmp(ActiveWeaponName, "weapon_smg1") == 0) || (AR1M1_GLAF && strcmp(ActiveWeaponName, "weapon_ar1m1") == 0)) //if the player picks up SMG1/AR1M1 with no secondary ammo, its widget is still default color, but paint it red when firing with no ammo
 		{
-			if (ammo == 0)
+			g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("AmmoSecondaryEmpty");
+			if (SMG1_GLAF)
 			{
-				g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("AmmoSecondaryEmpty");
+				HLPlayer->SMG1_GL_action_failed_reset();
+				SMG1_GLAF = false;
+			}
+			if (AR1M1_GLAF)
+			{
+				HLPlayer->AR1M1_GL_action_failed_reset();
+				AR1M1_GLAF = false;
+			}
+		}*/
+
+		/* if (ammo == 0 && WeaponZeroSecondaryAmmo_Animated == false)
+		{
+			g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("AmmoSecondaryEmpty");
+			ZeroSecondaryAmmo_Previous_Start_Time = gpGlobals->curtime;
+			//engine->ClientCmd("testhudanim AmmoSecondaryEmpty");
+			WeaponZeroSecondaryAmmo_Animated = true;
+		}
+
+		if (gpGlobals->curtime >= ZeroSecondaryAmmo_Previous_Start_Time + g_pClientMode->GetViewportAnimationController()->GetAnimationSequenceLength("AmmoSecondaryEmpty"))
+		{
+			WeaponZeroSecondaryAmmo_Animated = false;
+		}*/
+
+
+		if (ammo == 0)
+		{
+			g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("AmmoSecondaryEmpty");
+		}
+
+		if (ammo != m_iAmmo || m_iSMG1_GL_Loaded != SMG1_GL_Loaded || m_iAR1M1_GL_Loaded != AR1M1_GL_Loaded) // ammo amount changed or the player reloaded the grenade launcher means we call the animation
+		{
+
+			if (ammo < m_iAmmo && (strcmp(ActiveWeaponName, "weapon_smg1") == 0 || strcmp(ActiveWeaponName, "weapon_ar1m1") == 0))
+			{
+				// ammo has decreased and current weapon is SMG1 or AR1M1 means that its grenade launcher is unloaded
+				g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("AmmoSecondaryDecreasedUnloaded");
+				//engine->ClientCmd("testhudanim AmmoSecondaryDecreasedUnloaded");
 			}
 			else if (ammo < m_iAmmo)
 			{
 				// ammo has decreased
 				g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("AmmoSecondaryDecreased");
+				//engine->ClientCmd("testhudanim AmmoSecondaryDecreased");
+			}
+			else if (SMG1_GL_Loaded == false && (strcmp(ActiveWeaponName, "weapon_smg1") == 0) || (AR1M1_GL_Loaded == false && strcmp(ActiveWeaponName, "weapon_ar1m1") == 0))
+			{
+				// ammunition has increased but active weapon is SMG1 or AR1M1 and its grenade launcher is unloaded
+				g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("AmmoSecondaryIncreasedUnloaded");
+				//engine->ClientCmd("testhudanim AmmoSecondaryIncreasedUnloaded");
 			}
 			else
 			{
-				// ammunition has increased
+				// ammunition has increased or grenade launcher has been loaded
 				g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("AmmoSecondaryIncreased");
+				//engine->ClientCmd("testhudanim AmmoSecondaryIncreased");
 			}
 
+		}
+
+		//}
+
+		if (m_iAmmo != ammo)
+		{
 			m_iAmmo = ammo;
 		}
-		SetDisplayValue( ammo );
+
+		if (m_iSMG1_GL_Loaded != SMG1_GL_Loaded)
+		{
+			m_iSMG1_GL_Loaded = SMG1_GL_Loaded;
+		}
+
+		if (m_iAR1M1_GL_Loaded != AR1M1_GL_Loaded)
+		{
+			m_iAR1M1_GL_Loaded = AR1M1_GL_Loaded;
+		}
+		
+		SetDisplayValue(ammo);
 	}
 
 	void Reset()
@@ -434,7 +533,15 @@ public:
 			int x = text_xpos + ( nLabelWidth - m_iconSecondaryAmmo->Width() ) / 2;
 			int y = text_ypos - ( nLabelHeight + ( m_iconSecondaryAmmo->Height() / 2 ) );
 
-			m_iconSecondaryAmmo->DrawSelf( x, y, GetFgColor() );
+			/*C_BaseCombatWeapon *wpn = GetActiveWeapon();
+
+			const char* ActiveWeaponName = wpn->GetName();
+
+			if (strcmp (ActiveWeaponName,"weapon_smg1") == 0 && !SMG1_GL_Loaded)
+			m_iconSecondaryAmmo->DrawSelf( x, y, Color (255, 0, 0, 255) );
+			else
+			*/
+			m_iconSecondaryAmmo->DrawSelf(x, y, GetFgColor());
 		}
 #endif // HL2MP
 	}
@@ -461,16 +568,74 @@ protected:
 		}
 
 		UpdateAmmoState();
+
+		/*if (tickstarted == false)
+		{
+			//ivgui()->AddTickSignal(GetVPanel(), 3000); // every 3 seconds for test purpose
+			//ivgui()->AddTickSignal(GetVPanel(), 17); //  refresh with 60 fps rate
+			ivgui()->AddTickSignal(GetVPanel()); // for some hell the second argument is hard-coded to 0 in IVGui.h
+			tickstarted = true;
+		}*/
 	}
+
+	/*virtual void OnThink() // to launch ticker only, as all the updating is done by OnTick()
+	{
+	if (tickstarted == false)
+	{
+	//ivgui()->AddTickSignal(GetVPanel(), 17); // refresh with 60 fps rate
+	ivgui()->AddTickSignal(GetVPanel()); // for some hell the second argument is hard-coded to 0 in IVGui.h
+	tickstarted = true;
+	}
+
+	}*/
+
+	/*virtual void OnTick()
+	{
+		every2000ticks = (every2000ticks + 1) % 2000;
+		if (every2000ticks == 0 && SMG1_GL_Loaded == true)
+			g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("AmmoSecondaryIncreased");
+	}*/
+
+	/*virtual void OnTick()
+	{
+
+		// set whether or not the panel draws based on if we have a weapon that supports secondary ammo
+		C_BaseCombatWeapon *wpn = GetActiveWeapon();
+		C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
+		IClientVehicle *pVehicle = player ? player->GetVehicle() : NULL;
+		if (!wpn || !player || pVehicle)
+		{
+			m_hCurrentActiveWeapon = NULL;
+			SetPaintEnabled(false);
+			SetPaintBackgroundEnabled(false);
+			return;
+		}
+		else
+		{
+			SetPaintEnabled(true);
+			SetPaintBackgroundEnabled(true);
+		}
+
+		every2000ticks = (every2000ticks + 1) % 2000;
+		if (every2000ticks == 0)
+		UpdateAmmoState();
+	}*/
 
 	void UpdateAmmoState()
 	{
 		C_BaseCombatWeapon *wpn = GetActiveWeapon();
-		C_BasePlayer *player = C_BasePlayer::GetLocalPlayer();
+		C_BaseHLPlayer *player = (C_BaseHLPlayer *)C_BasePlayer::GetLocalPlayer();
+		const char* ActiveWeaponName = NULL;
+		int ammo = 0;
 
 		if (player && wpn && wpn->UsesSecondaryAmmo())
 		{
-			SetAmmo(player->GetAmmoCount(wpn->GetSecondaryAmmoType()));
+			SMG1_GL_Loaded = player->Get_SMG1_GLL();
+			AR1M1_GL_Loaded = player->Get_AR1M1_GLL();
+			ActiveWeaponName = wpn->GetName();
+			ammo = player->GetAmmoCount(wpn->GetSecondaryAmmoType());
+			SetAmmo(ammo, player, ActiveWeaponName, SMG1_GL_Loaded, AR1M1_GL_Loaded);
+			//SetAmmo(player->GetAmmoCount(wpn->GetSecondaryAmmoType()));
 		}
 
 		if ( m_hCurrentActiveWeapon != wpn )
@@ -478,7 +643,16 @@ protected:
 			if ( wpn->UsesSecondaryAmmo() )
 			{
 				// we've changed to a weapon that uses secondary ammo
-				g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("WeaponUsesSecondaryAmmo");
+
+				if (SMG1_GL_Loaded == false && (strcmp(ActiveWeaponName, "weapon_smg1") == 0) || (AR1M1_GL_Loaded == false && strcmp(ActiveWeaponName, "weapon_ar1m1") == 0))
+				{
+					g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("WeaponUsesSecondaryAmmoUnloaded");
+				}
+				else
+				{
+					g_pClientMode->GetViewportAnimationController()->StartAnimationSequence("WeaponUsesSecondaryAmmo");
+				}
+
 			}
 			else 
 			{
@@ -496,6 +670,13 @@ private:
 	CHandle< C_BaseCombatWeapon > m_hCurrentActiveWeapon;
 	CHudTexture *m_iconSecondaryAmmo;
 	int		m_iAmmo;
+	bool	m_iSMG1_GL_Loaded;
+	bool	m_iAR1M1_GL_Loaded;
+	bool	m_iSMG1_GL_action_failed;
+	bool	m_iAR1M1_GL_action_failed;
+	//bool	WeaponZeroSecondaryAmmo_Animated;
+	//bool	tickstarted;
+	//int	every2000ticks = 0;
 };
 
 DECLARE_HUDELEMENT( CHudSecondaryAmmo );

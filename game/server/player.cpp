@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "const.h"
 #include "baseplayer_shared.h"
+#include "hl2_player_shared.h"
 #include "trains.h"
 #include "soundent.h"
 #include "gib.h"
@@ -5559,6 +5560,7 @@ void CBasePlayer::LeaveVehicle( const Vector &vecExitPoint, const QAngle &vecExi
 			GetActiveWeapon()->Deploy();
 			ShowCrosshair( true );
 		}
+
 	}
 
 	// Just cut all of the rumble effects. 
@@ -6152,14 +6154,16 @@ void CBasePlayer::CheatImpulseCommands( int iImpulse )
 		// Give the player everything!
 		GiveAmmo( 255,	"Pistol");
 		GiveAmmo( 255,	"AR2");
+		GiveAmmo(255, "AR1");
 		GiveAmmo( 5,	"AR2AltFire");
 		GiveAmmo( 255,	"SMG1");
 		GiveAmmo( 255,	"Buckshot");
-		GiveAmmo( 3,	"smg1_grenade");
+		GiveAmmo( 5,	"smg1_grenade");
 		GiveAmmo( 3,	"rpg_round");
 		GiveAmmo( 5,	"grenade");
 		GiveAmmo( 32,	"357" );
 		GiveAmmo( 16,	"XBowBolt" );
+		GiveAmmo(150, "AlyxGun");
 #ifdef HL2_EPISODIC
 		GiveAmmo( 5,	"Hopwire" );
 #endif		
@@ -6174,6 +6178,9 @@ void CBasePlayer::CheatImpulseCommands( int iImpulse )
 		GiveNamedItem( "weapon_rpg" );
 		GiveNamedItem( "weapon_357" );
 		GiveNamedItem( "weapon_crossbow" );
+		GiveNamedItem( "weapon_alyxgun");
+		GiveNamedItem( "weapon_ar1" );
+
 #ifdef HL2_EPISODIC
 		// GiveNamedItem( "weapon_magnade" );
 #endif
@@ -6556,6 +6563,76 @@ bool CBasePlayer::ClientCommand( const CCommand &args )
 		}
 		return true;
 	}
+	else if (stricmp(cmd, "sde_ironsight") == 0)
+	{
+		CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+		if (pWeapon != NULL && !(pWeapon->m_bInReload || pWeapon->m_bInSecondaryReload || pWeapon->m_bForbidIronsight))
+		{
+			const char* ActiveWeaponName = pWeapon->GetName();
+			if (strcmp(ActiveWeaponName, "weapon_pistol") == 0 || strcmp(ActiveWeaponName, "weapon_pistol_m1") == 0 ||
+				strcmp(ActiveWeaponName, "weapon_alyxgun") == 0 || strcmp(ActiveWeaponName, "weapon_alyxgun_s") == 0 || strcmp(ActiveWeaponName, "weapon_smg1") == 0 ||
+				strcmp(ActiveWeaponName, "weapon_ar1") == 0 || strcmp(ActiveWeaponName, "weapon_ar1m1") == 0 ||
+				strcmp(ActiveWeaponName, "weapon_annabelle") == 0 || strcmp(ActiveWeaponName, "weapon_356") == 0 || strcmp(ActiveWeaponName, "weapon_357") == 0 ||
+				strcmp(ActiveWeaponName, "weapon_shotgun") == 0 || strcmp(ActiveWeaponName, "weapon_ar2") == 0 || strcmp(ActiveWeaponName, "weapon_rpg") == 0)
+			{
+				pWeapon->ToggleIronsights();
+				ToggleCrosshair();
+			}
+		}
+		return true;
+	}
+
+	else if (stricmp(cmd, "crosshair_on") == 0)
+	{
+		ShowCrosshair(true);
+		return true;
+	}
+	else if (stricmp(cmd, "crosshair_off") == 0)
+	{
+		ShowCrosshair(false);
+		return true;
+	}
+
+	else if (stricmp(cmd, "sde_ar1m1_gl_load") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->AR1M1_GL_Load();
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "sde_ar1m1_gl_unload") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->AR1M1_GL_Unload();
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "sde_smg1_gl_load") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->SMG1_GL_Load();
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "sde_smg1_gl_unload") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->SMG1_GL_Unload();
+		}
+		return true;
+	}
 
 	return false;
 }
@@ -6694,16 +6771,42 @@ void CBasePlayer::ShowViewModel(bool bShow)
 // Purpose: 
 // Input  : bDraw - 
 //-----------------------------------------------------------------------------
+
 void CBasePlayer::ShowCrosshair( bool bShow )
 {
 	if ( bShow )
 	{
 		m_Local.m_iHideHUD &= ~HIDEHUD_CROSSHAIR;
+		m_bIsCrosshaired = false;
 	}
 	else
 	{
 		m_Local.m_iHideHUD |= HIDEHUD_CROSSHAIR;
+		m_bIsCrosshaired = true;
 	}
+}
+
+void CBasePlayer::ToggleCrosshair(void)
+{
+	CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+	const char* ActiveWeaponName = pWeapon->GetName();
+	//if (pWeapon->m_bCanIronsighted)
+	//{
+	//}
+	//else
+	//{
+	if (strcmp(ActiveWeaponName, "weapon_pistol") == 0 || strcmp(ActiveWeaponName, "weapon_357") == 0 ||
+		strcmp(ActiveWeaponName, "weapon_alyxgun") == 0 || strcmp(ActiveWeaponName, "weapon_alyxgun_s") == 0 || strcmp(ActiveWeaponName, "weapon_smg1") == 0 ||
+		strcmp(ActiveWeaponName, "weapon_ar1") == 0 || strcmp(ActiveWeaponName, "weapon_ar1m1") == 0 ||
+		strcmp(ActiveWeaponName, "weapon_annabelle") == 0 || strcmp(ActiveWeaponName, "weapon_356") == 0 || strcmp(ActiveWeaponName, "weapon_358") == 0 ||
+		strcmp(ActiveWeaponName, "weapon_shotgun") == 0 || strcmp(ActiveWeaponName, "weapon_ar2") == 0 || strcmp(ActiveWeaponName, "weapon_rpg") == 0)
+	{
+		if (m_bIsCrosshaired)
+			ShowCrosshair(true);
+		else
+			ShowCrosshair(false);
+	}
+	//}
 }
 
 //-----------------------------------------------------------------------------
@@ -7614,6 +7717,12 @@ void CStripWeapons::StripWeapons(inputdata_t &data, bool stripSuit)
 	if ( pPlayer )
 	{
 		pPlayer->RemoveAllItems( stripSuit );
+
+		CBaseCombatWeapon* weapon_to_switch_to = pPlayer->Weapon_GetSlot(0); // switch to melee
+
+		pPlayer->Weapon_Switch(weapon_to_switch_to);
+
+		// CBaseCombatWeapon *pBugbait = pPlayer->Weapon_OwnsThisType("weapon_bugbait");
 	}
 }
 
@@ -7849,6 +7958,9 @@ void CMovementSpeedMod::InputSpeedMod(inputdata_t &data)
 	{
 		if ( data.value.Float() != 1.0f )
 		{
+
+		
+
 			// Holster weapon immediately, to allow it to cleanup
 			if ( HasSpawnFlags( SF_SPEED_MOD_SUPPRESS_WEAPONS ) )
 			{
@@ -7857,6 +7969,7 @@ void CMovementSpeedMod::InputSpeedMod(inputdata_t &data)
 					pPlayer->Weapon_SetLast( pPlayer->GetActiveWeapon() );
 					pPlayer->GetActiveWeapon()->Holster();
 					pPlayer->ClearActiveWeapon();
+
 				}
 				
 				pPlayer->HideViewModels();

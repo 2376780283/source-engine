@@ -3,9 +3,9 @@
 // Purpose: 
 //
 //=============================================================================
-#if defined( GAME_DLL )
+//#if defined( GAME_DLL )
 #include "cbase.h"
-#endif
+//#endif
 #include "ep2_gamestats.h"
 #include "tier1/utlbuffer.h"
 #include "vehicle_base.h"
@@ -13,6 +13,7 @@
 #include "filesystem.h"
 #include "icommandline.h"
 
+//static CEP2GameStats s_CEP2GameStats_Singleton;
 static CEP2GameStats s_CEP2GameStats_Singleton;
 CBaseGameStats *g_pEP2GameStats = &s_CEP2GameStats_Singleton;
 

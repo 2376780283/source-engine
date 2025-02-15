@@ -51,6 +51,7 @@ private:
 	bool			ImpactWater( const Vector &start, const Vector &end );
 	void			Swing( int bIsSecondary );
 	void			Hit( trace_t &traceHit, Activity nHitActivity, bool bIsSecondary );
+	//void			Hit_kulak(trace_t &traceHit, Activity nHitActivity, bool bIsSecondary); //new add Р°РќР°РћР°Р’Р°РћР°Р•
 	Activity		ChooseIntersectionPointAndActivity( trace_t &hitTrace, const Vector &mins, const Vector &maxs, CBasePlayer *pOwner );
 };
 

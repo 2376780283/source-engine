@@ -10733,6 +10733,7 @@ BEGIN_DATADESC( CAI_BaseNPC )
 	DEFINE_OUTPUT( m_OnForcedInteractionStarted,	"OnForcedInteractionStarted" ),
 	DEFINE_OUTPUT( m_OnForcedInteractionAborted,	"OnForcedInteractionAborted" ),
 	DEFINE_OUTPUT( m_OnForcedInteractionFinished,	"OnForcedInteractionFinished" ),
+	DEFINE_OUTPUT( m_OnToxin, "OnToxin"),
 
 	// Inputs
 	DEFINE_INPUTFUNC( FIELD_STRING, "SetRelationship", InputSetRelationship ),

@@ -131,7 +131,7 @@ C_Hairball::C_Hairball()
 	m_HairPositions.SetSize( m_nHairs );
 	m_TransformedHairPositions.SetSize( m_nHairs );
 
-	m_flSphereRadius = 20;
+	m_flSphereRadius = 5; //Р°Р‘Р±В‹Р°Р›Р°Рћ 20
 	m_vMoveDir.Init();
 	
 	m_flSpinDuration = 1;
@@ -244,7 +244,7 @@ void C_Hairball::ClientThink()
 				}
 			}
 
-			m_vMoveDir *= 650; // set speed.
+			m_vMoveDir *= 100; // set speed. Р°Р‘Р±В‹Р°Р›Р°Рћ 650
 			m_flSitStillTime = -1; // Move in this direction..
 		}
 	}

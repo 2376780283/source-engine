@@ -14,6 +14,7 @@
 #include "hl2_playerlocaldata.h"
 #include "simtimer.h"
 #include "soundenvelope.h"
+#include "baseviewmodel_shared.h"
 
 class CAI_Squad;
 class CPropCombineBall;
@@ -231,6 +232,21 @@ public:
 	void				FlashlightTurnOff( void );
 	bool				IsIlluminatedByFlashlight( CBaseEntity *pEntity, float *flReturnDot );
 	void				SetFlashlightPowerDrainScale( float flScale ) { m_flFlashlightPowerDrainScale = flScale; }
+
+	// Underbarrel grenade launchers
+
+	void				SMG1_GL_Load(void);
+	void				SMG1_GL_Unload(void);
+	void				AR1M1_GL_Load(void);
+	void				AR1M1_GL_Unload(void);
+	void				SMG1_GL_action_failed_set(void);
+	void				SMG1_GL_action_failed_reset(void);
+	void				AR1M1_GL_action_failed_set(void);
+	void				AR1M1_GL_action_failed_reset(void);
+	bool				Get_SMG1_GLL(void);
+	bool				Get_AR1M1_GLL(void);
+	bool				Get_SMG1_GLAF(void);
+	bool				Get_AR1M1_GLAF(void);
 
 	// Underwater breather device
 	virtual void		SetPlayerUnderwater( bool state );

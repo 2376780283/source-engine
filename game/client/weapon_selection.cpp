@@ -327,17 +327,38 @@ void CBaseHudWeaponSelection::UserCmd_Slot4(void)
 
 void CBaseHudWeaponSelection::UserCmd_Slot5(void)
 {
+	if (HUDTYPE_CAROUSEL == hud_fastswitch.GetInt())
+	{
+		UserCmd_LastWeapon();
+	}
+	else
+	{
 	SelectSlot( 5 );
+}
 }
 
 void CBaseHudWeaponSelection::UserCmd_Slot6(void)
 {
+	if (HUDTYPE_CAROUSEL == hud_fastswitch.GetInt())
+	{
+		UserCmd_LastWeapon();
+	}
+	else
+	{
 	SelectSlot( 6 );
+}
 }
 
 void CBaseHudWeaponSelection::UserCmd_Slot7(void)
 {
+	if (HUDTYPE_CAROUSEL == hud_fastswitch.GetInt())
+	{
+		UserCmd_LastWeapon();
+	}
+	else
+	{
 	SelectSlot( 7 );
+}
 }
 
 void CBaseHudWeaponSelection::UserCmd_Slot8(void)

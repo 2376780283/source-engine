@@ -163,6 +163,7 @@ public:
 							CBaseCombatWeapon();
 	virtual 				~CBaseCombatWeapon();
 
+
 	virtual bool			IsBaseCombatWeapon( void ) const { return true; }
 	virtual CBaseCombatWeapon *MyCombatWeaponPointer( void ) { return this; }
 
@@ -197,6 +198,7 @@ public:
 	// HUD Hints
 	virtual bool			ShouldDisplayAltFireHUDHint();
 	virtual void			DisplayAltFireHudHint();	
+	virtual void			DisplaySDEHudHint();
 	virtual void			RescindAltFireHudHint(); ///< undisplay the hud hint and pretend it never showed.
 
 	virtual bool			ShouldDisplayReloadHUDHint();
@@ -209,6 +211,12 @@ public:
 	virtual void			SendViewModelAnim( int nSequence );
 	float					GetViewModelSequenceDuration();	// Return how long the current view model sequence is.
 	bool					IsViewModelSequenceFinished( void ); // Returns if the viewmodel's current animation is finished
+
+	//weapon low
+	virtual void            ProcessAnimationEvents(void);
+	bool                    m_bWeaponIsLowered;
+
+
 
 	virtual void			SetViewModel();
 
@@ -272,6 +280,22 @@ public:
 	// Weapon firing
 	virtual void			PrimaryAttack( void );						// do "+ATTACK"
 	virtual void			SecondaryAttack( void ) { return; }			// do "+ATTACK2"
+
+
+	//added
+	Vector					GetIronsightPositionOffset(void) const;
+	QAngle					GetIronsightAngleOffset(void) const;
+	float					GetIronsightFOVOffset(void) const; 
+	//added
+	virtual bool				HasIronsights(void) { return true; } //default yes; override and return false for weapons with no ironsights (like weapon_crowbar)
+	bool					IsIronsighted(void);
+	void					HoldIronsight(void);
+	void					ToggleIronsights(void);
+	void					EnableIronsights(void);
+	void					DisableIronsights(void);
+	void					SetIronsightTime(void);
+	
+
 
 	// Firing animations
 	virtual Activity		GetPrimaryAttackActivity( void );
@@ -345,6 +369,7 @@ public:
 	virtual int				GetMaxClip2( void ) const;
 	virtual int				GetDefaultClip1( void ) const;
 	virtual int				GetDefaultClip2( void ) const;
+	virtual int				GetDefaultIsFOV(void) const; //added
 	virtual int				GetWeight( void ) const;
 	virtual bool			AllowsAutoSwitchTo( void ) const;
 	virtual bool			AllowsAutoSwitchFrom( void ) const;
@@ -524,6 +549,8 @@ public:
 private:
 	typedef CHandle< CBaseCombatCharacter > CBaseCombatCharacterHandle;
 	CNetworkVar( CBaseCombatCharacterHandle, m_hOwner );				// Player carrying this weapon
+	//added
+	
 
 protected:
 #if defined ( TF_CLIENT_DLL ) || defined ( TF_DLL )
@@ -546,13 +573,24 @@ public:
 	CNetworkVar( float, m_flNextPrimaryAttack );						// soonest time ItemPostFrame will call PrimaryAttack
 	CNetworkVar( float, m_flNextSecondaryAttack );					// soonest time ItemPostFrame will call SecondaryAttack
 	CNetworkVar( float, m_flTimeWeaponIdle );							// soonest time ItemPostFrame will call WeaponIdle
+	//added
+	CNetworkVar(bool, m_bIsIronsighted);
+	CNetworkVar(bool, m_bCanIronsighted);
+	CNetworkVar(float, m_flIronsightedTime);
+
+
 	// Weapon state
+	bool					m_bBoltRequired; // Always false for all weapons except the shotgun that, as a one-by-one-shell loaded weapon
+	// capable of chambered round in reload, needs this to keep GetMaxClip1() returning not "clip+1" value when reloading from empty magazine
 	bool					m_bInReload;			// Are we in the middle of a reload;
+	bool					m_bInSecondaryReload = false;	// in the middle of a secondary reload, always false except SMG1 and AR1M1;
+	bool					m_bForbidIronsight; //need another variable forbidding ironsight except the former two, e.g. if weapon bolts in deploy or is with zero ammo and about to reload, exiting ironsights anyway
 	bool					m_bFireOnEmpty;			// True when the gun is empty and the player is still holding down the attack key(s)
 	bool					m_bFiringWholeClip;		// Are we in the middle of firing the whole clip;
 	// Weapon art
 	CNetworkVar( int, m_iViewModelIndex );
 	CNetworkVar( int, m_iWorldModelIndex );
+	
 	// Sounds
 	float					m_flNextEmptySoundTime;				// delay on empty sound playing
 
@@ -599,6 +637,8 @@ public:
 	EHANDLE					m_hLocker;				// Who locked this weapon.
 
 	CNetworkVar( bool, m_bFlipViewModel );
+
+	
 
 	IPhysicsConstraint		*GetConstraint() { return m_pConstraint; }
 

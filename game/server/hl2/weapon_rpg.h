@@ -182,6 +182,8 @@ public:
 	void	Precache( void );
 
 	void	PrimaryAttack( void );
+	void	SecondaryAttackWithNonInheritedName(void);
+	void	HoldIronsight(void);
 	virtual float GetFireRate( void ) { return 1; };
 	void	ItemPostFrame( void );
 
@@ -246,6 +248,8 @@ protected:
 	bool				m_bInitialStateUpdate;
 	bool				m_bGuiding;
 	bool				m_bHideGuiding;		//User to override the player's wish to guide under certain circumstances
+	bool				m_bAmmoHasBeenDepleted; //if ammo amount had reached 0 and more ammo was picked up, reload
+	bool				m_bJustFiredWaitForReload; //if just fired and have more ammo, wait for fire animation to complete 
 	Vector				m_vecNPCLaserDot;
 	CHandle<CLaserDot>	m_hLaserDot;
 	CHandle<CMissile>	m_hMissile;

@@ -68,7 +68,7 @@ private:
 
 	void				ComputePlaybackRate();
 
-	CHL2MP_Player		*m_pOuter;
+//	CHL2MP_Player		*m_pOuter;
 
 	float				m_flGaitYaw;
 	float				m_flStoredCycle;

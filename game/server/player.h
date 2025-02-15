@@ -382,6 +382,7 @@ public:
 	void					ViewPunchReset( float tolerance = 0 );
 	void					ShowViewModel( bool bShow );
 	void					ShowCrosshair( bool bShow );
+	void					ToggleCrosshair(void);
 
 	// View model prediction setup
 	void					CalcView( Vector &eyeOrigin, QAngle &eyeAngles, float &zNear, float &zFar, float &fov );
@@ -830,6 +831,7 @@ public:
 	// This player's data that should only be replicated to 
 	//  the player and not to other players.
 	CNetworkVarEmbedded( CPlayerLocalData, m_Local );
+	CNetworkVar(bool, m_bIsCrosshaired);
 
 #if defined USES_ECON_ITEMS
 	CNetworkVarEmbedded( CAttributeList,	m_AttributeList );
@@ -863,6 +865,11 @@ public:
 	
 	int						m_nButtons;
 	int						m_afButtonPressed;
+	//Р°РћР°РџР±ВЂР°Р•Р°Р”Р°Р•Р°Р›Р±ВЏР°Р•Р°Рњ Р°РљР°РќР°РћР°РџР°РљР±Вѓ Ironsight
+	int						m_isButtonPressed;
+	int						m_isButtonReleased;
+	//Р°Р—Р°РђР°РљР°РћР°РќР±В‡Р°Р Р°Р›Р°Р 
+
 	int						m_afButtonReleased;
 	int						m_afButtonLast;
 	int						m_afButtonDisabled;	// A mask of input flags that are cleared automatically

@@ -60,7 +60,7 @@ void CGrenadeAR2::Spawn( void )
 	// Hits everything but debris
 	SetCollisionGroup( COLLISION_GROUP_PROJECTILE );
 
-	SetModel( "models/Weapons/ar2_grenade.mdl");
+	SetModel( "models/weapons/ar2_grenade.mdl");
 	UTIL_SetSize(this, Vector(-3, -3, -3), Vector(3, 3, 3));
 //	UTIL_SetSize(this, Vector(0, 0, 0), Vector(0, 0, 0));
 
@@ -243,7 +243,8 @@ void CGrenadeAR2::Detonate(void)
 
 void CGrenadeAR2::Precache( void )
 {
-	PrecacheModel("models/Weapons/ar2_grenade.mdl"); 
+	PrecacheModel("models/weapons/ar2_grenade.mdl");
+	PrecacheModel("models/weapons/ar3_grenade_noshell.mdl");
 }
 
 

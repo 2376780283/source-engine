@@ -90,6 +90,11 @@ void CBaseHLBludgeonWeapon::ItemPostFrame( void )
 {
 	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
 	
+	if (m_bIsIronsighted)
+	{
+		DisableIronsights();
+	}
+
 	if ( pOwner == NULL )
 		return;
 
@@ -152,9 +157,25 @@ void CBaseHLBludgeonWeapon::Hit( trace_t &traceHit, Activity nHitActivity, bool 
 	{
 		Vector hitDirection;
 		pPlayer->EyeVectors( &hitDirection, NULL, NULL );
+		Msg(GetClassname());
 		VectorNormalize( hitDirection );
 
+		CTakeDamageInfo info(GetOwner(), GetOwner(), GetDamageForActivity(nHitActivity), DMG_SLASH);
+		if (pPlayer)
+		{
+			if((printf("%s", GetClassname()) == printf("weapon_kulak2")))
+			{
+				Msg("\n SDE_ETO_KULAK \n");
+				CTakeDamageInfo info(GetOwner(), GetOwner(), GetDamageForActivity(nHitActivity), DMG_SLASH);
+			}
+			else
+			{
+				Msg("\n SDE_ETO_NE_KULAK \n");
 		CTakeDamageInfo info( GetOwner(), GetOwner(), GetDamageForActivity( nHitActivity ), DMG_CLUB );
+			}
+		}
+
+		
 
 		if( pPlayer && pHitEntity->IsNPC() )
 		{
@@ -179,6 +200,7 @@ void CBaseHLBludgeonWeapon::Hit( trace_t &traceHit, Activity nHitActivity, bool 
 	// Apply an impact effect
 	ImpactEffect( traceHit );
 }
+
 
 Activity CBaseHLBludgeonWeapon::ChooseIntersectionPointAndActivity( trace_t &hitTrace, const Vector &mins, const Vector &maxs, CBasePlayer *pOwner )
 {

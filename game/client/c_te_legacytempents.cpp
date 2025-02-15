@@ -1655,7 +1655,7 @@ void CTempEnts::EjectBrass( const Vector &pos1, const QAngle &angles, const QAng
 		return;
 
 	//Keep track of shell type
-	if ( type == 2 )
+	if ( type == 2 || type == 4)
 	{
 		pTemp->hitSound = BOUNCE_SHOTSHELL;
 	}
@@ -1688,7 +1688,7 @@ void CTempEnts::EjectBrass( const Vector &pos1, const QAngle &angles, const QAng
 						dir[1] + random->RandomFloat(-64,64),
 						dir[2] + random->RandomFloat(  0,64) ) );
 
-	pTemp->die = gpGlobals->curtime + 1.0f + random->RandomFloat( 0.0f, 1.0f );	// Add an extra 0-1 secs of life	
+	pTemp->die = gpGlobals->curtime + 60.0f + random->RandomFloat( 0.0f, 1.0f );	// Add an extra 0-1 secs of life	
 }
 
 //-----------------------------------------------------------------------------
@@ -1790,7 +1790,7 @@ void CTempEnts::MuzzleFlash( int type, ClientEntityHandle_t hEntity, int attachm
 	default:
 		{
 			//NOTENOTE: This means you specified an invalid muzzleflash type, check your spelling?
-			Assert( 0 );
+			//Assert( 0 );
 		}
 		break;
 	}
@@ -1867,8 +1867,8 @@ void CTempEnts::MuzzleFlash( const Vector& pos1, const QAngle& angles, int type,
 		break;
 	
 	default:
-		// There's no supported muzzle flash for the type specified!
-		Assert(0);
+		//// There's no supported muzzle flash for the type specified!
+		//Assert(0);
 		break;
 	}
 
@@ -2405,6 +2405,8 @@ void CTempEnts::LevelInit()
 	m_pShells[0] = (model_t *) engine->LoadModel( "models/weapons/shell.mdl" );
 	m_pShells[1] = (model_t *) engine->LoadModel( "models/weapons/rifleshell.mdl" );
 	m_pShells[2] = (model_t *) engine->LoadModel( "models/weapons/shotgun_shell.mdl" );
+	m_pShells[3] = (model_t *) engine->LoadModel( "models/weapons/ar2_shell.mdl" ); //add
+	m_pShells[4] = (model_t *) engine->LoadModel( "models/weapons/flaregun_shell.mdl" ); //add
 #endif
 
 #if defined( HL1_CLIENT_DLL )
@@ -2443,6 +2445,8 @@ void CTempEnts::Init (void)
 	m_pShells[0] = NULL;
 	m_pShells[1] = NULL;
 	m_pShells[2] = NULL;
+	m_pShells[3] = NULL;
+	m_pShells[4] = NULL;
 
 #if defined( HL1_CLIENT_DLL )
 	m_pHL1Shell			= NULL;
@@ -3301,6 +3305,8 @@ void CTempEnts::HL1EjectBrass( const Vector &vecPosition, const QAngle &angAngle
 		break;
 	case 1:
 		pTemp->hitSound = BOUNCE_SHOTSHELL;
+	case 3:
+		pTemp->hitSound = BOUNCE_SHOTSHELL;
 		break;
 	}
 
@@ -3325,6 +3331,7 @@ void CTempEnts::HL1EjectBrass( const Vector &vecPosition, const QAngle &angAngle
 #define SHELLTYPE_PISTOL	0
 #define SHELLTYPE_RIFLE		1
 #define SHELLTYPE_SHOTGUN	2
+#define SHELLTYPE_AR2		3
 
 
 void CTempEnts::CSEjectBrass( const Vector &vecPosition, const QAngle &angVelocity, int nVelocity, int shellType, CBasePlayer *pShooter )

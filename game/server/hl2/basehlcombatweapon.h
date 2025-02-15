@@ -40,7 +40,7 @@ public:
 
 	// utility function
 	static void DoMachineGunKick( CBasePlayer *pPlayer, float dampEasy, float maxVerticleKickAngle, float fireDurationTime, float slideLimitTime );
-
+	//ILaserSight * ls;
 protected:
 
 	int	m_nShotsFired;	// Number of consecutive shots fired

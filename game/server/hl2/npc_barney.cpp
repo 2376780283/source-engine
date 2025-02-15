@@ -34,7 +34,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#define BARNEY_MODEL "models/barney.mdl"
+#define BARNEY_MODEL "models/humans/Group05/male_10.mdl" //Р°Р‘Р±В‹Р°Р›Р°Рћ #define BARNEY_MODEL "models/barney.mdl"
 
 ConVar	sk_barney_health( "sk_barney_health","0");
 
@@ -121,7 +121,7 @@ void CNPC_Barney::Spawn( void )
 {
 	Precache();
 
-	m_iHealth = 80;
+	m_iHealth = sk_barney_health.GetInt();
 
 	m_iszIdleExpression = MAKE_STRING("scenes/Expressions/BarneyIdle.vcd");
 	m_iszAlertExpression = MAKE_STRING("scenes/Expressions/BarneyAlert.vcd");

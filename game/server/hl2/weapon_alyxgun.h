@@ -8,6 +8,26 @@
 #define WEAPON_ALYXGUN_H
 
 #include "basehlcombatweapon.h"
+#include "cbase.h"
+#include "npcevent.h"
+#include "basehlcombatweapon_shared.h"
+#include "basecombatcharacter.h"
+#include "ai_basenpc.h"
+#include "player.h"
+#include "gamerules.h"
+#include "in_buttons.h"
+#include "soundent.h"
+#include "game.h"
+#include "vstdlib/random.h"
+#include "engine/IEngineSound.h"
+#include "IEffects.h"
+#include "te_effect_dispatch.h"
+#include "Sprite.h"
+#include "SpriteTrail.h"
+#include "beam_shared.h"
+#include "rumble_shared.h"
+#include "gamestats.h"
+#include "decals.h"
 
 #if defined( _WIN32 )
 #pragma once
@@ -30,6 +50,11 @@ public:
 	virtual int		GetMaxBurst( void ) { return 7; }
 	virtual float	GetMinRestTime( void );
 	virtual float	GetMaxRestTime( void );
+	virtual void	ItemPostFrame(void);
+	void	PrimaryAttack(void);
+	void	HoldIronsight(void);
+	bool	Reload(void);
+	bool	Deploy(void);
 
 	virtual void Equip( CBaseCombatCharacter *pOwner );
 
@@ -45,11 +70,11 @@ public:
 	void Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
 	void Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 
-	virtual void SetPickupTouch( void )
-	{
-		// Alyx gun cannot be picked up
-		SetTouch(NULL);
-	}
+	//virtual void SetPickupTouch( void )
+	//{
+	//	// Alyx gun cannot be picked up
+	//	SetTouch(NULL);
+	//}
 
 	float m_flTooCloseTimer;
 

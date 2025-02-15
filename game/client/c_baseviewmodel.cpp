@@ -194,7 +194,7 @@ bool C_BaseViewModel::Interpolate( float currentTime )
 
 inline bool C_BaseViewModel::ShouldFlipViewModel()
 {
-#ifdef CSTRIKE_DLL
+#if defined (CSTRIKE_DLL)
 	// If cl_righthand is set, then we want them all right-handed.
 	CBaseCombatWeapon *pWeapon = m_hWeapon.Get();
 	if ( pWeapon )
@@ -202,17 +202,23 @@ inline bool C_BaseViewModel::ShouldFlipViewModel()
 		const FileWeaponInfo_t *pInfo = &pWeapon->GetWpnData();
 		return pInfo->m_bAllowFlipping && pInfo->m_bBuiltRightHanded != cl_righthand.GetBool();
 	}
-#endif
 
-#ifdef TF_CLIENT_DLL
+#elif defined (TF_CLIENT_DLL)
 	CBaseCombatWeapon *pWeapon = m_hWeapon.Get();
 	if ( pWeapon )
 	{
 		return pWeapon->m_bFlipViewModel != cl_flipviewmodels.GetBool();
 	}
-#endif
 
+#else
+	CBaseCombatWeapon *pWeapon = m_hWeapon.Get();
+	if (pWeapon)
+	{
+		const char* WeaponName = pWeapon->GetName();
+		return (strcmp(WeaponName, "weapon_kulak") == 0 || strcmp(WeaponName, "weapon_kulak2") == 0); // proper fists stance for a right-hander,
+	}															// not all SDE weapon viewmodels support flipping so there won't be a cvar for it
 	return false;
+#endif
 }
 
 

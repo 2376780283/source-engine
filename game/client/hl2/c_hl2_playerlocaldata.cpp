@@ -25,6 +25,10 @@ BEGIN_RECV_TABLE_NOBASE( C_HL2PlayerLocalData, DT_HL2Local )
 	RecvPropBool( RECVINFO(m_bDisplayReticle) ),
 	RecvPropBool( RECVINFO(m_bStickyAutoAim) ),
 	RecvPropBool( RECVINFO(m_bAutoAimTarget) ),
+	RecvPropBool( RECVINFO(m_SMG1_GL_Loaded) ),
+	RecvPropBool( RECVINFO(m_AR1M1_GL_Loaded)),
+	RecvPropBool( RECVINFO(m_SMG1_GL_action_failed) ),
+	RecvPropBool( RECVINFO(m_AR1M1_GL_action_failed) ),
 #ifdef HL2_EPISODIC
 	RecvPropFloat( RECVINFO(m_flFlashBattery) ),
 	RecvPropVector( RECVINFO(m_vecLocatorOrigin) ),
@@ -44,6 +48,10 @@ C_HL2PlayerLocalData::C_HL2PlayerLocalData()
 	m_fSquadInFollowMode = false;
 	m_bWeaponLowered = false;
 	m_hLadder = NULL;
+	m_SMG1_GL_Loaded = false;
+	m_AR1M1_GL_Loaded = false;
+	m_SMG1_GL_action_failed = false;
+	m_AR1M1_GL_action_failed = false;
 #ifdef HL2_EPISODIC
 	m_flFlashBattery = 0.0f;
 	m_vecLocatorOrigin = vec3_origin;

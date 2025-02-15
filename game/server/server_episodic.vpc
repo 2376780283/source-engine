@@ -21,6 +21,32 @@ $Configuration
 
 $Project "Server (Episodic)"
 {
+	$Folder "Snowdrop"
+	{
+		$File "energy_wave.cpp" 
+		$File "hl2/weapon_bugbait2.cpp"
+		$File "hl2/weapon_kulak.cpp"
+		$File "hl2/weapon_wrench.cpp"
+		$File "hl2/weapon_pistol_m1.cpp"
+		$File "hl2/weapon_pero.cpp"
+		$File "hl2/weapon_lopata.cpp"
+		$File "hl2/weapon_kulak2.cpp"
+		$File "hl2/weapon_358.cpp"
+		$File "hl2/weapon_glauncher.cpp"
+		$File "hl2/weapon_356.cpp"
+		$File "hl2/weapon_sos.cpp"
+		$File "hl2/weapon_wrench2.cpp"
+		$File "hl2/weapon_alyxgun_s.cpp"
+		$File "weapon_ar1m1.cpp" 
+		$File "energy_wave.h" 
+		$File "weapon_adot.cpp" 
+		$File "weapon_ar1.cpp"
+		$File "$SRCDIR/game/shared/episodic/achievements_snowdrop_escape.cpp"
+		$File "$SRCDIR/game/shared/achievements_sde.cpp"
+		$File "$SRCDIR/game/shared/hl2/lasersight.cpp"
+		$File "$SRCDIR/game/shared/GrenadeLaunchersLoaded.h"
+	}
+
 	$Folder	"Source Files"
 	{
 		$File	"ai_eventresponse.cpp"

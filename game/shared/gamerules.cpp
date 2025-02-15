@@ -631,11 +631,13 @@ void CGameRules::CreateStandardEntities()
 //-----------------------------------------------------------------------------
 void CGameRules::MarkAchievement( IRecipientFilter& filter, char const *pchAchievementName )
 {
+	Msg("SDE_DEBUG_ACHIEVEMENT_02a \n");
 	gamestats->Event_IncrementCountedStatistic( vec3_origin, pchAchievementName, 1.0f );
 
 	IAchievementMgr *pAchievementMgr = engine->GetAchievementMgr();
 	if ( !pAchievementMgr )
 		return;
+	Msg("SDE_DEBUG_ACHIEVEMENT_02b \n");
 	pAchievementMgr->OnMapEvent( pchAchievementName );
 }
 

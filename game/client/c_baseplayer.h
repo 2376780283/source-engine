@@ -432,6 +432,9 @@ public:
 	int				m_afButtonPressed;
 	int				m_afButtonReleased;
 
+	int						m_isButtonPressed;
+	int						m_isButtonReleased;
+
 	int				m_nButtons;
 
 	CUserCmd		*m_pCurrentCommand;

@@ -1931,7 +1931,7 @@ void CNPC_Citizen::PickupItem( CBaseEntity *pItem )
 			UTIL_Remove( pItem );
 		}
 	}
-	else if( FClassnameIs( pItem, "item_healthvial" ) )
+	else if( FClassnameIs( pItem, "item_healthvial_cmb" ) )
 	{
 		if ( TakeHealth( sk_healthvial.GetFloat(), DMG_GENERIC ) )
 		{

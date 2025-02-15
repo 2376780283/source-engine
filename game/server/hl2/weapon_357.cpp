@@ -1,6 +1,6 @@
 //========= Copyright Valve Corporation, All rights reserved. ============//
 //
-// Purpose:		357 - hand gun
+// Purpose:		Semi-automatic rifle
 //
 // $NoKeywords: $
 //=============================================================================//
@@ -35,9 +35,12 @@ public:
 	CWeapon357( void );
 
 	void	PrimaryAttack( void );
-	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
-
+	void	SecondaryAttackWithNonInheritedName(void);
+	virtual bool	Reload(void);
+	void	HoldIronsight(void);
 	float	WeaponAutoAimScale()	{ return 0.6f; }
+	virtual void	ItemPostFrame(void);
+	bool Deploy(void);
 
 	DECLARE_SERVERCLASS();
 	DECLARE_DATADESC();
@@ -58,38 +61,27 @@ END_DATADESC()
 //-----------------------------------------------------------------------------
 CWeapon357::CWeapon357( void )
 {
-	m_bReloadsSingly	= false;
+	m_bReloadsSingly = false;
 	m_bFiresUnderwater	= false;
 }
 
-//-----------------------------------------------------------------------------
-// Purpose:
-//-----------------------------------------------------------------------------
-void CWeapon357::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator )
+bool CWeapon357::Deploy(void)
 {
-	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
+	Msg("SDE_SMG!_deploy\n");
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+		pPlayer->ShowCrosshair(true);
+	DisplaySDEHudHint();
 
-	switch( pEvent->event )
+	bool return_value = BaseClass::Deploy();
+
+	if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType))
 	{
-		case EVENT_WEAPON_RELOAD:
-			{
-				CEffectData data;
+		m_bForbidIronsight = true; // to suppress ironsight during deploy in case the weapon is empty and the player has ammo 
+	}							   // -> reload will be forced. Behavior of ironsightable weapons that don't bolt on deploy
 
-				// Emit six spent shells
-				for ( int i = 0; i < 6; i++ )
-				{
-					data.m_vOrigin = pOwner->WorldSpaceCenter() + RandomVector( -4, 4 );
-					data.m_vAngles = QAngle( 90, random->RandomInt( 0, 360 ), 0 );
-					data.m_nEntIndex = entindex();
-
-					DispatchEffect( "ShellEject", data );
-				}
-
-				break;
-			}
-	}
+	return return_value;
 }
-
 //-----------------------------------------------------------------------------
 // Purpose:
 //-----------------------------------------------------------------------------
@@ -112,7 +104,7 @@ void CWeapon357::PrimaryAttack( void )
 		else
 		{
 			WeaponSound( EMPTY );
-			m_flNextPrimaryAttack = 0.15;
+			m_flNextPrimaryAttack = gpGlobals->curtime + 0.1f;
 		}
 
 		return;
@@ -121,14 +113,13 @@ void CWeapon357::PrimaryAttack( void )
 	m_iPrimaryAttacks++;
 	gamestats->Event_WeaponFired( pPlayer, true, GetClassname() );
 
-	WeaponSound( SINGLE );
 	pPlayer->DoMuzzleFlash();
 
 	SendWeaponAnim( ACT_VM_PRIMARYATTACK );
 	pPlayer->SetAnimation( PLAYER_ATTACK1 );
 
-	m_flNextPrimaryAttack = gpGlobals->curtime + 0.75;
-	m_flNextSecondaryAttack = gpGlobals->curtime + 0.75;
+	m_flNextPrimaryAttack = gpGlobals->curtime + 0.4f;
+	m_flNextSecondaryAttack = gpGlobals->curtime + 0.4f;
 
 	m_iClip1--;
 
@@ -148,13 +139,127 @@ void CWeapon357::PrimaryAttack( void )
 
 	pPlayer->SnapEyeAngles( angles );
 
-	pPlayer->ViewPunch( QAngle( -8, random->RandomFloat( -2, 2 ), 0 ) );
-
-	CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), 600, 0.2, GetOwner() );
-
+	pPlayer->ViewPunch( QAngle( -8, random->RandomFloat( -1, 1 ), 0 ) );
+	if (m_iClip1 >= 1)
+	{
+		//CSoundEnt::InsertSound(SOUND_COMBAT, GetAbsOrigin(), 600, 0.2, GetOwner());
+		WeaponSound(SINGLE);
+	}
+	else
+	{
+		WeaponSound(EMPTY_SHOT);
+	}
 	if ( !m_iClip1 && pPlayer->GetAmmoCount( m_iPrimaryAmmoType ) <= 0 )
 	{
 		// HEV suit - indicate out of ammo condition
 		pPlayer->SetSuitUpdate( "!HEV_AMO0", FALSE, 0 ); 
 	}
+}
+
+void CWeapon357::HoldIronsight(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+
+	if (pPlayer->m_afButtonPressed & IN_IRONSIGHT)
+	{
+		EnableIronsights();
+		pPlayer->ShowCrosshair(false);
+	}
+	if (pPlayer->m_afButtonReleased & IN_IRONSIGHT)
+	{
+		DisableIronsights();
+		pPlayer->ShowCrosshair(true);
+	}
+}
+
+bool CWeapon357::Reload(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+
+	if (pPlayer)
+	{
+		pPlayer->ShowCrosshair(true); // show crosshair to fix crosshair for reloading weapons in toggle ironsight
+
+		if (m_iClip1 < 1)
+		{
+			bool fRet = DefaultReload(GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD);
+			if (fRet)
+			{
+				WeaponSound(RELOAD);
+			}
+			return fRet;
+		}
+		else
+		{
+			bool fRet = DefaultReload(GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD_NOBOLD);
+			if (fRet)
+			{
+				WeaponSound(RELOAD);
+			}
+			return fRet;
+		}
+
+	}
+	else
+	{
+		return false;
+	}
+}
+
+void CWeapon357::SecondaryAttackWithNonInheritedName(void)
+{
+	//// Only the player fires this way so we can cast
+	CBasePlayer *pOwner = ToBasePlayer(GetOwner());
+	if (!pOwner)
+	{
+		return;
+	}
+
+	ToggleIronsights();
+	pOwner->ToggleCrosshair();
+}
+
+void CWeapon357::ItemPostFrame(void)
+{
+	CBasePlayer *pOwner = ToBasePlayer(GetOwner());
+	if (!pOwner)
+	{
+		return;
+	}
+
+	if (m_bForbidIronsight && gpGlobals->curtime >= m_flNextPrimaryAttack)
+		m_bForbidIronsight = false;
+
+	if (!(m_bInReload || m_bForbidIronsight) && (m_iClip1 > 0 || (m_iClip1 <= 0 && pOwner->GetAmmoCount(m_iPrimaryAmmoType) <= 0)))
+	{// if this weapon is ready or (empty && player has no ammo for it)
+
+		// if the weapon is empty and the player has no ammo for it, perform default actions (e.g. switch to a usable weapon)
+		// except attacks and reload
+		if (m_iClip1 <= 0 && pOwner->GetAmmoCount(m_iPrimaryAmmoType) <= 0 && !((pOwner->m_nButtons & IN_ATTACK) ||
+			(pOwner->m_nButtons & IN_ATTACK2) || (pOwner->m_nButtons & IN_RELOAD)))
+		{
+			BaseClass::ItemPostFrame();
+		}
+
+		// Allow  Ironsight
+		HoldIronsight();
+
+		if ((pOwner->m_afButtonPressed & IN_ATTACK) && gpGlobals->curtime >= m_flNextPrimaryAttack)
+		{
+			PrimaryAttack();
+		}
+
+		if ((pOwner->m_afButtonPressed & IN_ATTACK2) && gpGlobals->curtime >= m_flNextSecondaryAttack)
+			// toggle zoom on pinpoint accuracy powerful rifle like vanilla HL2 crossbow
+		{
+			SecondaryAttackWithNonInheritedName(); // so that it cannot be called by BaseClass::ItemPostFrame() when unneeded
+		}
+
+		if ((pOwner->m_afButtonPressed & IN_RELOAD) && gpGlobals->curtime >= m_flNextPrimaryAttack)
+		{
+			Reload();
+		}
+	}
+	else
+		BaseClass::ItemPostFrame(); //reload
 }

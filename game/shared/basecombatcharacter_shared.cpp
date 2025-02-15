@@ -93,7 +93,8 @@ bool CBaseCombatCharacter::Weapon_CanSwitchTo( CBaseCombatWeapon *pWeapon )
 		if ( !m_hActiveWeapon->CanHolster() )
 			return false;
 	}
-
+	//if (GetMoveType() == MOVETYPE_LADDER) //new
+	//	return false; //new
 	return true;
 }
 

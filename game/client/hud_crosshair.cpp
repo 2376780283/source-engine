@@ -8,6 +8,7 @@
 #include "cbase.h"
 #include "hud.h"
 #include "hud_crosshair.h"
+#include "basecombatweapon_shared.h"
 #include "iclientmode.h"
 #include "view.h"
 #include "vgui_controls/Controls.h"
@@ -310,5 +311,6 @@ void CHudCrosshair::SetCrosshair( CHudTexture *texture, const Color& clr )
 //-----------------------------------------------------------------------------
 void CHudCrosshair::ResetCrosshair()
 {
-	SetCrosshair( m_pDefaultCrosshair, Color(255, 255, 255, 255) );
+	//SetCrosshair( m_pDefaultCrosshair, Color(255, 255, 255, 255) ); Р°Р‘Р±В‹Р°Р›Р°Рћ
+	SetCrosshair(m_pDefaultCrosshair, Color(255, 255, 255, 0));
 }

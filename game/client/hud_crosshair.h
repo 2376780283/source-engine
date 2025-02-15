@@ -13,6 +13,7 @@
 
 #include "hudelement.h"
 #include <vgui_controls/Panel.h>
+#include "basecombatweapon_shared.h"
 
 namespace vgui
 {

@@ -38,6 +38,7 @@ public:
 	bool				IsFlashlightActive( void ) { return m_HL2Local.m_bitsActiveDevices & bits_SUIT_DEVICE_FLASHLIGHT; }
 	bool				IsBreatherActive( void ) { return m_HL2Local.m_bitsActiveDevices & bits_SUIT_DEVICE_BREATHER; }
 
+	virtual bool		ShouldDraw();
 	virtual int			DrawModel( int flags );
 	virtual	void		BuildTransformations( CStudioHdr *hdr, Vector *pos, Quaternion q[], const matrix3x4_t& cameraTransform, int boneMask, CBoneBitList &boneComputed );
 
@@ -51,6 +52,16 @@ public:
 	void			PerformClientSideNPCSpeedModifiers( float flFrameTime, CUserCmd *pCmd );
 
 	bool				IsWeaponLowered( void ) { return m_HL2Local.m_bWeaponLowered; }
+	
+	// Underbarrel grenade launchers
+
+	bool				Get_SMG1_GLL(void) { return m_HL2Local.m_SMG1_GL_Loaded; };
+	bool				Get_AR1M1_GLL(void) { return m_HL2Local.m_AR1M1_GL_Loaded; };
+	bool				Get_SMG1_GLAF(void) { return m_HL2Local.m_SMG1_GL_action_failed; };
+	bool				Get_AR1M1_GLAF(void) { return m_HL2Local.m_AR1M1_GL_action_failed; };
+
+	void				SMG1_GL_action_failed_reset(void) { m_HL2Local.m_SMG1_GL_action_failed = false; };
+	void				AR1M1_GL_action_failed_reset(void) { m_HL2Local.m_AR1M1_GL_action_failed = false; };
 
 public:
 

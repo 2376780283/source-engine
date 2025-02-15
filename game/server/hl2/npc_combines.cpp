@@ -112,7 +112,9 @@ void CNPC_CombineS::Precache()
 
 	PrecacheModel( STRING( GetModelName() ) );
 
-	UTIL_PrecacheOther( "item_healthvial" );
+
+	//spawn health
+	UTIL_PrecacheOther( "item_healthvial_cmb" );
 	UTIL_PrecacheOther( "weapon_frag" );
 	UTIL_PrecacheOther( "item_ammo_ar2_altfire" );
 
@@ -344,7 +346,7 @@ void CNPC_CombineS::Event_Killed( const CTakeDamageInfo &info )
 		// Attempt to drop health
 		if ( pHL2GameRules->NPC_ShouldDropHealth( pPlayer ) )
 		{
-			DropItem( "item_healthvial", WorldSpaceCenter()+RandomVector(-4,4), RandomAngle(0,360) );
+			DropItem( "item_healthvial_cmb", WorldSpaceCenter()+RandomVector(-4,4), RandomAngle(0,360) );
 			pHL2GameRules->NPC_DroppedHealth();
 		}
 		

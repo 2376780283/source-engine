@@ -17,8 +17,8 @@
 #error weapon_crowbar.h must not be included in hl2mp. The windows compiler will use the wrong class elsewhere if it is.
 #endif
 
-#define	CROWBAR_RANGE	75.0f
-#define	CROWBAR_REFIRE	0.4f
+#define	CROWBAR_RANGE	85.0f
+#define	CROWBAR_REFIRE	0.6f
 
 //-----------------------------------------------------------------------------
 // CWeaponCrowbar
@@ -42,6 +42,7 @@ public:
 
 	virtual int WeaponMeleeAttack1Condition( float flDot, float flDist );
 	void		SecondaryAttack( void )	{	return;	}
+	virtual bool	Deploy(void);
 
 	// Animation event
 	virtual void Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );

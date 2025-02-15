@@ -41,6 +41,10 @@ public:
 	bool	m_bDisplayReticle;
 	bool	m_bStickyAutoAim;
 	bool	m_bAutoAimTarget;
+	bool	m_SMG1_GL_Loaded;
+	bool	m_AR1M1_GL_Loaded;
+	bool	m_SMG1_GL_action_failed;
+	bool	m_AR1M1_GL_action_failed;
 #ifdef HL2_EPISODIC
 	float	m_flFlashBattery;
 	Vector	m_vecLocatorOrigin;

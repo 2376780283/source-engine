@@ -111,7 +111,7 @@ ConVar	sk_metropolice_stitch_behind_hitcount( "sk_metropolice_stitch_behind_hitc
 ConVar	sk_metropolice_stitch_along_hitcount( "sk_metropolice_stitch_along_hitcount","2");
 
 
-ConVar	sk_metropolice_health( "sk_metropolice_health","0");
+ConVar	sk_metropolice_health( "sk_metropolice_health","120");
 ConVar	sk_metropolice_simple_health( "sk_metropolice_simple_health","26");
 ConVar	sk_metropolice_stitch_distance( "sk_metropolice_stitch_distance","1000");
 
@@ -3098,7 +3098,7 @@ void CNPC_MetroPolice::Event_Killed( const CTakeDamageInfo &info )
 		// Attempt to drop health
 		if ( pHL2GameRules->NPC_ShouldDropHealth( pPlayer ) )
 		{
-			DropItem( "item_healthvial", WorldSpaceCenter()+RandomVector(-4,4), RandomAngle(0,360) );
+			DropItem( "item_healthvial_cmb", WorldSpaceCenter()+RandomVector(-4,4), RandomAngle(0,360) );
 			pHL2GameRules->NPC_DroppedHealth();
 		}
 	}

@@ -1390,8 +1390,8 @@ void CNPC_Barnacle::AttachTongueToTarget( CBaseEntity *pTouchEnt, Vector vecGrab
 			if ( flDist > 20 )
 			{
 				Vector vecNewPos;
-				VectorMA( GetAbsOrigin(), 20, vecDelta, vecNewPos );
-				vecNewPos.z = pPlayer->GetAbsOrigin().z;
+				VectorMA( GetAbsOrigin(), 20, vecDelta, vecNewPos ); //VectorMA( GetAbsOrigin(), 20, vecDelta, vecNewPos );
+				vecNewPos.z = pPlayer->GetAbsOrigin().z+40;
 				pPlayer->SetAbsOrigin( vecNewPos );
 			}
 		}
