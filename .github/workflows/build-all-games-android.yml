@@ -27,13 +27,7 @@ on:
         default: 'all'
         type: choice
         options:
-          - all
-          - hl2
-          - hl1
-          - hl2mp
-          - episodic
-          - portal        
-          - hl1mp
+          - snowdrop_escape
       android_api:
         description: 'Android API level'
         required: true
