@@ -1,9 +1,6 @@
 # Source Engine
 [![GitHub Actions Status](https://github.com/nillerusr/source-engine/actions/workflows/build.yml/badge.svg)](https://github.com/nillerusr/source-engine/actions/workflows/build.yml) [![GitHub Actions Status](https://github.com/nillerusr/source-engine/actions/workflows/tests.yml/badge.svg)](https://github.com/nillerusr/source-engine/actions/workflows/tests.yml)
 
-# QQ 群
-- 群号：768616259
-
 # zzh Fork 的仓库
 
 Information from [wikipedia](https://wikipedia.org/wiki/Source_(game_engine)):
@@ -27,6 +24,7 @@ Source 引擎没有明确的版本号，而是以增量更新的方式发布。
 - 移除了一些无用/不必要的依赖项  
 - 成就系统无需 Steam 即可运行  
 - 修复了许多 Bug
+- 支持mapbase 和 gamepadui 修复了很多已知问题 依然还有许多问题等待修复
 
 # 当前任务
 - 为 OpenGL 渲染重写材质系统  
