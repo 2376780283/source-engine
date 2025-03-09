@@ -43,12 +43,7 @@ void GamepadUIMainMenu::UpdateGradients()
 {
     const float flTime = GamepadUI::GetInstance().GetTime();
     GamepadUI::GetInstance().GetGradientHelper()->ResetTargets( flTime );
-#ifdef GAMEPADUI_GAME_EZ2
-         // E:Z2 reduces the gradient so that the background map can be more easily seen
-    GamepadUI::GetInstance().GetGradientHelper()->SetTargetGradient( GradientSide::Left, { 1.0f, GamepadUI::GetInstance().IsInBackgroundLevel() ? 0.333f : 0.666f }, flTime );
-#else
     GamepadUI::GetInstance().GetGradientHelper()->SetTargetGradient( GradientSide::Left, { 1.0f, 0.666f }, flTime );
-#endif
 
     // In case a controller is added mid-game
     // SetFooterButtons( FooterButtons::Select, FooterButtons::Select );
@@ -73,20 +68,37 @@ void GamepadUIMainMenu::LoadMenuButtons()
                 pButton->SetPriority( V_atoi( pData->GetString( "priority", "1" ) ) );
                 pButton->SetVisible( true );
 
+                /*
                 const char* pFamily = pData->GetString( "family", "all" );
-                
                 if ( !V_strcmp( pFamily, "ingame" ) || !V_strcmp( pFamily, "all" ) )
-
                     m_Buttons[ GamepadUIMenuStates::InGame ].AddToTail( pButton );
-
                 if ( !V_strcmp( pFamily, "mainmenu" ) || !V_strcmp( pFamily, "all" ) )
-
                     m_Buttons[ GamepadUIMenuStates::MainMenu ].AddToTail( pButton );
+*/
+                   const char* pFamily = pData->GetString("family", "all");
+                   GamepadUI_Log("Loaded button '%s' (family: %s) into state %d \n ",
+                    pData->GetName(), pFamily, (V_strcmp(pFamily, "ingame") == 0) ? GamepadUIMenuStates::InGame : GamepadUIMenuStates::MainMenu);                  
+        if (V_strcmp(pFamily, "all") == 0)
+        {
+         // "all"家族按钮同时添加到两个菜单
+                m_Buttons[GamepadUIMenuStates::InGame].AddToTail(pButton);
+                m_Buttons[GamepadUIMenuStates::MainMenu].AddToTail(pButton);
+        }
+        else
+        {
+         // 非"all"按钮按实际家族分配
+        if (V_strcmp(pFamily, "ingame") == 0)
+                m_Buttons[GamepadUIMenuStates::InGame].AddToTail(pButton);
+        else if (V_strcmp(pFamily, "mainmenu") == 0)
+                m_Buttons[GamepadUIMenuStates::MainMenu].AddToTail(pButton);
+        } 
+                pButton->SetPriority( V_atoi( pData->GetString( "priority", "0" ) ) );
+                
             }
         }
-
+ 
         pDataFile->deleteThis();
-    }
+}
 
  
     // 判断是否显示控制台按钮 pwd ZZHlife
