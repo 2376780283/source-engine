@@ -11,6 +11,7 @@
 #include "c_ai_basenpc.h"
 #include "in_buttons.h"
 #include "collisionutils.h"
+#include "iviewrender.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -27,6 +28,8 @@ extern ConVar sensitivity;
 
 ConVar cl_npc_speedmod_intime( "cl_npc_speedmod_intime", "0.25", FCVAR_CLIENTDLL | FCVAR_ARCHIVE );
 ConVar cl_npc_speedmod_outtime( "cl_npc_speedmod_outtime", "1.5", FCVAR_CLIENTDLL | FCVAR_ARCHIVE );
+//ConVarRef scissor("r_flashlightscissor");
+
 
 IMPLEMENT_CLIENTCLASS_DT(C_BaseHLPlayer, DT_HL2_Player, CHL2_Player)
 	RecvPropDataTable( RECVINFO_DT(m_HL2Local),0, &REFERENCE_RECV_TABLE(DT_HL2Local) ),
@@ -38,6 +41,13 @@ BEGIN_PREDICTION_DATA( C_BaseHLPlayer )
 	DEFINE_PRED_FIELD( m_fIsSprinting, FIELD_BOOLEAN, FTYPEDESC_INSENDTABLE ),
 END_PREDICTION_DATA()
 
+
+//new
+bool C_BaseHLPlayer::ShouldDraw()
+{
+	return true;
+}
+//endnew
 //-----------------------------------------------------------------------------
 // Purpose: Drops player's primary weapon
 //-----------------------------------------------------------------------------
@@ -66,6 +76,16 @@ C_BaseHLPlayer::C_BaseHLPlayer()
 	m_flZoomRate		= 0.0f;
 	m_flZoomStartTime	= 0.0f;
 	m_flSpeedMod		= cl_forwardspeed.GetFloat();
+
+	ConVar *r_flashlightscissor = g_pCVar->FindVar("r_flashlightscissor");
+	ConVarRef scissor("r_flashlightscissor");
+	scissor.SetValue("0");
+
+	if (r_flashlightscissor)
+	{
+		//r_flashlightscissor->AddFlags(FCVAR_HIDDEN | FCVAR_CHEAT);
+		r_flashlightscissor->SetValue(0);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -153,6 +173,15 @@ void C_BaseHLPlayer::Zoom( float FOVOffset, float time )
 //-----------------------------------------------------------------------------
 int C_BaseHLPlayer::DrawModel( int flags )
 {
+
+
+	if (!(view->GetDrawFlags() & (DF_RENDER_REFLECTION)))
+	{
+		//íå ðåíäåðèì ìîäåëü èãðîêà
+		return 1;
+	}
+
+
 	// Not pitch for player
 	QAngle saveAngles = GetLocalAngles();
 

@@ -14,6 +14,7 @@
 #include "hl2_playerlocaldata.h"
 #include "simtimer.h"
 #include "soundenvelope.h"
+#include "baseviewmodel_shared.h"
 
 class CAI_Squad;
 class CPropCombineBall;
@@ -232,6 +233,22 @@ public:
 	bool				IsIlluminatedByFlashlight( CBaseEntity *pEntity, float *flReturnDot );
 	void				SetFlashlightPowerDrainScale( float flScale ) { m_flFlashlightPowerDrainScale = flScale; }
 
+	// Underbarrel grenade launchers
+
+	void				AR1M1_GL_Load(void);
+	void				AR1M1_GL_Unload(void);
+	bool				Get_AR1M1_GLL(void);
+
+	void				AR2_GL_Load(void);
+	void				AR2_GL_Unload(void);
+	bool				Get_AR2_GLL(void);
+	void				R357_Round_Chamber(void);
+	void				R357_Round_Unchamber(void);
+	bool				Get_R357_Chamber(void);
+	void				Annabelle_Round_Chamber(void);
+	void				Annabelle_Round_Unchamber(void);
+	bool				Get_Annabelle_Chamber(void);
+
 	// Underwater breather device
 	virtual void		SetPlayerUnderwater( bool state );
 	virtual bool		CanBreatheUnderwater() const { return m_HL2Local.m_flSuitPower > 0.0f; }
@@ -269,7 +286,8 @@ public:
 
 	bool IsWeaponLowered( void ) { return m_HL2Local.m_bWeaponLowered; }
 	void HandleArmorReduction( void );
-	void StartArmorReduction( void ) { m_flArmorReductionTime = gpGlobals->curtime + ARMOR_DECAY_TIME; 
+	void StartArmorReduction(void) {
+		m_flArmorReductionTime = gpGlobals->curtime + ARMOR_DECAY_TIME;
 									   m_iArmorReductionFrom = ArmorValue(); 
 									 }
 

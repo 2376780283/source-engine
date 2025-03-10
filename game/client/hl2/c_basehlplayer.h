@@ -38,6 +38,7 @@ public:
 	bool				IsFlashlightActive( void ) { return m_HL2Local.m_bitsActiveDevices & bits_SUIT_DEVICE_FLASHLIGHT; }
 	bool				IsBreatherActive( void ) { return m_HL2Local.m_bitsActiveDevices & bits_SUIT_DEVICE_BREATHER; }
 
+	virtual bool		ShouldDraw();
 	virtual int			DrawModel( int flags );
 	virtual	void		BuildTransformations( CStudioHdr *hdr, Vector *pos, Quaternion q[], const matrix3x4_t& cameraTransform, int boneMask, CBoneBitList &boneComputed );
 
@@ -51,6 +52,18 @@ public:
 	void			PerformClientSideNPCSpeedModifiers( float flFrameTime, CUserCmd *pCmd );
 
 	bool				IsWeaponLowered( void ) { return m_HL2Local.m_bWeaponLowered; }
+
+	// Underbarrel grenade launchers
+
+	bool				Get_AR1M1_GLL(void) { return m_HL2Local.m_bAR1M1_GL_Loaded; };
+
+	bool				Get_AR2_GLL(void) { return m_HL2Local.m_bAR2_GL_Loaded; }
+
+	// Bolt-action rifles' statuses
+
+	bool				Get_R357_Chamber(void) { return m_HL2Local.m_bR357_Round_Chambered; };
+
+	bool				Get_Annabelle_Chamber(void) { return m_HL2Local.m_bAnnabelle_Round_Chambered; }
 
 public:
 

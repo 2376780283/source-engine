@@ -1072,7 +1072,7 @@ void CAntlionTemplateMaker::DoBlockedEffects( CBaseEntity *pBlocker, Vector vOri
 
 			UTIL_CreateAntlionDust( vOrigin, vec3_angle, true );
 			pBlocker->EmitSound( "NPC_Antlion.MeleeAttackSingle_Muffled" );
-			pBlocker->EmitSound( "NPC_Antlion.TrappedMetal" );
+			pBlocker->EmitSound( "Bounce.Concrete" ); //было NPC_Antlion.TrappedMetal
 
 
 			m_flBlockedBumpTime = gpGlobals->curtime + random->RandomFloat( 1.75, 2.75 );

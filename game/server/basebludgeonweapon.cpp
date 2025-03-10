@@ -90,6 +90,11 @@ void CBaseHLBludgeonWeapon::ItemPostFrame( void )
 {
 	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
 	
+	if (m_bIsIronsighted)
+	{
+		DisableIronsights();
+	}
+
 	if ( pOwner == NULL )
 		return;
 
@@ -152,9 +157,25 @@ void CBaseHLBludgeonWeapon::Hit( trace_t &traceHit, Activity nHitActivity, bool 
 	{
 		Vector hitDirection;
 		pPlayer->EyeVectors( &hitDirection, NULL, NULL );
+		Msg(GetClassname());
 		VectorNormalize( hitDirection );
 
+		CTakeDamageInfo info(GetOwner(), GetOwner(), GetDamageForActivity(nHitActivity), DMG_SLASH);
+		if (pPlayer)
+		{
+			if((printf("%s", GetClassname()) == printf("weapon_kulak2")))
+			{
+				DevMsg("\n SDE_ETO_KULAK \n");
+				CTakeDamageInfo info(GetOwner(), GetOwner(), GetDamageForActivity(nHitActivity), DMG_SLASH);
+			}
+			else
+			{
+				DevMsg("\n SDE_ETO_NE_KULAK \n");
 		CTakeDamageInfo info( GetOwner(), GetOwner(), GetDamageForActivity( nHitActivity ), DMG_CLUB );
+			}
+		}
+
+		
 
 		if( pPlayer && pHitEntity->IsNPC() )
 		{
@@ -179,6 +200,7 @@ void CBaseHLBludgeonWeapon::Hit( trace_t &traceHit, Activity nHitActivity, bool 
 	// Apply an impact effect
 	ImpactEffect( traceHit );
 }
+
 
 Activity CBaseHLBludgeonWeapon::ChooseIntersectionPointAndActivity( trace_t &hitTrace, const Vector &mins, const Vector &maxs, CBasePlayer *pOwner )
 {
@@ -357,6 +379,7 @@ void CBaseHLBludgeonWeapon::Swing( int bIsSecondary )
 	// -------------------------
 	//	Miss
 	// -------------------------
+	bool hitSound = false;
 	if ( traceHit.fraction == 1.0f )
 	{
 		nHitActivity = bIsSecondary ? ACT_VM_MISSCENTER2 : ACT_VM_MISSCENTER;
@@ -366,10 +389,12 @@ void CBaseHLBludgeonWeapon::Swing( int bIsSecondary )
 		
 		// See if we happened to hit water
 		ImpactWater( swingStart, testEnd );
+		hitSound = true;
 	}
 	else
 	{
 		Hit( traceHit, nHitActivity, bIsSecondary ? true : false );
+		hitSound = false;
 	}
 
 	// Send the anim
@@ -379,6 +404,14 @@ void CBaseHLBludgeonWeapon::Swing( int bIsSecondary )
 	m_flNextPrimaryAttack = gpGlobals->curtime + GetFireRate();
 	m_flNextSecondaryAttack = gpGlobals->curtime + SequenceDuration();
 
+	if (hitSound)
+	{
+		WeaponSound(MELEE_MISS);
+	}
+	else
+	{
+		WeaponSound(MELEE_HIT);
+	}
 	//Play swing sound
-	WeaponSound( SINGLE );
+	//WeaponSound( SINGLE );
 }

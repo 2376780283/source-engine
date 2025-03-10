@@ -226,8 +226,12 @@ typedef enum
 	ACT_VM_THROW,
 	ACT_VM_PULLPIN,
 	ACT_VM_PRIMARYATTACK,		// fire
+	ACT_VM_IRONSHOOT,		// fire с прицеливанием
 	ACT_VM_SECONDARYATTACK,		// alt. fire
+	ACT_VM_SECONDARYATTACK_RELOAD,		// alt. fire
+	ACT_VM_SECONDARY_RELOAD,
 	ACT_VM_RELOAD,			
+	ACT_VM_RELOAD_NOBOLD,
 	ACT_VM_RELOAD_START,			
 	ACT_VM_RELOAD_FINISH,			
 	ACT_VM_DRYFIRE,				// fire with no ammo loaded.
@@ -543,6 +547,7 @@ typedef enum
 	ACT_VM_SPRINT_ENTER,
 	ACT_VM_SPRINT_IDLE,
 	ACT_VM_SPRINT_LEAVE,
+	ACT_VM_SPRINT,
 
 	// Looping weapon firing
 	ACT_FIRE_START,
@@ -674,7 +679,7 @@ typedef enum
 
 	ACT_VM_DRAW_DEPLOYED,
 
-	//Weapon is empty activities
+	//Weapon is , activities
 	ACT_VM_DRAW_EMPTY,
 	ACT_VM_PRIMARYATTACK_EMPTY,
 	ACT_VM_RELOAD_EMPTY,

@@ -28,7 +28,6 @@ BEGIN_DATADESC( CHLMachineGun )
 
 END_DATADESC()
 
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -368,33 +367,34 @@ void CHLSelectFireMachineGun::PrimaryAttack( void )
 //-----------------------------------------------------------------------------
 void CHLSelectFireMachineGun::SecondaryAttack( void )
 {
-	// change fire modes.
-
-	switch( m_iFireMode )
-	{
-	case FIREMODE_FULLAUTO:
-		//Msg( "Burst\n" );
-		m_iFireMode = FIREMODE_3RNDBURST;
-		WeaponSound(SPECIAL2);
-		break;
-
-	case FIREMODE_3RNDBURST:
-		//Msg( "Auto\n" );
-		m_iFireMode = FIREMODE_FULLAUTO;
-		WeaponSound(SPECIAL1);
-		break;
-	}
-	
-	SendWeaponAnim( GetSecondaryAttackActivity() );
-
-	m_flNextSecondaryAttack = gpGlobals->curtime + 0.3;
-
-	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
-	if ( pOwner )
-	{
-		m_iSecondaryAttacks++;
-		gamestats->Event_WeaponFired( pOwner, false, GetClassname() );
-	}
+	return;
+//	// change fire modes.
+//
+//	switch( m_iFireMode )
+//	{
+//	case FIREMODE_FULLAUTO:
+//		//Msg( "Burst\n" );
+//		m_iFireMode = FIREMODE_3RNDBURST;
+//		WeaponSound(SPECIAL2);
+//		break;
+//
+//	case FIREMODE_3RNDBURST:
+//		//Msg( "Auto\n" );
+//		m_iFireMode = FIREMODE_FULLAUTO;
+//		WeaponSound(SPECIAL1);
+//		break;
+//	}
+//	
+//	SendWeaponAnim( GetSecondaryAttackActivity() );
+//
+//	m_flNextSecondaryAttack = gpGlobals->curtime + 0.3;
+//
+//	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
+//	if ( pOwner )
+//	{
+//		m_iSecondaryAttacks++;
+//		gamestats->Event_WeaponFired( pOwner, false, GetClassname() );
+//	}
 }
 
 //-----------------------------------------------------------------------------
@@ -404,21 +404,21 @@ void CHLSelectFireMachineGun::SecondaryAttack( void )
 //-----------------------------------------------------------------------------
 void CHLSelectFireMachineGun::BurstThink( void )
 {
-	CHLMachineGun::PrimaryAttack();
-
-	m_iBurstSize--;
-
-	if( m_iBurstSize == 0 )
-	{
-		// The burst is over!
-		SetThink(NULL);
-
-		// idle immediately to stop the firing animation
-		SetWeaponIdleTime( gpGlobals->curtime );
+	//CHLMachineGun::PrimaryAttack();
+	//
+	//m_iBurstSize--;
+	//
+	//if( m_iBurstSize == 0 )
+	//{
+	//	// The burst is over!
+	//	SetThink(NULL);
+	//
+	//	// idle immediately to stop the firing animation
+	//	SetWeaponIdleTime( gpGlobals->curtime );
 		return;
-	}
-
-	SetNextThink( gpGlobals->curtime + GetFireRate() );
+	//}
+	//
+	//SetNextThink( gpGlobals->curtime + GetFireRate() );
 }
 
 //-----------------------------------------------------------------------------

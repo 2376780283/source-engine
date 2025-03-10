@@ -59,7 +59,7 @@ bool CBaseCombatCharacter::Weapon_Switch( CBaseCombatWeapon *pWeapon, int viewmo
 			return false;
 	}
 
-	m_hActiveWeapon = pWeapon;
+	//m_hActiveWeapon = pWeapon; //added full holster
 
 	return pWeapon->Deploy( );
 }
@@ -80,6 +80,12 @@ bool CBaseCombatCharacter::Weapon_CanSwitchTo( CBaseCombatWeapon *pWeapon )
 #endif
 		if (pVehicle && !pPlayer->UsingStandardWeaponsInVehicle())
 			return false;
+
+#ifndef CLIENT_DLL					//added full holster
+		if (pPlayer->IsSpawning())	//added full holster
+			return false;			//added full holster
+#endif								//added full holster
+
 	}
 
 	if ( !pWeapon->HasAnyAmmo() && !GetAmmoCount( pWeapon->m_iPrimaryAmmoType ) )
@@ -93,7 +99,8 @@ bool CBaseCombatCharacter::Weapon_CanSwitchTo( CBaseCombatWeapon *pWeapon )
 		if ( !m_hActiveWeapon->CanHolster() )
 			return false;
 	}
-
+	//if (GetMoveType() == MOVETYPE_LADDER) //new
+	//	return false; //new
 	return true;
 }
 

@@ -51,8 +51,16 @@ IMPLEMENT_ACTTABLE(CWeaponCrowbar);
 //-----------------------------------------------------------------------------
 CWeaponCrowbar::CWeaponCrowbar( void )
 {
+	m_bIsIronsighted = false;
+	m_bCanIronsighted = false;
 }
-
+bool CWeaponCrowbar::Deploy(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+		pPlayer->ShowCrosshair(true);
+	return BaseClass::Deploy();
+}
 //-----------------------------------------------------------------------------
 // Purpose: Get the damage amount for the animation we're doing
 // Input  : hitActivity - currently played activity
@@ -114,7 +122,7 @@ int CWeaponCrowbar::WeaponMeleeAttack1Condition( float flDot, float flDist )
 	Vector vecDelta;
 	VectorSubtract( vecExtrapolatedPos, pNPC->WorldSpaceCenter(), vecDelta );
 
-	if ( fabs( vecDelta.z ) > 70 )
+	if ( fabs( vecDelta.z ) > 90 )
 	{
 		return COND_TOO_FAR_TO_ATTACK;
 	}
@@ -128,7 +136,7 @@ int CWeaponCrowbar::WeaponMeleeAttack1Condition( float flDot, float flDist )
 	}
 
 	float flExtrapolatedDot = DotProduct2D( vecDelta.AsVector2D(), vecForward.AsVector2D() );
-	if ((flDot < 0.7) && (flExtrapolatedDot < 0.7))
+	if ((flDot < 0.9) && (flExtrapolatedDot < 0.9))
 	{
 		return COND_NOT_FACING_ATTACK;
 	}

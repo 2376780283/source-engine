@@ -10,6 +10,10 @@
 #include "npc_metropolice.h"
 #include "weapon_stunstick.h"
 #include "IEffects.h"
+#include "beam_shared.h"
+#include "in_buttons.h"
+#include "te_effect_dispatch.h"
+
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -18,6 +22,7 @@ ConVar    sk_plr_dmg_stunstick	( "sk_plr_dmg_stunstick","0");
 ConVar    sk_npc_dmg_stunstick	( "sk_npc_dmg_stunstick","0");
 
 extern ConVar metropolice_move_and_melee;
+extern ConVar sde_holster_fixer;
 
 //-----------------------------------------------------------------------------
 // CWeaponStunStick
@@ -74,8 +79,8 @@ void CWeaponStunStick::Precache()
 {
 	BaseClass::Precache();
 
-	PrecacheScriptSound( "Weapon_StunStick.Activate" );
-	PrecacheScriptSound( "Weapon_StunStick.Deactivate" );
+	//PrecacheScriptSound("Weapon_StunStick.Activate");
+	//PrecacheScriptSound("Weapon_StunStick.Deactivate");
 
 }
 
@@ -179,6 +184,13 @@ void CWeaponStunStick::ImpactEffect( trace_t &traceHit )
 	
 	//FIXME: need new decals
 	UTIL_ImpactTrace( &traceHit, DMG_CLUB );
+
+	CEffectData	data;
+
+	data.m_vNormal = traceHit.plane.normal;
+	data.m_vOrigin = traceHit.endpos + (data.m_vNormal * 4.0f);
+
+	DispatchEffect("StunstickImpact", data);
 }
 
 void CWeaponStunStick::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator )
@@ -218,6 +230,7 @@ void CWeaponStunStick::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseComba
 			{
 				// play sound
 				WeaponSound( MELEE_HIT );
+									   Msg("PHT_stunstick_hit\n");
 
 				CBasePlayer *pPlayer = ToBasePlayer( pHurt );
 
@@ -292,6 +305,7 @@ void CWeaponStunStick::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseComba
 			else
 			{
 				WeaponSound( MELEE_MISS );
+									   Msg("PHT_stunstick_miss\n");
 			}
 		}
 		break;
@@ -314,16 +328,25 @@ void CWeaponStunStick::SetStunState( bool state )
 
 		Vector vecAttachment;
 
-		GetAttachment( 1, vecAttachment );
-		g_pEffects->Sparks( vecAttachment );
+		//GetAttachment(LookupAttachment("0"), vecAttachment);
+		//g_pEffects->Sparks( vecAttachment );
+
 
 		//FIXME: END - Move to client-side
 
-		EmitSound( "Weapon_StunStick.Activate" );
+		//EmitSound( "Weapon_StunStick.Activate" ); //я добавил этот звук в qc
+		CBasePlayer *pOwner = ToBasePlayer(GetOwner());
+		if (pOwner != NULL)
+		{
+			CBaseViewModel *pViewModel = pOwner->GetViewModel();
+			pViewModel->GetAttachment(LookupAttachment("0"), vecAttachment);
+			//g_pEffects->Sparks(vecAttachment);
+		}
+
 	}
 	else
 	{
-		EmitSound( "Weapon_StunStick.Deactivate" );
+		//EmitSound("Weapon_StunStick.Deactivate");
 	}
 }
 
@@ -333,11 +356,75 @@ void CWeaponStunStick::SetStunState( bool state )
 //-----------------------------------------------------------------------------
 bool CWeaponStunStick::Deploy( void )
 {
-	SetStunState( true );
+	SetStunState(false);
+
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer == NULL)
+		return false;
+	pPlayer->ShowCrosshair(true);
+	HolsterFix = true;
+	HolsterFixTime = (gpGlobals->curtime + 1.5f); //holster fixer
 
 	return BaseClass::Deploy();
 }
 
+
+//------------------------------------------------------------------------------
+// Purpose : Update weapon
+//------------------------------------------------------------------------------
+void CWeaponStunStick::ItemPostFrame(void)
+{
+	CBasePlayer *pOwner = ToBasePlayer(GetOwner());
+
+	if (pOwner == NULL)
+		return;
+
+	if (m_bIsIronsighted)
+		DisableIronsights();
+
+	if (pOwner->m_bIsCrosshaired)
+		pOwner->ShowCrosshair(true);
+
+	if ((GetActivity() == ACT_VM_HOLSTER) || (GetActivity() == ACT_VM_DRAW)) //new, to prevent melee attack when carrying a physics prop
+		m_flNextPrimaryAttack = gpGlobals->curtime + 0.125f; //new
+	//	m_flNextPrimaryAttack = gpGlobals->curtime + SequenceDuration(); //new
+
+	SetStunState(true);
+
+
+	if (sde_holster_fixer.GetInt() == 1) //holster fixer
+	{
+		if (GetActivity() == ACT_VM_IDLE && HolsterFix && (gpGlobals->curtime > HolsterFixTime))
+		{
+			SetWeaponVisible(true);
+			DevMsg("SDE: holster fixer enabled\n");
+			HolsterFix = false;
+		}
+	}
+
+
+	if (m_bIsIronsighted)
+	{
+		DisableIronsights();
+	}
+
+	if (pOwner == NULL)
+		return;
+	
+	if ((pOwner->m_nButtons & IN_ATTACK) && (m_flNextPrimaryAttack <= gpGlobals->curtime))
+	{
+		PrimaryAttack();
+	}
+	else if ((pOwner->m_nButtons & IN_ATTACK2) && (m_flNextSecondaryAttack <= gpGlobals->curtime))
+	{
+		SecondaryAttack();
+	}
+	else
+	{
+		WeaponIdle();
+		return;
+	}
+}
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------

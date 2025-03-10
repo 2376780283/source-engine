@@ -1903,6 +1903,8 @@ public:
 	COutputEvent		m_OnForcedInteractionStarted;
 	COutputEvent		m_OnForcedInteractionAborted;
 	COutputEvent		m_OnForcedInteractionFinished;
+	COutputEvent		m_OnToxin; //added
+
 
 public:
 	// use this to shrink the bbox temporarily

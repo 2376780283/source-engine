@@ -46,6 +46,7 @@ public:
 
 private:
 	bool UpdateState( void );
+
 	int m_state;
 };
 

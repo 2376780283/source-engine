@@ -164,6 +164,8 @@ private:
 	CSimTimer 	  		 m_NextTimeToStartDoorBash;
 
 	Vector				 m_vPositionCharged;
+	int m_iType;
+	int m_iRun;
 };
 
 LINK_ENTITY_TO_CLASS( npc_zombie, CZombie );
@@ -223,6 +225,8 @@ BEGIN_DATADESC( CZombie )
 	DEFINE_EMBEDDED( m_DurationDoorBash ),
 	DEFINE_EMBEDDED( m_NextTimeToStartDoorBash ),
 	DEFINE_FIELD( m_vPositionCharged, FIELD_POSITION_VECTOR ),
+	DEFINE_KEYFIELD(m_iType, FIELD_INTEGER, "type"),
+	DEFINE_KEYFIELD(m_iRun, FIELD_INTEGER, "run"),
 
 END_DATADESC()
 
@@ -235,6 +239,13 @@ void CZombie::Precache( void )
 	BaseClass::Precache();
 
 	PrecacheModel( "models/zombie/classic.mdl" );
+	PrecacheModel( "models/zombie/classic01.mdl");
+	PrecacheModel( "models/zombie/classic02.mdl");
+	PrecacheModel( "models/zombie/classic03.mdl");
+	PrecacheModel( "models/zombie/classic04.mdl");
+	PrecacheModel( "models/zombie/classic05.mdl");
+	PrecacheModel( "models/zombie/classic06.mdl");
+	PrecacheModel( "models/zombie/classic07.mdl");
 	PrecacheModel( "models/zombie/classic_torso.mdl" );
 	PrecacheModel( "models/zombie/classic_legs.mdl" );
 
@@ -485,11 +496,51 @@ void CZombie::SetZombieModel( void )
 		SetModel( "models/zombie/classic_torso.mdl" );
 		SetHullType( HULL_TINY );
 	}
-	else
+
+	if (!m_fIsTorso && m_iType == 0)
 	{
 		SetModel( "models/zombie/classic.mdl" );
 		SetHullType( HULL_HUMAN );
 	}
+	else if (!m_fIsTorso && m_iType == 1)
+	{
+		SetModel("models/zombie/classic01.mdl");
+		SetHullType(HULL_HUMAN);
+	}
+	else if (!m_fIsTorso && m_iType == 2)
+	{
+		SetModel("models/zombie/classic02.mdl");
+		SetHullType(HULL_HUMAN);
+	}
+	else if (!m_fIsTorso && m_iType == 3)
+	{
+		SetModel("models/zombie/classic03.mdl");
+		SetHullType(HULL_HUMAN);
+	}
+
+	else if (!m_fIsTorso && m_iType == 3)
+	{
+		SetModel("models/zombie/classic04.mdl");
+		SetHullType(HULL_HUMAN);
+	}
+
+	else if (!m_fIsTorso && m_iType == 5)
+	{
+		SetModel("models/zombie/classic05.mdl");
+		SetHullType(HULL_HUMAN);
+	}
+
+	else if (!m_fIsTorso && m_iType == 6)
+	{
+		SetModel("models/zombie/classic06.mdl");
+		SetHullType(HULL_HUMAN);
+	}
+	else if (!m_fIsTorso && m_iType == 7)
+	{
+		SetModel("models/zombie/classic07.mdl");
+		SetHullType(HULL_HUMAN);
+	}
+
 
 	SetBodygroup( ZOMBIE_BODYGROUP_HEADCRAB, !m_fIsHeadless );
 
@@ -533,8 +584,8 @@ bool CZombie::ShouldBecomeTorso( const CTakeDamageInfo &info, float flDamageThre
 		// velocities because the pieces weigh less than the whole.
 		return false;
 	}
-
-	return BaseClass::ShouldBecomeTorso( info, flDamageThreshold );
+	return false;
+	//return BaseClass::ShouldBecomeTorso( info, flDamageThreshold );
 }
 
 //---------------------------------------------------------

@@ -10,9 +10,30 @@
 #include "npcevent.h"
 #include "ai_basenpc.h"
 #include "globalstate.h"
+#include "npcevent.h"
+#include "basehlcombatweapon_shared.h"
+#include "basecombatcharacter.h"
+#include "ai_basenpc.h"
+#include "player.h"
+#include "gamerules.h"
+#include "in_buttons.h"
+#include "soundent.h"
+#include "game.h"
+#include "vstdlib/random.h"
+#include "engine/IEngineSound.h"
+#include "IEffects.h"
+#include "te_effect_dispatch.h"
+#include "Sprite.h"
+#include "SpriteTrail.h"
+#include "beam_shared.h"
+#include "rumble_shared.h"
+#include "gamestats.h"
+#include "decals.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+extern ConVar	sde_drop_mag;
 
 IMPLEMENT_SERVERCLASS_ST(CWeaponAlyxGun, DT_WeaponAlyxGun)
 END_SEND_TABLE()
@@ -21,6 +42,8 @@ LINK_ENTITY_TO_CLASS( weapon_alyxgun, CWeaponAlyxGun );
 PRECACHE_WEAPON_REGISTER(weapon_alyxgun);
 
 BEGIN_DATADESC( CWeaponAlyxGun )
+DEFINE_FIELD(shouldDropMag, FIELD_BOOLEAN),
+DEFINE_FIELD(dropMagTime, FIELD_TIME),
 END_DATADESC()
 
 acttable_t	CWeaponAlyxGun::m_acttable[] = 
@@ -124,7 +147,22 @@ void CWeaponAlyxGun::Equip( CBaseCombatCharacter *pOwner )
 {
 	BaseClass::Equip( pOwner );
 }
+bool CWeaponAlyxGun::Deploy(void)
+{
+	m_nShotsFired = 0;
+	DevMsg("SDE_SMG!_deploy\n");
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+		pPlayer->ShowCrosshair(true);
+	DisplaySDEHudHint();
+	shouldDropMag = false;
 
+	bool return_value = BaseClass::Deploy();
+
+	m_bForbidIronsight = true; // to suppress ironsight during deploy as the weapon is bolted. Behavior of ironsightable weapons that DO bolt on deploy
+
+	return return_value;
+}
 //-----------------------------------------------------------------------------
 // Purpose: Try to encourage Alyx not to use her weapon at point blank range,
 //			but don't prevent her from defending herself if cornered.
@@ -267,7 +305,7 @@ void CWeaponAlyxGun::Operator_ForceNPCFire( CBaseCombatCharacter *pOperator, boo
 	FireNPCPrimaryAttack( pOperator, true );
 }
 
-//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------//test
 void CWeaponAlyxGun::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator )
 {
 	switch( pEvent->event )
@@ -298,14 +336,24 @@ bool IsAlyxInInjuredMode( void )
 //-----------------------------------------------------------------------------
 const Vector& CWeaponAlyxGun::GetBulletSpread( void )
 {
-	static const Vector cone = VECTOR_CONE_2DEGREES;
-	static const Vector injuredCone = VECTOR_CONE_6DEGREES;
+	if (m_bIsIronsighted)
+	{
+		static const Vector cone = VECTOR_CONE_1DEGREES;
+		static const Vector injuredCone = VECTOR_CONE_1DEGREES;
+		return cone;
+	}
+	else
+	{
+		static const Vector cone = VECTOR_CONE_5DEGREES;
+		static const Vector injuredCone = VECTOR_CONE_5DEGREES;
+		return cone;
+	}
 
-	if ( IsAlyxInInjuredMode() )
-		return injuredCone;
 
-	return cone;
+	//if ( IsAlyxInInjuredMode() )
+	//	return injuredCone;
 }
+
 
 //-----------------------------------------------------------------------------
 float CWeaponAlyxGun::GetMinRestTime( void )
@@ -323,4 +371,212 @@ float CWeaponAlyxGun::GetMaxRestTime( void )
 		return 3.0f;
 
 	return BaseClass::GetMaxRestTime();
+}
+
+void CWeaponAlyxGun::PrimaryAttack(void)
+{
+	// Only the player fires this way so we can cast
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (!pPlayer)
+		return;
+
+	// Abort here to handle burst and auto fire modes
+	if ((UsesClipsForAmmo1() && m_iClip1 == 0) || (!UsesClipsForAmmo1() && !pPlayer->GetAmmoCount(m_iPrimaryAmmoType)))
+		return;
+
+	m_nShotsFired++;
+
+	pPlayer->DoMuzzleFlash();
+
+	// To make the firing framerate independent, we may have to fire more than one bullet here on low-framerate systems, 
+	// especially if the weapon we're firing has a really fast rate of fire.
+	int iBulletsToFire = 0;
+	float fireRate = GetFireRate();
+
+	// MUST call sound before removing a round from the clip of a CHLMachineGun
+	while (m_flNextPrimaryAttack <= gpGlobals->curtime)
+	{
+		WeaponSound(SINGLE, m_flNextPrimaryAttack);
+		m_flNextPrimaryAttack = m_flNextPrimaryAttack + fireRate;
+		iBulletsToFire++;
+	}
+
+	// Make sure we don't fire more than the amount in the clip, if this weapon uses clips
+	if (UsesClipsForAmmo1())
+	{
+		if (iBulletsToFire > m_iClip1)
+			iBulletsToFire = m_iClip1;
+		m_iClip1 -= iBulletsToFire;
+	}
+
+	m_iPrimaryAttacks++;
+	//gamestats->Event_WeaponFired(pPlayer, true, GetClassname());
+
+	// Fire the bullets
+	FireBulletsInfo_t info;
+	info.m_iShots = iBulletsToFire;
+	info.m_vecSrc = pPlayer->Weapon_ShootPosition();
+	info.m_vecDirShooting = pPlayer->GetAutoaimVector(AUTOAIM_SCALE_DEFAULT);
+	info.m_vecSpread = pPlayer->GetAttackSpread(this);
+	info.m_flDistance = MAX_TRACE_LENGTH;
+	info.m_iAmmoType = m_iPrimaryAmmoType;
+	info.m_iTracerFreq = 2;
+	FireBullets(info);
+
+	QAngle	viewPunch;
+
+	//viewPunch.x = random->RandomFloat(0.25f, 0.5f);
+	//viewPunch.y = random->RandomFloat(-1.6f, 1.6f);
+	if (m_bIsIronsighted)
+	{
+		viewPunch.x = random->RandomFloat(0.5f, 1.0f);
+		viewPunch.y = random->RandomFloat(-1.0f, 1.0f);
+		viewPunch.z = 0.0f;
+		SendWeaponAnim(ACT_VM_IRONSHOOT);
+	}
+	else
+	{
+		viewPunch.x = random->RandomFloat(0.2f, 0.5f);
+		viewPunch.y = random->RandomFloat(-0.5f, 0.5f);
+		viewPunch.z = 0.0f;
+		SendWeaponAnim(ACT_VM_PRIMARYATTACK);
+	}
+
+
+	//Add it to the view punch
+	pPlayer->ViewPunch(viewPunch);
+
+	//Factor in the view kick
+	AddViewKick();
+
+	CSoundEnt::InsertSound(SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_MACHINEGUN, 0.2, pPlayer);
+
+	if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType) <= 0)
+	{
+		// HEV suit - indicate out of ammo condition
+		pPlayer->SetSuitUpdate("!HEV_AMO0", FALSE, 0);
+	}
+
+	//SendWeaponAnim(GetPrimaryAttackActivity());
+	pPlayer->SetAnimation(PLAYER_ATTACK1);
+
+	// Register a muzzleflash for the AI
+	pPlayer->SetMuzzleFlashTime(gpGlobals->curtime + 0.5);
+}
+
+void CWeaponAlyxGun::HoldIronsight(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+
+	if (pPlayer->m_afButtonPressed & IN_IRONSIGHT)
+	{
+		EnableIronsights();
+		pPlayer->ShowCrosshair(false);
+	}
+	if (pPlayer->m_afButtonReleased & IN_IRONSIGHT)
+	{
+		DisableIronsights();
+		pPlayer->ShowCrosshair(true);
+	}
+}
+
+bool CWeaponAlyxGun::Reload(void)
+{
+	float fCacheTime = m_flNextSecondaryAttack;
+
+
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+	{
+		if (m_iClip1 < 1)
+		{
+			DevMsg("SDE_R+ \n");
+			bool fRet = DefaultReload(GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD);
+			if (fRet)
+			{
+				WeaponSound(RELOAD);
+				m_flNextSecondaryAttack = GetOwner()->m_flNextAttack = fCacheTime;
+				dropMagTime = (gpGlobals->curtime + 0.5f); //drop mag
+				if (sde_drop_mag.GetInt())
+					shouldDropMag = true; //drop mag
+			}
+			return fRet;
+		}
+		else
+		{
+			DevMsg("SDE_R- \n");
+			bool fRet = DefaultReload(GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD_NOBOLD);
+			if (fRet)
+			{
+				WeaponSound(RELOAD);
+				m_flNextSecondaryAttack = GetOwner()->m_flNextAttack = fCacheTime;
+				dropMagTime = (gpGlobals->curtime + 0.5f); //drop mag
+				if (sde_drop_mag.GetInt())
+					shouldDropMag = true; //drop mag
+			}
+			return fRet;
+		}
+	}
+	else
+	{
+		return false;
+	}
+}
+
+void CWeaponAlyxGun::ItemPostFrame(void)
+{
+	CBaseCombatCharacter *pOwner = GetOwner();
+
+	if (pOwner == NULL)
+		return;
+
+	if (m_bForbidIronsight && gpGlobals->curtime >= m_flNextPrimaryAttack)
+	{
+		m_bForbidIronsight = false;
+		if (!m_iClip1 && pOwner->GetAmmoCount(m_iPrimaryAmmoType))
+			Reload();
+	}
+	// Allow Ironsight if not reloading or deploying
+	if (!(m_bInReload || m_bForbidIronsight || GetActivity() == ACT_VM_HOLSTER))
+		HoldIronsight();
+
+	if (shouldDropMag && (gpGlobals->curtime > dropMagTime)) //drop mag
+	{
+		DropMag();
+	}
+
+	BaseClass::ItemPostFrame();
+}
+
+void CWeaponAlyxGun::DropMag(void) //drop mag
+{
+	shouldDropMag = false;
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+	{
+		Vector SpawnHeight(0, 0, 36); // высота спауна энергосферного контейнера
+		QAngle ForwardAngles = pPlayer->EyeAngles(); // + pPlayer->GetPunchAngle() математически неправильно так просто прибавлять, да и смысл?
+		Vector vecForward, vecRight, vecUp;
+		AngleVectors(ForwardAngles, &vecForward, &vecRight, &vecUp);
+		Vector vecEject = SpawnHeight - 10 * vecUp;
+
+		CBaseEntity *pEjectProp = (CBaseEntity *)CreateEntityByName("prop_physics_override");
+
+		if (pEjectProp)
+		{
+			Vector vecOrigin = pPlayer->GetAbsOrigin() + vecEject;
+			QAngle vecAngles(0, pPlayer->GetAbsAngles().y - 0.5, 0);
+			pEjectProp->SetAbsOrigin(vecOrigin);
+			pEjectProp->SetAbsAngles(vecAngles);
+			pEjectProp->KeyValue("model", "models/items/empty_mag_pistol.mdl");
+			pEjectProp->KeyValue("solid", "1");
+			pEjectProp->KeyValue("targetname", "EjectProp");
+			pEjectProp->KeyValue("spawnflags", "516");
+			pEjectProp->SetAbsVelocity(vecForward);
+			DispatchSpawn(pEjectProp);
+			pEjectProp->Activate();
+			pEjectProp->Teleport(&vecOrigin, &vecAngles, NULL);
+			pEjectProp->SUB_StartFadeOut(15, false);
+		}
+	}
 }

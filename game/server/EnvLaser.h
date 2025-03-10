@@ -46,6 +46,7 @@ public:
 	Vector  m_firePosition;
 
 	float	m_flStartFrame;
+	string_t	m_iszDecal;
 };
 
 #endif // ENVLASER_H

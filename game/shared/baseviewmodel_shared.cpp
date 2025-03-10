@@ -13,10 +13,13 @@
 #include "prediction.h"
 #include "client_virtualreality.h"
 #include "sourcevr/isourcevirtualreality.h"
+// cin: 070105 - ironsight mode changes
+#include "convar.h"
+#include "c_baseplayer.h"
+#include "c_basecombatweapon.h"
 #else
 #include "vguiscreen.h"
 #endif
-
 #if defined( CLIENT_DLL ) && defined( SIXENSE )
 #include "sixense/in_sixense.h"
 #include "sixense/sixense_convars_extern.h"
@@ -32,6 +35,99 @@ extern ConVar in_forceuser;
 
 #define VIEWMODEL_ANIMATION_PARITY_BITS 3
 #define SCREEN_OVERLAY_MATERIAL "vgui/screens/vgui_overlay"
+
+#if defined( CLIENT_DLL )
+
+
+ConVar sde_iron_enable("sde_iron_enable","1");
+
+#endif
+ConVar sde_iron_fov_annabelle_62("sde_iron_fov_annabelle_62", "0");
+ConVar sde_iron_fov_annabelle_70("sde_iron_fov_annabelle_70", "0");
+//endnew
+
+
+
+
+
+
+void CBaseViewModel::CalcIronsights(Vector &pos, QAngle &ang)
+{
+	CBaseCombatWeapon *pWeapon = GetOwningWeapon();
+
+	if (!pWeapon)
+		return;
+
+	//get delta time for interpolation
+	float delta = (gpGlobals->curtime - pWeapon->m_flIronsightedTime) * 6.2f; //modify this value to adjust how fast the interpolation is было 4,2
+	float exp = (pWeapon->IsIronsighted()) ?
+		(delta > 1.0f) ? 1.0f : delta : //normal blending
+		(delta > 1.0f) ? 0.0f : 1.0f - delta; //reverse interpolation
+
+	if (exp <= 0.001f) //fully not ironsighted; save performance
+		return;
+
+	Vector newPos = pos;
+	QAngle newAng = ang;
+
+	Vector vForward, vRight, vUp, vOffset;
+	AngleVectors(newAng, &vForward, &vRight, &vUp);
+	vOffset = pWeapon->GetIronsightPositionOffset();
+
+	//автообнуление
+	if (vForward.x == 0)
+		return;
+	
+
+	
+	const ConVar *pVar = (ConVar *)cvar->FindVar("viewmodel_fov");
+	float fovCoeff62 = sde_iron_fov_annabelle_62.GetFloat();
+	float fovCoeff70 = sde_iron_fov_annabelle_70.GetFloat();
+	float fovCoeff = 0;
+	int ViewModelFov = pVar->GetInt();
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	CBaseCombatWeapon *pWeapon2 = pPlayer->GetActiveWeapon();
+	if (pPlayer && pWeapon2)
+	{
+		//Msg("SDE_ADJUST 2 \n");
+		if ((printf("%s", pWeapon2->GetClassname()) == printf("weapon_annabelle")))
+		{
+			//Msg("SDE_ADJUST 3 %f \n", ViewModelFov);
+			if (ViewModelFov == 62)
+			{
+				DevMsg("SDE_ADJUST	62	fov: %f	coefficent: %f\n", ViewModelFov, fovCoeff62);
+				fovCoeff = -15;
+			}
+			else if (ViewModelFov == 70)
+			{
+				DevMsg("SDE_ADJUST	70	fov: %f	coefficent: %f\n", ViewModelFov, fovCoeff70);
+				fovCoeff = -21;
+			}
+		}
+	}
+
+
+	newPos += vForward * (vOffset.x + fovCoeff);
+	//newPos += vForward * vOffset.x;
+	newPos += vRight * vOffset.y;
+	newPos += vUp * vOffset.z;
+	newAng += pWeapon->GetIronsightAngleOffset();
+	//fov is handled by CBaseCombatWeapon
+
+	pos += (newPos - pos) * exp;
+	ang += (newAng - ang) * exp;
+
+}
+
+
+
+
+
+
+
+
+
+
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -84,6 +180,10 @@ void CBaseViewModel::Spawn( void )
 	Precache( );
 	SetSize( Vector( -8, -4, -2), Vector(8, 4, 2) );
 	SetSolid( SOLID_NONE );
+
+#ifdef CLIENT_DLL
+
+#endif
 }
 
 
@@ -341,6 +441,8 @@ void CBaseViewModel::SetWeaponModel( const char *modelname, CBaseCombatWeapon *w
 #endif
 }
 
+
+
 //-----------------------------------------------------------------------------
 // Purpose: 
 // Output : CBaseCombatWeapon
@@ -392,6 +494,9 @@ void CBaseViewModel::CalcViewModelView( CBasePlayer *owner, const Vector& eyePos
 
 	CBaseCombatWeapon *pWeapon = m_hWeapon.Get();
 	//Allow weapon lagging
+	//only if not in ironsight-mode
+	if( pWeapon == NULL || !pWeapon->IsIronsighted() )
+	{
 	if ( pWeapon != NULL )
 	{
 #if defined( CLIENT_DLL )
@@ -400,18 +505,14 @@ void CBaseViewModel::CalcViewModelView( CBasePlayer *owner, const Vector& eyePos
 		{
 			// add weapon-specific bob 
 			pWeapon->AddViewmodelBob( this, vmorigin, vmangles );
-#if defined ( CSTRIKE_DLL )
-			CalcViewModelLag( vmorigin, vmangles, vmangoriginal );
-#endif
 		}
 	}
+
 	// Add model-specific bob even if no weapon associated (for head bob for off hand models)
 	AddViewModelBob( owner, vmorigin, vmangles );
-#if !defined ( CSTRIKE_DLL )
-	// This was causing weapon jitter when rotating in updated CS:S; original Source had this in above InPrediction block  07/14/10
+
 	// Add lag
 	CalcViewModelLag( vmorigin, vmangles, vmangoriginal );
-#endif
 
 #if defined( CLIENT_DLL )
 	if ( !prediction->InPrediction() )
@@ -420,50 +521,22 @@ void CBaseViewModel::CalcViewModelView( CBasePlayer *owner, const Vector& eyePos
 		vieweffects->ApplyShake( vmorigin, vmangles, 0.1 );	
 	}
 #endif
-
-	if( UseVR() )
-	{
-		g_ClientVirtualReality.OverrideViewModelTransform( vmorigin, vmangles, pWeapon && pWeapon->ShouldUseLargeViewModelVROverride() );
 	}
+
+	CalcIronsights(vmorigin, vmangles);
 
 	SetLocalOrigin( vmorigin );
 	SetLocalAngles( vmangles );
 
-#ifdef SIXENSE
-	if( g_pSixenseInput->IsEnabled() && (owner->GetObserverMode()==OBS_MODE_NONE) && !UseVR() )
-	{
-		const float max_gun_pitch = 20.0f;
-
-		float viewmodel_fov_ratio = g_pClientMode->GetViewModelFOV()/owner->GetFOV();
-		QAngle gun_angles = g_pSixenseInput->GetViewAngleOffset() * -viewmodel_fov_ratio;
-
-		// Clamp pitch a bit to minimize seeing back of viewmodel
-		if( gun_angles[PITCH] < -max_gun_pitch )
-		{ 
-			gun_angles[PITCH] = -max_gun_pitch; 
-		}
-
-#ifdef WIN32 // ShouldFlipViewModel comes up unresolved on osx? Mabye because it's defined inline? fixme
-		if( ShouldFlipViewModel() ) 
-		{
-			gun_angles[YAW] *= -1.0f;
-		}
 #endif
-
-		vmangles = EyeAngles() +  gun_angles;
-
-		SetLocalAngles( vmangles );
-	}
-#endif
-#endif
-
 }
 
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
-float g_fMaxViewModelLag = 1.5f;
+float g_fMaxViewModelLag = 0.5f; //тут было 1,5
 
+//проверить и фиксануть
 void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& original_angles )
 {
 	Vector vOriginalOrigin = origin;
@@ -514,9 +587,9 @@ void CBaseViewModel::CalcViewModelLag( Vector& origin, QAngle& angles, QAngle& o
 	}
 
 	//FIXME: These are the old settings that caused too many exposed polys on some models
-	VectorMA( origin, -pitch * 0.035f,	forward,	origin );
-	VectorMA( origin, -pitch * 0.03f,		right,	origin );
-	VectorMA( origin, -pitch * 0.02f,		up,		origin);
+	//VectorMA(origin, -pitch * 0.035f, forward, origin);
+	//VectorMA(origin, -pitch * 0.03f, right, origin);
+	//VectorMA(origin, -pitch * 0.02f, up, origin);
 }
 
 //-----------------------------------------------------------------------------

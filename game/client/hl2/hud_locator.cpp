@@ -22,9 +22,11 @@
 #define LOCATOR_MATERIAL_JALOPY			"vgui/icons/icon_jalopy"
 #define LOCATOR_MATERIAL_BIG_TICK		"vgui/icons/tick_long"
 #define LOCATOR_MATERIAL_SMALL_TICK		"vgui/icons/tick_short"
+#define LOCATOR_MATERIAL_HUMAN			"vgui/icons/icon_human"
 
 ConVar hud_locator_alpha( "hud_locator_alpha", "230" );
 ConVar hud_locator_fov("hud_locator_fov", "350" );
+ConVar hud_locator_icon("hud_locator_icon", "350");
 
 //-----------------------------------------------------------------------------
 // Purpose: Shows positions of objects relative to the player.
@@ -235,10 +237,15 @@ void CHudLocator::Paint()
 {
 #ifdef HL2_EPISODIC
 
+
 	if( m_textureID_IconJalopy == -1 )
 	{
 		m_textureID_IconJalopy = vgui::surface()->CreateNewTextureID();
-		vgui::surface()->DrawSetTextureFile( m_textureID_IconJalopy, LOCATOR_MATERIAL_JALOPY, true, false );
+		float icon = hud_locator_icon.GetFloat();
+		if (icon == 1)
+			vgui::surface()->DrawSetTextureFile(m_textureID_IconJalopy, LOCATOR_MATERIAL_HUMAN, true, false);
+		else
+			vgui::surface()->DrawSetTextureFile( m_textureID_IconJalopy, LOCATOR_MATERIAL_JALOPY, true, false );
 	}
 
 	int alpha = hud_locator_alpha.GetInt();

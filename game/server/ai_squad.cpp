@@ -175,7 +175,7 @@ CAI_Squad::CAI_Squad()
 
 void CAI_Squad::Init(string_t newName) 
 {
-	m_Name = newName;
+	m_Name = AllocPooledString( STRING(newName) );
 	m_pNextSquad = NULL;
 	m_flSquadSoundWaitTime = 0;
 	m_SquadMembers.RemoveAll();

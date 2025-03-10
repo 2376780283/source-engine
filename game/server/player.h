@@ -252,6 +252,8 @@ public:
 	// IPlayerInfo passthrough (because we can't do multiple inheritance)
 	IPlayerInfo *GetPlayerInfo() { return &m_PlayerInfo; }
 	IBotController *GetBotController() { return &m_PlayerInfo; }
+	bool IsSpawning() { return m_bSpawning; }	//added full holster
+
 
 	virtual void			SetModel( const char *szModelName );
 	void					SetBodyPitch( float flPitch );
@@ -301,6 +303,9 @@ public:
 	const char				*GetTracerType( void );
 	void					MakeTracer( const Vector &vecTracerSrc, const trace_t &tr, int iTracerType );
 	void					DoImpactEffect( trace_t &tr, int nDamageType );
+
+public:										//added full holster
+	bool m_bSpawning;						//added full holster
 
 #if !defined( NO_ENTITY_PREDICTION )
 	void					AddToPlayerSimulationList( CBaseEntity *other );
@@ -382,6 +387,7 @@ public:
 	void					ViewPunchReset( float tolerance = 0 );
 	void					ShowViewModel( bool bShow );
 	void					ShowCrosshair( bool bShow );
+	void					ToggleCrosshair(void);
 
 	// View model prediction setup
 	void					CalcView( Vector &eyeOrigin, QAngle &eyeAngles, float &zNear, float &zFar, float &fov );
@@ -830,6 +836,7 @@ public:
 	// This player's data that should only be replicated to 
 	//  the player and not to other players.
 	CNetworkVarEmbedded( CPlayerLocalData, m_Local );
+	CNetworkVar(bool, m_bIsCrosshaired);
 
 #if defined USES_ECON_ITEMS
 	CNetworkVarEmbedded( CAttributeList,	m_AttributeList );
@@ -863,6 +870,11 @@ public:
 	
 	int						m_nButtons;
 	int						m_afButtonPressed;
+	//определяем кнопку Ironsight
+	int						m_isButtonPressed;
+	int						m_isButtonReleased;
+	//закончили
+
 	int						m_afButtonReleased;
 	int						m_afButtonLast;
 	int						m_afButtonDisabled;	// A mask of input flags that are cleared automatically

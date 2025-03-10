@@ -28,6 +28,7 @@ static ConVar	sk_suitcharger_citadel_maxarmor( "sk_suitcharger_citadel_maxarmor"
 
 #define SF_CITADEL_RECHARGER	0x2000
 #define SF_KLEINER_RECHARGER	0x4000 // Gives only 25 health
+#define SF_PCV_RECHARGER	0x8000
 
 class CRecharge : public CBaseToggle
 {
@@ -406,7 +407,13 @@ END_DATADESC()
 
 LINK_ENTITY_TO_CLASS( item_suitcharger, CNewRecharge);
 
+LINK_ENTITY_TO_CLASS(item_suitcharger2, CNewRecharge);
+
+LINK_ENTITY_TO_CLASS(item_suitcharger_pcv, CNewRecharge);
+
 #define HEALTH_CHARGER_MODEL_NAME "models/props_combine/suit_charger001.mdl"
+#define HEALTH_CHARGER_MODEL_NAME2 "models/props_combine/suit_charger002.mdl"
+#define HEALTH_CHARGER_MODEL_NAME3 "models/props_combine/suit_charger003.mdl"
 #define CHARGE_RATE 0.25f
 #define CHARGES_PER_SECOND 1 / CHARGE_RATE
 #define CITADEL_CHARGES_PER_SECOND 10 / CHARGE_RATE
@@ -437,6 +444,8 @@ bool CNewRecharge::KeyValue( const char *szKeyName, const char *szValue )
 void CNewRecharge::Precache( void )
 {
 	PrecacheModel( HEALTH_CHARGER_MODEL_NAME );
+	PrecacheModel( HEALTH_CHARGER_MODEL_NAME2);
+	PrecacheModel( HEALTH_CHARGER_MODEL_NAME3);
 
 	PrecacheScriptSound( "SuitRecharge.Deny" );
 	PrecacheScriptSound( "SuitRecharge.Start" );
@@ -450,6 +459,13 @@ void CNewRecharge::SetInitialCharge( void )
 	{
 		// The charger in Kleiner's lab.
 		m_iMaxJuice =  25.0f;
+		return;
+	}
+
+	if (HasSpawnFlags(SF_PCV_RECHARGER))
+	{
+		// The charger in Kleiner's lab.
+		m_iMaxJuice = 125.0f;
 		return;
 	}
 
@@ -470,6 +486,12 @@ void CNewRecharge::Spawn()
 	SetSolid( SOLID_VPHYSICS );
 	CreateVPhysics();
 
+	
+	if (printf("%s", GetClassname()) == printf("item_suitcharger_pcv"))
+		SetModel( HEALTH_CHARGER_MODEL_NAME3 );
+	if (printf("%s", GetClassname()) == printf("item_suitcharger2"))
+		SetModel(HEALTH_CHARGER_MODEL_NAME2);
+	if (printf("%s", GetClassname()) == printf("item_suitcharger"))
 	SetModel( HEALTH_CHARGER_MODEL_NAME );
 	AddEffects( EF_NOSHADOW );
 

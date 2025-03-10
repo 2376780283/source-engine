@@ -33,6 +33,11 @@ class CBaseViewModel : public CBaseAnimating, public IHasOwner
 	DECLARE_CLASS( CBaseViewModel, CBaseAnimating );
 public:
 
+	//void					SdeDisableIrons(void);
+	//bool m_bExpSighted; //ADDED
+	//float m_expFactor; //ADDED
+	void		CalcIronsights(Vector &pos, QAngle &ang);
+	
 	DECLARE_NETWORKCLASS();
 	DECLARE_PREDICTABLE();
 
@@ -145,7 +150,7 @@ public:
 	// Should this object receive shadows?
 	virtual bool			ShouldReceiveProjectedTextures( int flags )
 	{
-		return false;
+		return true;
 	}
 
 	// Add entity to visible view models list?

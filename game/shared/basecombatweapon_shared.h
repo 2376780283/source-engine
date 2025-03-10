@@ -163,6 +163,7 @@ public:
 							CBaseCombatWeapon();
 	virtual 				~CBaseCombatWeapon();
 
+
 	virtual bool			IsBaseCombatWeapon( void ) const { return true; }
 	virtual CBaseCombatWeapon *MyCombatWeaponPointer( void ) { return this; }
 
@@ -197,6 +198,8 @@ public:
 	// HUD Hints
 	virtual bool			ShouldDisplayAltFireHUDHint();
 	virtual void			DisplayAltFireHudHint();	
+	virtual void			DisplaySDEHudHint();
+	virtual void			DisplayCannotReloadHudHint();
 	virtual void			RescindAltFireHudHint(); ///< undisplay the hud hint and pretend it never showed.
 
 	virtual bool			ShouldDisplayReloadHUDHint();
@@ -209,6 +212,12 @@ public:
 	virtual void			SendViewModelAnim( int nSequence );
 	float					GetViewModelSequenceDuration();	// Return how long the current view model sequence is.
 	bool					IsViewModelSequenceFinished( void ); // Returns if the viewmodel's current animation is finished
+
+	//weapon low
+	virtual void            ProcessAnimationEvents(void);
+	bool                    m_bWeaponIsLowered;
+
+
 
 	virtual void			SetViewModel();
 
@@ -253,6 +262,8 @@ public:
 #ifdef CLIENT_DLL
 	virtual void			CreateMove( float flInputSampleTime, CUserCmd *pCmd, const QAngle &vecOldViewAngles ) {}
 	virtual int				CalcOverrideModelIndex() OVERRIDE;
+	virtual char			*GetFlashlightAttachment(void);
+
 #endif
 
 	virtual bool			IsWeaponZoomed() { return false; }		// Is this weapon in its 'zoomed in' mode?
@@ -272,6 +283,23 @@ public:
 	// Weapon firing
 	virtual void			PrimaryAttack( void );						// do "+ATTACK"
 	virtual void			SecondaryAttack( void ) { return; }			// do "+ATTACK2"
+	bool					HolsterFix;			//holster fixer
+	float					HolsterFixTime;		//holster fixer
+
+	//added
+	Vector					GetIronsightPositionOffset(void) const;
+	QAngle					GetIronsightAngleOffset(void) const;
+	float					GetIronsightFOVOffset(void) const; 
+	//added
+	virtual bool				HasIronsights(void) { return true; } //default yes; override and return false for weapons with no ironsights (like weapon_crowbar)
+	bool					IsIronsighted(void);
+	void					HoldIronsight(void);
+	void					ToggleIronsights(void);
+	void					EnableIronsights(void);
+	void					DisableIronsights(void);
+	void					SetIronsightTime(void);
+	
+
 
 	// Firing animations
 	virtual Activity		GetPrimaryAttackActivity( void );
@@ -341,10 +369,11 @@ public:
 	virtual const char		*GetViewModel( int viewmodelindex = 0 ) const;
 	virtual const char		*GetWorldModel( void ) const;
 	virtual const char		*GetAnimPrefix( void ) const;
-	virtual int				GetMaxClip1( void ) const;
+	virtual int				GetMaxClip1(void);
 	virtual int				GetMaxClip2( void ) const;
 	virtual int				GetDefaultClip1( void ) const;
 	virtual int				GetDefaultClip2( void ) const;
+	virtual int				GetDefaultIsFOV(void) const; //added
 	virtual int				GetWeight( void ) const;
 	virtual bool			AllowsAutoSwitchTo( void ) const;
 	virtual bool			AllowsAutoSwitchFrom( void ) const;
@@ -355,7 +384,7 @@ public:
 	virtual char const		*GetPrintName( void ) const;
 	virtual char const		*GetShootSound( int iIndex ) const;
 	virtual int				GetRumbleEffect() const;
-	virtual bool			UsesClipsForAmmo1( void ) const;
+	virtual bool			UsesClipsForAmmo1(void);
 	virtual bool			UsesClipsForAmmo2( void ) const;
 	bool					IsMeleeWeapon() const;
 
@@ -524,6 +553,8 @@ public:
 private:
 	typedef CHandle< CBaseCombatCharacter > CBaseCombatCharacterHandle;
 	CNetworkVar( CBaseCombatCharacterHandle, m_hOwner );				// Player carrying this weapon
+	//added
+	
 
 protected:
 #if defined ( TF_CLIENT_DLL ) || defined ( TF_DLL )
@@ -546,13 +577,24 @@ public:
 	CNetworkVar( float, m_flNextPrimaryAttack );						// soonest time ItemPostFrame will call PrimaryAttack
 	CNetworkVar( float, m_flNextSecondaryAttack );					// soonest time ItemPostFrame will call SecondaryAttack
 	CNetworkVar( float, m_flTimeWeaponIdle );							// soonest time ItemPostFrame will call WeaponIdle
+	//added
+	CNetworkVar(bool, m_bIsIronsighted);
+	CNetworkVar(bool, m_bCanIronsighted);
+	CNetworkVar(float, m_flIronsightedTime);
+
 	// Weapon state
+	bool					m_bBoltRequired; // Always false for all weapons except the shotgun that, as a one-by-one-shell loaded weapon
+	// capable of chambered round in reload, needs this to keep GetMaxClip1() returning not "clip+1" value when reloading from empty magazine
 	bool					m_bInReload;			// Are we in the middle of a reload;
+	bool					m_bInSecondaryReload = false;	// in the middle of a secondary reload, always false except AR1M1 and AR2;
+	bool					m_bForbidIronsight; //need another variable forbidding ironsight except the former two, e.g. if weapon bolts in deploy or is with zero ammo and about to reload, exiting ironsights anyway
 	bool					m_bFireOnEmpty;			// True when the gun is empty and the player is still holding down the attack key(s)
 	bool					m_bFiringWholeClip;		// Are we in the middle of firing the whole clip;
+	
 	// Weapon art
 	CNetworkVar( int, m_iViewModelIndex );
 	CNetworkVar( int, m_iWorldModelIndex );
+	
 	// Sounds
 	float					m_flNextEmptySoundTime;				// delay on empty sound playing
 
@@ -600,6 +642,8 @@ public:
 
 	CNetworkVar( bool, m_bFlipViewModel );
 
+	
+
 	IPhysicsConstraint		*GetConstraint() { return m_pConstraint; }
 
 private:
@@ -608,8 +652,10 @@ private:
 
 	int						m_iAltFireHudHintCount;		// How many times has this weapon displayed its alt-fire HUD hint?
 	int						m_iReloadHudHintCount;		// How many times has this weapon displayed its reload HUD hint?
+	int						m_iCannotReloadHudHintCount;// How many times has this weapon displayed its 'cannot reload' HUD hint?
 	bool					m_bAltFireHudHintDisplayed;	// Have we displayed an alt-fire HUD hint since this weapon was deployed?
 	bool					m_bReloadHudHintDisplayed;	// Have we displayed a reload HUD hint since this weapon was deployed?
+	bool					m_bCannotReloadHudHintDisplayed;// Have we displayed a 'cannot reload' HUD hint since this weapon was deployed?
 	float					m_flHudHintPollTime;	// When to poll the weapon again for whether it should display a hud hint.
 	float					m_flHudHintMinDisplayTime; // if the hint is squelched before this, reset my counter so we'll display it again.
 	

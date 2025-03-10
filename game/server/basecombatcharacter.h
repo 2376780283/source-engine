@@ -205,6 +205,7 @@ public:
 	// -----------------------
 	// Ammo
 	// -----------------------
+	virtual int			GetMaxCarry(int iAmmoIndex);
 	virtual int			GiveAmmo( int iCount, int iAmmoIndex, bool bSuppressSound = false );
 	int					GiveAmmo( int iCount, const char *szName, bool bSuppressSound = false );
 	virtual void		RemoveAmmo( int iCount, int iAmmoIndex );
@@ -237,6 +238,7 @@ public:
 	virtual bool		Weapon_SlotOccupied( CBaseCombatWeapon *pWeapon );
 	virtual CBaseCombatWeapon *Weapon_GetSlot( int slot ) const;
 	CBaseCombatWeapon	*Weapon_GetWpnForAmmo( int iAmmoIndex );
+	friend class CShowWeapon; //added full holster
 
 
 	// For weapon strip

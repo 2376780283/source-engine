@@ -1,4 +1,4 @@
-//========= Copyright Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: 
 //
@@ -11,6 +11,11 @@
 #include "player.h"
 #include "soundenvelope.h"
 #include "engine/IEngineSound.h"
+#include "gamerules.h"
+#include "grenade_tripmine.h"
+#include "entitylist.h"
+#include "npcevent.h"
+#include "in_buttons.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -31,9 +36,9 @@ BEGIN_DATADESC( CSatchelCharge )
 	DEFINE_FIELD( m_bIsAttached, FIELD_BOOLEAN ),
 
 	// Function Pointers
-	DEFINE_FUNCTION( SatchelTouch ),
-	DEFINE_FUNCTION( SatchelThink ),
-	DEFINE_FUNCTION( SatchelUse ),
+//	DEFINE_FUNCTION( SatchelTouch ),
+//	DEFINE_FUNCTION( SatchelThink ),
+//	DEFINE_FUNCTION( SatchelUse ),
 
 END_DATADESC()
 

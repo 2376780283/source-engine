@@ -960,6 +960,13 @@ bool CViewRender::ShouldDrawViewModel( bool bDrawViewmodel )
 	if ( !r_drawviewmodel.GetBool() )
 		return false;
 
+	//Vehicle holster fix --AlexEpisode
+	C_BasePlayer* pPlayer = C_BasePlayer::GetLocalPlayer();
+	if (pPlayer->IsInAVehicle())
+	{
+		return false;
+	}
+
 	if ( C_BasePlayer::ShouldDrawLocalPlayer() )
 		return false;
 
@@ -2338,6 +2345,11 @@ void CViewRender::RenderView( const CViewSetup &view, int nClearFlags, int whatT
 
 	render->PopView( GetFrustum() );
 	g_WorldListCache.Flush();
+
+	//if (g_pMaterialSystemHardwareConfig->GetDXSupportLevel() >= 70)			//added
+	//{																		//added
+	//	DrawScope(view);													//added
+	//}																		//added
 }
 
 //-----------------------------------------------------------------------------
@@ -2687,7 +2699,6 @@ bool DoesViewPlaneIntersectWater( float waterZ, int leafWaterDataID )
 //			&view - the camera view to render from
 //			nClearFlags -  how to clear the buffer
 //-----------------------------------------------------------------------------
-
 void CViewRender::ViewDrawScene_PortalStencil( const CViewSetup &viewIn, ViewCustomVisibility_t *pCustomVisibility )
 {
 	VPROF( "CViewRender::ViewDrawScene_PortalStencil" );
@@ -2699,6 +2710,28 @@ void CViewRender::ViewDrawScene_PortalStencil( const CViewSetup &viewIn, ViewCus
 	QAngle vecOldAngles = CurrentViewAngles();
 
 	int iCurrentViewID = g_CurrentViewID;
+	int iRecursionLevel = g_pPortalRender->GetViewRecursionLevel();
+	Assert( iRecursionLevel > 0 );
+
+	//get references to reflection textures
+	CTextureReference pPrimaryWaterReflectionTexture;
+	pPrimaryWaterReflectionTexture.Init( GetWaterReflectionTexture() );
+	CTextureReference pReplacementWaterReflectionTexture;
+	pReplacementWaterReflectionTexture.Init( portalrendertargets->GetWaterReflectionTextureForStencilDepth( iRecursionLevel ) );
+
+	//get references to refraction textures
+	CTextureReference pPrimaryWaterRefractionTexture;
+	pPrimaryWaterRefractionTexture.Init( GetWaterRefractionTexture() );
+	CTextureReference pReplacementWaterRefractionTexture;
+	pReplacementWaterRefractionTexture.Init( portalrendertargets->GetWaterRefractionTextureForStencilDepth( iRecursionLevel ) );
+
+
+	//swap texture contents for the primary render targets with those we set aside for this recursion level
+	if( pReplacementWaterReflectionTexture != NULL )
+		pPrimaryWaterReflectionTexture->SwapContents( pReplacementWaterReflectionTexture );
+
+	if( pReplacementWaterRefractionTexture != NULL )
+		pPrimaryWaterRefractionTexture->SwapContents( pReplacementWaterRefractionTexture );
 
 	bool bDrew3dSkybox = false;
 	SkyboxVisibility_t nSkyboxVisible = SKYBOX_NOT_VISIBLE;
@@ -2790,6 +2823,14 @@ void CViewRender::ViewDrawScene_PortalStencil( const CViewSetup &viewIn, ViewCus
 	// Return to the previous view
 	SetupCurrentView( vecOldOrigin, vecOldAngles, (view_id_t)iCurrentViewID );
 	g_CurrentViewID = iCurrentViewID; //just in case the cast to view_id_t screwed up the id #
+
+
+	//swap back the water render targets
+	if( pReplacementWaterReflectionTexture != NULL )
+		pPrimaryWaterReflectionTexture->SwapContents( pReplacementWaterReflectionTexture );
+
+	if( pReplacementWaterRefractionTexture != NULL )
+		pPrimaryWaterRefractionTexture->SwapContents( pReplacementWaterRefractionTexture );
 }
 
 void CViewRender::Draw3dSkyboxworld_Portal( const CViewSetup &view, int &nClearFlags, bool &bDrew3dSkybox, SkyboxVisibility_t &nSkyboxVisible, ITexture *pRenderTarget ) 
@@ -3143,7 +3184,59 @@ void CViewRender::DrawMonitors( const CViewSetup &cameraView )
 
 #endif // USE_MONITORS
 }
-
+ConVar sde_dynamic_scope_test("sde_dynamic_scope_test", "1");
+//void CViewRender::DrawScope(const CViewSetup &viewSet)
+//{
+//	if (sde_dynamic_scope_test.GetFloat() == 0)
+//		return;
+//	C_BasePlayer *localPlayer = C_BasePlayer::GetLocalPlayer();
+//
+//	if (!localPlayer)
+//		return;
+//
+//	if (!localPlayer->GetActiveWeapon())
+//		return;
+//
+//	if (!localPlayer->GetActiveWeapon()->GetViewModel())
+//		return;
+//
+//	//Copy our current View.
+//	CViewSetup scopeView = viewSet;
+//
+//	//Get our camera render target.
+//	ITexture *pRenderTarget = GetScopeTexture();
+//
+//	if (pRenderTarget == NULL)
+//		return;
+//
+//	if (!pRenderTarget->IsRenderTarget())
+//		Msg(" not a render target");
+//
+//	//Our view information, Origin, View Direction, window size
+//	//	location on material, and visual ratios.
+//	scopeView.width = pRenderTarget->GetActualWidth();
+//	scopeView.height = pRenderTarget->GetActualHeight();
+//	scopeView.x = 0;
+//	scopeView.y = 0;
+//	scopeView.fov = localPlayer->GetActiveWeapon()->GetDefaultIsFOV();
+//	scopeView.m_bOrtho = false;
+//
+//	scopeView.m_flAspectRatio = 1.0f;
+//
+//	//Set the view up and output the scene to our RenderTarget (Scope Material).
+//	render->Push3DView(scopeView, VIEW_CLEAR_DEPTH | VIEW_CLEAR_COLOR, pRenderTarget, GetFrustum());
+//
+//	SkyboxVisibility_t nSkyboxVisible = SKYBOX_NOT_VISIBLE;
+//	int ClearFlags = 0;
+//	CSkyboxView *pSkyView = new CSkyboxView(this);
+//	if (pSkyView->Setup(scopeView, &ClearFlags, &nSkyboxVisible) != false)
+//		AddViewToScene(pSkyView);
+//	SafeRelease(pSkyView);
+//
+//	ViewDrawScene(false, SKYBOX_3DSKYBOX_VISIBLE, scopeView, VIEW_CLEAR_DEPTH, VIEW_MONITOR);
+//
+//	render->PopView(m_Frustum);
+//}
 
 //-----------------------------------------------------------------------------
 //
@@ -4008,7 +4101,7 @@ void CRendering3dView::DrawOpaqueRenderables( ERenderDepthMode DepthMode )
 		}
 	}
 
-	if ( r_threaded_renderables.GetBool() )
+	if ( 0 && r_threaded_renderables.GetBool() )
 	{
 		ParallelProcess( "BoneSetupNpcsLast", arrBoneSetupNpcsLast.Base() + numOpaqueEnts - numNpcs, numNpcs, &SetupBonesOnBaseAnimating );
 		ParallelProcess( "BoneSetupNpcsLast NonNPCs", arrBoneSetupNpcsLast.Base(), numNonNpcsAnimating, &SetupBonesOnBaseAnimating );
@@ -4951,6 +5044,10 @@ void CShadowDepthView::Draw()
 		//for the 360, the dummy render target has a separate depth buffer which we Resolve() from afterward
 		render->Push3DView( (*this), VIEW_CLEAR_DEPTH, m_pRenderTarget, GetFrustum() );
 	}
+	//new
+	pRenderContext.GetFrom(materials);
+	pRenderContext->PushRenderTargetAndViewport(m_pRenderTarget, m_pDepthTexture, 0, 0, m_pDepthTexture->GetMappingWidth(), m_pDepthTexture->GetMappingWidth());
+	pRenderContext.SafeRelease();
 
 	SetupCurrentView( origin, angles, VIEW_SHADOW_DEPTH_TEXTURE );
 
@@ -4995,7 +5092,8 @@ void CShadowDepthView::Draw()
 		//Resolve() the depth texture here. Before the pop so the copy will recognize that the resolutions are the same
 		pRenderContext->CopyRenderTargetToTextureEx( m_pDepthTexture, -1, NULL, NULL );
 	}
-
+	//new
+	pRenderContext->PopRenderTargetAndViewport();
 	render->PopView( GetFrustum() );
 
 #if defined( _X360 )
@@ -6097,6 +6195,7 @@ void CReflectiveGlassView::Setup( const CViewSetup &view, int nClearFlags, bool 
 {
 	BaseClass::Setup( view, nClearFlags, bDrawSkybox, fogInfo, waterInfo, NULL );
 	m_ReflectionPlane = reflectionPlane;
+	m_DrawFlags = DF_RENDER_REFLECTION | DF_CLIP_Z | DF_CLIP_BELOW | DF_RENDER_ABOVEWATER | DF_DRAW_ENTITITES;
 }
 
 
@@ -6230,3 +6329,5 @@ void CRefractiveGlassView::Draw()
 	pRenderContext->ClearColor4ub( 0, 0, 0, 255 );
 	pRenderContext->Flush();
 }
+
+//added

@@ -127,6 +127,14 @@ $Project "Client (Episodic)"
 			$File	"hl2\vgui_rootpanel_hl2.cpp"
 			$File	"episodic\c_npc_puppet.cpp"
 		}
+		$Folder	"Swelter"
+		{
+			$File	"hl2/c_npc_drone.cpp"
+			$File	"SwelterOptions.cpp"
+			$File	"SwelterMapOutdated.cpp"
+			$File	"SwelterResetAchievements.cpp"
+			$File	"$SRCDIR\game\shared\episodic\achievements_swelter.cpp"
+		}
 	}
 	
 }

@@ -7,11 +7,11 @@
 
 #include "cbase.h"
 #include "game.h"
-#include "AI_Default.h"
-#include "AI_Schedule.h"
-#include "AI_Hull.h"
-#include "AI_Navigator.h"
-#include "AI_Motor.h"
+#include "ai_default.h"
+#include "ai_schedule.h"
+#include "ai_hull.h"
+#include "ai_navigator.h"
+#include "ai_motor.h"
 #include "ai_squad.h"
 #include "npc_bullsquid.h"
 #include "npcevent.h"
@@ -30,17 +30,20 @@
 #include "engine/IEngineSound.h"
 #include "movevars_shared.h"
 
-#include "AI_Hint.h"
-#include "AI_Senses.h"
+#include "ai_hint.h"
+#include "ai_senses.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#define		SQUID_SPRINT_DIST	256 // how close the squid has to get before starting to sprint and refusing to swerve
+#define		SQUID_SPRINT_DIST	384 // how close the squid has to get before starting to sprint and refusing to swerve
 
-ConVar sk_bullsquid_health( "sk_bullsquid_health", "0" );
-ConVar sk_bullsquid_dmg_bite( "sk_bullsquid_dmg_bite", "0" );
-ConVar sk_bullsquid_dmg_whip( "sk_bullsquid_dmg_whip", "0" );
+//ConVar sk_bullsquid_health( "sk_bullsquid_health", "0" );
+//ConVar sk_bullsquid_dmg_bite( "sk_bullsquid_dmg_bite", "0" );
+//ConVar sk_bullsquid_dmg_whip( "sk_bullsquid_dmg_whip", "0" );
+ConVar sk_bullsquid_health("sk_bullsquid_health", "120");
+ConVar sk_bullsquid_dmg_bite("sk_bullsquid_dmg_bite", "20");
+ConVar sk_bullsquid_dmg_whip("sk_bullsquid_dmg_whip", "1");
 
 //=========================================================
 // monster-specific schedule types
@@ -87,6 +90,8 @@ int	g_interactionBullsquidThrow		= 0;
 #define		BSQUID_AE_HOP		( 5 )
 #define		BSQUID_AE_THROW		( 6 )
 #define		BSQUID_AE_WHIP_SND	( 7 )
+#define		BSQUID_AE_TAILWHIP	( 8 )
+//#define		AE_NPC_BODYDROP_HEAVY	( 8 )
 
 LINK_ENTITY_TO_CLASS( npc_bullsquid, CNPC_Bullsquid );
 
@@ -104,7 +109,7 @@ BEGIN_DATADESC( CNPC_Bullsquid )
 	DEFINE_FIELD( m_fCanThreatDisplay,	FIELD_BOOLEAN ),
 	DEFINE_FIELD( m_flLastHurtTime,		FIELD_TIME ),
 	DEFINE_FIELD( m_flNextSpitTime,		FIELD_TIME ),
-//	DEFINE_FIELD( m_nSquidSpitSprite,	FIELD_INTEGER ),
+DEFINE_FIELD(m_nSquidSpitSprite, FIELD_INTEGER),
 	DEFINE_FIELD( m_flHungryTime,		FIELD_TIME ),
 	DEFINE_FIELD( m_nextSquidSoundTime,	FIELD_TIME ),
 
@@ -118,7 +123,7 @@ void CNPC_Bullsquid::Spawn()
 {
 	Precache( );
 
-	SetModel( "models/bullsquid.mdl");
+	SetModel("models/bullsquid2.mdl");
 	SetHullType(HULL_WIDE_SHORT);
 	SetHullSizeNormal();
 
@@ -149,18 +154,22 @@ void CNPC_Bullsquid::Spawn()
 //=========================================================
 void CNPC_Bullsquid::Precache()
 {
-	PrecacheModel( "models/bullsquid.mdl" );
-	m_nSquidSpitSprite = PrecacheModel("sprites/greenspit1.vmt");// client side spittle.
+	PrecacheModel("models/bullsquid2.mdl");
+	//m_nSquidSpitSprite = PrecacheModel("sprites/greenspit1.vmt");// client side spittle.
 
 	UTIL_PrecacheOther( "grenade_spit" );
 
 	PrecacheScriptSound( "NPC_Bullsquid.Idle" );
 	PrecacheScriptSound( "NPC_Bullsquid.Pain" );
 	PrecacheScriptSound( "NPC_Bullsquid.Alert" );
-	PrecacheScriptSound( "NPC_Bullsquid.Death" );
-	PrecacheScriptSound( "NPC_Bullsquid.Attack1" );
+	PrecacheScriptSound("NPC_Bullsquid.Die");
+	PrecacheScriptSound("NPC_Bullsquid.Attack");
 	PrecacheScriptSound( "NPC_Bullsquid.Growl" );
-	PrecacheScriptSound( "NPC_Bullsquid.TailWhip");
+	PrecacheScriptSound("NPC_Bullsquid.Bite");
+	PrecacheScriptSound("Zombie.AttackHit");
+	PrecacheScriptSound("Zombie.AttackMiss");
+	PrecacheScriptSound("NPC_Antlion.PoisonShoot");
+	PrecacheScriptSound("NPC_Antlion.PoisonBall");
 
 	BaseClass::Precache();
 }
@@ -204,7 +213,7 @@ void CNPC_Bullsquid::AlertSound( void )
 //=========================================================
 void CNPC_Bullsquid::DeathSound( const CTakeDamageInfo &info )
 {
-	EmitSound( "NPC_Bullsquid.Death" );
+	EmitSound("NPC_Bullsquid.Die");
 }
 
 //=========================================================
@@ -212,7 +221,7 @@ void CNPC_Bullsquid::DeathSound( const CTakeDamageInfo &info )
 //=========================================================
 void CNPC_Bullsquid::AttackSound( void )
 {
-	EmitSound( "NPC_Bullsquid.Attack1" );
+	EmitSound("NPC_Bullsquid.Attack");
 }
 
 //=========================================================
@@ -270,43 +279,67 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 				Vector			vToss;
 				CBaseEntity*	pBlocker;
 				float flGravity  = SPIT_GRAVITY;
-				ThrowLimit(vSpitPos, vTarget, flGravity, 3, Vector(0,0,0), Vector(0,0,0), GetEnemy(), &vToss, &pBlocker);
+							   Vector vConst = Vector(0, 0, 50);
+							   ThrowLimit(vSpitPos + vConst, vTarget, flGravity, 3, Vector(0, 0, 0), Vector(0, 0, 0), GetEnemy(), &vToss, &pBlocker);
 
-				CGrenadeSpit *pGrenade = (CGrenadeSpit*)CreateNoSpawn( "grenade_spit", vSpitPos, vec3_angle, this );
-				//pGrenade->KeyValue( "velocity", vToss );
-				pGrenade->Spawn( );
+						//	   for (int i = 0; i < 6; i++)
+						//	   {
+						//		   //CGrenadeSpit *pGrenade = (CGrenadeSpit*)CreateNoSpawn("grenade_spit", vSpitPos + vConst, vec3_angle, this);
+						//		   //pGrenade->KeyValue( "velocity", vToss );
+						//		   CGrenadeSpit *pGrenade = (CGrenadeSpit*)CreateEntityByName("grenade_spit");
+						//		   pGrenade->SetAbsOrigin(vSpitPos + vConst);
+						//		   pGrenade->SetAbsAngles(vec3_angle);
+						//		   DispatchSpawn(pGrenade);
+						//		  // pGrenade->Spawn();
+						//		   pGrenade->SetThrower(this);
+						//		   pGrenade->SetOwnerEntity(this);
+						//		   pGrenade->SetSpitSize(1);
+						//		   pGrenade->SetAbsVelocity(vToss);
+						//		   // Tumble through the air
+						//		   pGrenade->SetLocalAngularVelocity(
+						//			   QAngle(random->RandomFloat(-250, -500),
+						//			   random->RandomFloat(-250, -500),
+						//			   random->RandomFloat(-250, -500)));
+						//
+						//	   }
+						//	   
+
+
+							   for (int i = 0; i < 8; i++)
+							   {
+									CGrenadeSpit *pGrenade = (CGrenadeSpit*)CreateEntityByName("grenade_spit");
+									pGrenade->SetAbsOrigin(vSpitPos + vConst);
+									pGrenade->SetAbsAngles(vec3_angle);
+									DispatchSpawn(pGrenade);
 				pGrenade->SetThrower( this );
 				pGrenade->SetOwnerEntity( this );
-				pGrenade->SetSpitSize( 2 );
-				pGrenade->SetAbsVelocity( vToss );
+									pGrenade->SetAbsVelocity((vToss + RandomVector(-100.035f, 100.035f)));
+									pGrenade->SetSpitSize(random->RandomInt(SPIT_SMALL, SPIT_MEDIUM));
 
 				// Tumble through the air
 				pGrenade->SetLocalAngularVelocity(
-					QAngle(
-						random->RandomFloat( -100, -500 ),
-						random->RandomFloat( -100, -500 ),
-						random->RandomFloat( -100, -500 )
-					)
-				);
-						
-				AttackSound();
-			
+									QAngle(random->RandomFloat(-250, -500),
+									random->RandomFloat(-250, -500),
+									random->RandomFloat(-250, -500)));
+							   }
 				CPVSFilter filter( vSpitPos );
 				te->SpriteSpray( filter, 0.0,
 					&vSpitPos, &vToss, m_nSquidSpitSprite, 5, 10, 15 );
 			}
+						   AttackSound();
 		}
 		break;
 
 		case BSQUID_AE_BITE:
 		{
-		// SOUND HERE!
 			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_bullsquid_dmg_bite.GetFloat(), DMG_SLASH );
 			if ( pHurt )
 			{
+							   EmitSound("NPC_Bullsquid.Bite");
+
 				Vector forward, up;
 				AngleVectors( GetAbsAngles(), &forward, NULL, &up );
-				pHurt->ApplyAbsVelocityImpulse( 100 * (up-forward) );
+							   pHurt->ApplyAbsVelocityImpulse(10 * (up - forward));
 				pHurt->SetGroundEntity( NULL );
 			}
 		}
@@ -314,16 +347,16 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 
 		case BSQUID_AE_WHIP_SND:
 		{
-			EmitSound( "NPC_Bullsquid.TailWhip" );
 			break;
 		}
 
-/*
+
 		case BSQUID_AE_TAILWHIP:
 		{
-			CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), sk_bullsquid_dmg_whip.GetFloat(), DMG_SLASH | DMG_ALWAYSGIB );
+		CBaseEntity* pHurt = CheckTraceHullAttack(70, Vector(-16, -16, -16), Vector(16, 16, 16), sk_bullsquid_dmg_whip.GetFloat(), DMG_SLASH);
 			if ( pHurt ) 
 			{
+			EmitSound("Zombie.AttackHit");
 				Vector right, up;
 				AngleVectors( GetAbsAngles(), NULL, &right, &up );
 
@@ -332,9 +365,12 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 			
 				pHurt->ApplyAbsVelocityImpulse( 100 * (up+2*right) );
 			}
+		else
+		{
+			EmitSound("Zombie.AttackMiss");
+		}
 		}
 		break;
-*/
 
 		case BSQUID_AE_BLINK:
 		{
@@ -355,7 +391,7 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 
 			// jump 40 inches into the air
 			Vector vecVel = GetAbsVelocity();
-			vecVel.z += sqrt( flGravity * 2.0 * 40 );
+						  vecVel.z += sqrt(flGravity * 2.0 * 20);
 			SetAbsVelocity( vecVel );
 		}
 		break;
@@ -365,9 +401,9 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 				// squid throws its prey IF the prey is a client. 
 				CBaseEntity *pHurt = CheckTraceHullAttack( 70, Vector(-16,-16,-16), Vector(16,16,16), 0, 0 );
 
-
 				if ( pHurt )
 				{
+								EmitSound("NPC_Bullsquid.Bite");
 					pHurt->ViewPunch( QAngle(20,0,-20) );
 							
 					// screeshake transforms the viewmodel as well as the viewangle. No problems with seeing the ends of the viewmodels.
@@ -378,7 +414,7 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 					{
 						Vector forward, up;
 						AngleVectors( GetLocalAngles(), &forward, NULL, &up );
-						pHurt->ApplyAbsVelocityImpulse( forward * 300 + up * 300 );
+									pHurt->ApplyAbsVelocityImpulse(forward * 100 + up * 100);
 					}
 					// If not the player see if has bullsquid throw interatcion
 					else
@@ -390,10 +426,11 @@ void CNPC_Bullsquid::HandleAnimEvent( animevent_t *pEvent )
 							{
 								Vector forward, up;
 								AngleVectors( GetLocalAngles(), &forward, NULL, &up );
-								pVictim->ApplyAbsVelocityImpulse( forward * 300 + up * 250 );
+											pVictim->ApplyAbsVelocityImpulse(forward * 100 + up * 250);
 							}
 						}
 					}
+								
 				}
 			}
 		break;
@@ -491,14 +528,14 @@ void CNPC_Bullsquid::RemoveIgnoredConditions( void )
 	if ( GetEnemy() != NULL )
 	{
 		// ( Unless after a tasty headcrab, yumm ^_^ )
-		if ( FClassnameIs( GetEnemy(), "monster_headcrab" ) )
+		if (FClassnameIs(GetEnemy(), "npc_headcrab"))
 			 ClearCondition( COND_SMELL );
 	}
 }
 
 Disposition_t CNPC_Bullsquid::IRelationType( CBaseEntity *pTarget )
 {
-	if ( gpGlobals->curtime - m_flLastHurtTime < 5 && FClassnameIs( pTarget, "monster_headcrab" ) )
+	if (gpGlobals->curtime - m_flLastHurtTime < 5 && FClassnameIs(pTarget, "npc_headcrab"))
 	{
 		// if squid has been hurt in the last 5 seconds, and is getting relationship for a headcrab, 
 		// tell squid to disregard crab. 
@@ -543,12 +580,16 @@ int CNPC_Bullsquid::OnTakeDamage_Alive( const CTakeDamageInfo &inputInfo )
 	}
 #endif
 
-	if ( !FClassnameIs( inputInfo.GetAttacker(), "monster_headcrab" ) )
+	if (!FClassnameIs(inputInfo.GetAttacker(), "npc_headcrab"))
 	{
 		// don't forget about headcrabs if it was a headcrab that hurt the squid.
 		m_flLastHurtTime = gpGlobals->curtime;
 	}
-
+	if (!FClassnameIs(inputInfo.GetAttacker(), "npc_headcrab"))
+	{
+		// don't forget about headcrabs if it was a headcrab that hurt the squid.
+		m_flLastHurtTime = gpGlobals->curtime;
+	}
 	return BaseClass::OnTakeDamage_Alive( inputInfo );
 }
 
@@ -694,7 +735,7 @@ int CNPC_Bullsquid::SelectSchedule( void )
 
 			if ( HasCondition( COND_NEW_ENEMY ) )
 			{
-				if ( m_fCanThreatDisplay && IRelationType( GetEnemy() ) == D_HT && FClassnameIs( GetEnemy(), "monster_headcrab" ) )
+								 if (m_fCanThreatDisplay && IRelationType(GetEnemy()) == D_HT && FClassnameIs(GetEnemy(), "npc_headcrab"))
 				{
 					// this means squid sees a headcrab!
 					m_fCanThreatDisplay = FALSE;// only do the headcrab dance once per lifetime.
@@ -850,6 +891,29 @@ void CNPC_Bullsquid::RunTask( const Task_t *pTask )
 	}
 }
 
+//-----------------------------------------------------------------------------
+// Purpose: Allows for modification of the interrupt mask for the current schedule.
+//			In the most cases the base implementation should be called first.
+//-----------------------------------------------------------------------------
+void CNPC_Bullsquid::BuildScheduleTestBits(void)
+{
+	// Ignore damage if we were recently damaged or we're attacking.
+	if (GetActivity() == ACT_MELEE_ATTACK1 || ACT_MELEE_ATTACK2)
+	{
+		ClearCustomInterruptCondition(COND_LIGHT_DAMAGE);
+		ClearCustomInterruptCondition(COND_HEAVY_DAMAGE);
+	}
+#ifndef HL2_EPISODIC
+	else if (m_flNextFlinch >= gpGlobals->curtime)
+	{
+		ClearCustomInterruptCondition(COND_LIGHT_DAMAGE);
+		ClearCustomInterruptCondition(COND_HEAVY_DAMAGE);
+	}
+#endif // !HL2_EPISODIC
+
+	BaseClass::BuildScheduleTestBits();
+}
+
 //=========================================================
 // GetIdealState - Overridden for Bullsquid to deal with
 // the feature that makes it lose interest in headcrabs for 
@@ -863,7 +927,7 @@ NPC_STATE CNPC_Bullsquid::SelectIdealState( void )
 		case NPC_STATE_COMBAT:
 		{
 			// COMBAT goes to ALERT upon death of enemy
-			if ( GetEnemy() != NULL && ( HasCondition( COND_LIGHT_DAMAGE ) || HasCondition( COND_HEAVY_DAMAGE ) ) && FClassnameIs( GetEnemy(), "monster_headcrab" ) )
+							 if (GetEnemy() != NULL && (HasCondition(COND_LIGHT_DAMAGE) || HasCondition(COND_HEAVY_DAMAGE)) && FClassnameIs(GetEnemy(), "npc_headcrab"))
 			{
 				// if the squid has a headcrab enemy and something hurts it, it's going to forget about the crab for a while.
 				SetEnemy( NULL );

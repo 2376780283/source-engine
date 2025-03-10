@@ -29,6 +29,8 @@
 
 ConVar	pistol_use_new_accuracy( "pistol_use_new_accuracy", "1" );
 
+extern ConVar	sde_drop_mag;
+
 //-----------------------------------------------------------------------------
 // CWeaponPistol
 //-----------------------------------------------------------------------------
@@ -49,11 +51,18 @@ public:
 	void	ItemPreFrame( void );
 	void	ItemBusyFrame( void );
 	void	PrimaryAttack( void );
+	void	HoldIronsight(void);
+	bool	Deploy(void);
+
 	void	AddViewKick( void );
 	void	DryFire( void );
 	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 
 	void	UpdatePenaltyTime( void );
+
+	bool shouldDropMag; //drop mag
+	float dropMagTime; //drop mag
+	void DropMag(void); //drop mag
 
 	int		CapabilitiesGet( void ) { return bits_CAP_WEAPON_RANGE_ATTACK1; }
 	Activity	GetPrimaryAttackActivity( void );
@@ -85,6 +94,7 @@ public:
 			// Old value
 			cone = VECTOR_CONE_4DEGREES;
 		}
+
 
 		return cone;
 	}
@@ -126,6 +136,8 @@ BEGIN_DATADESC( CWeaponPistol )
 	DEFINE_FIELD( m_flLastAttackTime,		FIELD_TIME ),
 	DEFINE_FIELD( m_flAccuracyPenalty,		FIELD_FLOAT ), //NOTENOTE: This is NOT tracking game time
 	DEFINE_FIELD( m_nNumShotsFired,			FIELD_INTEGER ),
+DEFINE_FIELD(shouldDropMag, FIELD_BOOLEAN),
+DEFINE_FIELD(dropMagTime, FIELD_TIME),
 
 END_DATADESC()
 
@@ -135,6 +147,7 @@ acttable_t	CWeaponPistol::m_acttable[] =
 	{ ACT_IDLE_ANGRY,				ACT_IDLE_ANGRY_PISTOL,			true },
 	{ ACT_RANGE_ATTACK1,			ACT_RANGE_ATTACK_PISTOL,		true },
 	{ ACT_RELOAD,					ACT_RELOAD_PISTOL,				true },
+	{ ACT_VM_RELOAD_NOBOLD, ACT_RELOAD_PISTOL, true },
 	{ ACT_WALK_AIM,					ACT_WALK_AIM_PISTOL,			true },
 	{ ACT_RUN_AIM,					ACT_RUN_AIM_PISTOL,				true },
 	{ ACT_GESTURE_RANGE_ATTACK1,	ACT_GESTURE_RANGE_ATTACK_PISTOL,true },
@@ -171,9 +184,28 @@ CWeaponPistol::CWeaponPistol( void )
 //-----------------------------------------------------------------------------
 void CWeaponPistol::Precache( void )
 {
+	PrecacheModel("models/items/empty_mag_pistol.mdl");
 	BaseClass::Precache();
 }
+bool CWeaponPistol::Deploy(void)
+{
 
+	DevMsg("SDE_SMG!_deploy\n");
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+		pPlayer->ShowCrosshair(true);
+	DisplaySDEHudHint();
+	shouldDropMag = false;
+
+	bool return_value = BaseClass::Deploy();
+
+	if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType))
+	{
+		m_bForbidIronsight = true; // to suppress ironsight during deploy in case the weapon is empty and the player has ammo 
+	}							   // -> reload will be forced. Behavior of ironsightable weapons that don't bolt on deploy
+
+	return return_value;
+}
 //-----------------------------------------------------------------------------
 // Purpose:
 // Input  :
@@ -237,6 +269,8 @@ void CWeaponPistol::PrimaryAttack( void )
 	m_flSoonestPrimaryAttack = gpGlobals->curtime + PISTOL_FASTEST_REFIRE_TIME;
 	CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), SOUNDENT_VOLUME_PISTOL, 0.2, GetOwner() );
 
+
+
 	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
 
 	if( pOwner )
@@ -245,7 +279,9 @@ void CWeaponPistol::PrimaryAttack( void )
 		// the aim from 'drifting off' when the player fires very quickly. This may
 		// not be the ideal way to achieve this, but it's cheap and it works, which is
 		// great for a feature we're evaluating. (sjb)
+		pOwner->ViewPunch(QAngle(random->RandomFloat(-8.0, -6.4), random->RandomFloat(-4, 4), 0));
 		pOwner->ViewPunchReset();
+		pOwner->DoMuzzleFlash();
 	}
 
 	BaseClass::PrimaryAttack();
@@ -266,6 +302,11 @@ void CWeaponPistol::UpdatePenaltyTime( void )
 
 	if ( pOwner == NULL )
 		return;
+
+	if (shouldDropMag && (gpGlobals->curtime > dropMagTime)) //drop mag
+	{
+		DropMag();
+	}
 
 	// Check our penalty time decay
 	if ( ( ( pOwner->m_nButtons & IN_ATTACK ) == false ) && ( m_flSoonestPrimaryAttack < gpGlobals->curtime ) )
@@ -300,16 +341,31 @@ void CWeaponPistol::ItemBusyFrame( void )
 //-----------------------------------------------------------------------------
 void CWeaponPistol::ItemPostFrame( void )
 {
-	BaseClass::ItemPostFrame();
-
-	if ( m_bInReload )
-		return;
 	
 	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
 
 	if ( pOwner == NULL )
 		return;
 
+	if (m_bForbidIronsight && gpGlobals->curtime >= m_flNextPrimaryAttack)
+	{
+		m_bForbidIronsight = false;
+		if (!m_iClip1 && pOwner->GetAmmoCount(m_iPrimaryAmmoType))
+			Reload();
+	}
+
+	// Ironsight if not reloading or deploying before forced reload
+	if (!(m_bInReload || m_bForbidIronsight || GetActivity() == ACT_VM_HOLSTER))
+		HoldIronsight();
+
+	if (GetActivity() == ACT_VM_HOLSTER) //new
+		m_flNextPrimaryAttack = gpGlobals->curtime + 1.25f; //new
+	
+	BaseClass::ItemPostFrame();
+	
+	if (m_bInReload)
+		return;
+	
 	//Allow a refire as fast as the player can click
 	if ( ( ( pOwner->m_nButtons & IN_ATTACK ) == false ) && ( m_flSoonestPrimaryAttack < gpGlobals->curtime ) )
 	{
@@ -343,13 +399,58 @@ Activity CWeaponPistol::GetPrimaryAttackActivity( void )
 //-----------------------------------------------------------------------------
 bool CWeaponPistol::Reload( void )
 {
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+	{
+		pPlayer->ShowCrosshair(true);  // show crosshair to fix crosshair for reloading weapons in toggle ironsight
+		if (m_iClip1 < 1)
+		{
+			//Msg("SDE_R+ \n");
+
 	bool fRet = DefaultReload( GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD );
 	if ( fRet )
 	{
 		WeaponSound( RELOAD );
-		m_flAccuracyPenalty = 0.0f;
+				dropMagTime = (gpGlobals->curtime + 0.5f); //drop mag
+				if (sde_drop_mag.GetInt())
+					shouldDropMag = true; //drop mag
+			}
+			return fRet;
+		}
+		else
+		{
+			//Msg("SDE_R- \n");
+			bool fRet = DefaultReload(GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD_NOBOLD);
+			if (fRet)
+			{
+				WeaponSound(RELOAD);
+				dropMagTime = (gpGlobals->curtime + 0.5f); //drop mag
+				if (sde_drop_mag.GetInt())
+					shouldDropMag = true; //drop mag
 	}
 	return fRet;
+}
+	}
+	else
+	{
+		return false;
+	}
+}
+
+void CWeaponPistol::HoldIronsight(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+
+	if (pPlayer->m_afButtonPressed & IN_IRONSIGHT)
+	{
+		EnableIronsights();
+		pPlayer->ShowCrosshair(false);
+	}
+	if (pPlayer->m_afButtonReleased & IN_IRONSIGHT)
+	{
+		DisableIronsights();
+		pPlayer->ShowCrosshair(true);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -364,10 +465,43 @@ void CWeaponPistol::AddViewKick( void )
 
 	QAngle	viewPunch;
 
-	viewPunch.x = random->RandomFloat( 0.25f, 0.5f );
-	viewPunch.y = random->RandomFloat( -.6f, .6f );
+	viewPunch.x = random->RandomFloat(0.5f, 1.5f);
+	viewPunch.y = random->RandomFloat(-1.6f, 1.6f);
 	viewPunch.z = 0.0f;
 
 	//Add it to the view punch
 	pPlayer->ViewPunch( viewPunch );
+}
+
+void CWeaponPistol::DropMag(void) //drop mag
+{
+	shouldDropMag = false;
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+	{
+		Vector SpawnHeight(0, 0, 36); // высота спауна энергосферного контейнера
+		QAngle ForwardAngles = pPlayer->EyeAngles(); // + pPlayer->GetPunchAngle() математически неправильно так просто прибавлять, да и смысл?
+		Vector vecForward, vecRight, vecUp;
+		AngleVectors(ForwardAngles, &vecForward, &vecRight, &vecUp);
+		Vector vecEject = SpawnHeight + 6 * vecRight - 10 * vecUp;
+
+		CBaseEntity *pEjectProp = (CBaseEntity *)CreateEntityByName("prop_physics_override");
+
+		if (pEjectProp)
+		{
+			Vector vecOrigin = pPlayer->GetAbsOrigin() + vecEject;
+			QAngle vecAngles(0, pPlayer->GetAbsAngles().y - 0.5, 0);
+			pEjectProp->SetAbsOrigin(vecOrigin);
+			pEjectProp->SetAbsAngles(vecAngles);
+			pEjectProp->KeyValue("model", "models/items/empty_mag_pistol.mdl");
+			pEjectProp->KeyValue("solid", "1");
+			pEjectProp->KeyValue("targetname", "EjectProp");
+			pEjectProp->KeyValue("spawnflags", "516");
+			pEjectProp->SetAbsVelocity(vecForward);
+			DispatchSpawn(pEjectProp);
+			pEjectProp->Activate();
+			pEjectProp->Teleport(&vecOrigin, &vecAngles, NULL);
+			pEjectProp->SUB_StartFadeOut(15, false);
+		}
+	}
 }

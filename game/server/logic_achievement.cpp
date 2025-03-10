@@ -127,21 +127,31 @@ CLogicAchievement::CLogicAchievement(void)
 {
 	m_iszAchievementEventID		= NULL_STRING;
 }
-
-#define ACHIEVEMENT_PREFIX	"ACHIEVEMENT_EVENT_"
+#define ACHIEVEMENT_PREFIX	"ACHIEVEMENT_EVENT_" //было ACH_SDE_
 
 //-----------------------------------------------------------------------------
 // Purpose: Sends the achievement event to the achievement marking system.
 //-----------------------------------------------------------------------------
+
+
+
+//
+// проверка на св_читс 1
+//if ( !sv_cheats->GetBool() )
+//return
+//
+
 void CLogicAchievement::InputFireEvent( inputdata_t &inputdata )
 {
+	if (!sv_cheats->GetBool())
+	{
+		DevMsg("SDE: TECHNICALLY, YOU GET ACHIEVEMENT\n");
 	// If we're active, and our string matched a valid achievement ID
 	if ( !m_bDisabled  && m_iszAchievementEventID != NULL_STRING)
 	{
 		m_OnFired.FireOutput( inputdata.pActivator, this );
 
 		char const *pchName = STRING( m_iszAchievementEventID );
-
 		int nPrefixLen = Q_strlen( ACHIEVEMENT_PREFIX );
 		if ( !Q_strnicmp( pchName, ACHIEVEMENT_PREFIX, nPrefixLen ) )
 		{
@@ -154,6 +164,8 @@ void CLogicAchievement::InputFireEvent( inputdata_t &inputdata )
 			}
 		}
 	}
+}
+	return;
 }
 
 //------------------------------------------------------------------------------

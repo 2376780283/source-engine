@@ -1,9 +1,9 @@
-//========= Copyright Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2002, Valve LLC, All rights reserved. ============ 
 //
 // Purpose: Houndeye - a spooky sonic dog.
 //
 // $NoKeywords: $
-//=============================================================================//
+//=============================================================================
 
 #include "cbase.h"
 #include "npc_houndeye.h"
@@ -12,7 +12,7 @@
 #include "ai_route.h"
 #include "AI_Navigator.h"
 #include "AI_Motor.h"
-#include "ai_squad.h"
+#include "AI_Squad.h" 
 #include "AI_TacticalServices.h"
 #include "soundent.h"
 #include "EntityList.h"
@@ -23,7 +23,7 @@
 #include "energy_wave.h"
 #include "ai_interactions.h"
 #include "ndebugoverlay.h"
-#include "npcevent.h"
+#include "NPCEvent.h" 
 #include "player.h"
 #include "vstdlib/random.h"
 #include "engine/IEngineSound.h"
@@ -285,15 +285,14 @@ void CNPC_Houndeye::HandleAnimEvent( animevent_t *pEvent )
 
 		case HOUND_AE_HOPBACK:
 			{
-				float flGravity = GetCurrentGravity();
+							 float flGravity = sv_gravity.GetFloat();
 
-				SetGroundEntity( NULL );
+							 RemoveFlag(FL_ONGROUND);
 
 				Vector forward;
 				AngleVectors( GetLocalAngles(), &forward );
 				Vector vecNewVelocity = forward * -200;
-				//jump up 36 inches
-				vecNewVelocity.z += sqrt( 2 * flGravity * 36 );
+							 vecNewVelocity.z += (0.6 * flGravity) * 0.5;
 				SetAbsVelocity( vecNewVelocity );
 				break;
 			}
@@ -319,14 +318,14 @@ void CNPC_Houndeye::HandleAnimEvent( animevent_t *pEvent )
 		case HOUND_AE_CLOSE_EYE:
 			if ( !m_fDontBlink )
 			{
-			//<<TEMP>>	pev->skin = HOUNDEYE_EYE_FRAMES - 1;
+			//<> pev->skin = HOUNDEYE_EYE_FRAMES - 1; 
 			}
 			break;
 
 		case HOUND_AE_LEAP_HIT:
 			{
-				//<<TEMP>>return;//<<TEMP>>
-				SetGroundEntity( NULL );
+							  //<>return;//<> 
+							  RemoveFlag(FL_ONGROUND);
 
 				//
 				// Take him off ground so engine doesn't instantly reset FL_ONGROUND.
@@ -337,7 +336,7 @@ void CNPC_Houndeye::HandleAnimEvent( animevent_t *pEvent )
 				{
 					Vector vecEnemyEyePos = GetEnemy()->EyePosition();
 
-					float gravity = GetCurrentGravity();
+								  float gravity = sv_gravity.GetFloat();
 					if ( gravity <= 1 )
 					{
 						gravity = 1;
@@ -387,6 +386,12 @@ void CNPC_Houndeye::HandleAnimEvent( animevent_t *pEvent )
 					//
 					vecJumpDir = Vector( forward.x, forward.y, up.z ) * 350;
 				}
+
+							  int iSound = random->RandomInt(0, 2);
+							  if (iSound != 0)
+							  {
+								  //<> UTIL_EmitSoundDyn( edict(), CHAN_VOICE, pAttackSounds[iSound], GetSoundVolue(), ATTN_IDLE, 0, GetVoicePitch() ); 
+							  }
 
 				SetAbsVelocity( vecJumpDir );
 				m_flNextAttack = gpGlobals->curtime + 2;
@@ -452,10 +457,8 @@ void CNPC_Houndeye::Precache()
 	PrecacheScriptSound( "NPC_Houndeye.Pain" );
 	PrecacheScriptSound( "NPC_Houndeye.Retreat" );
 	PrecacheScriptSound( "NPC_Houndeye.SonicAttack" );
-
 	PrecacheScriptSound( "NPC_Houndeye.GroupAttack" );
 	PrecacheScriptSound( "NPC_Houndeye.GroupFollow" );
-
 
 	UTIL_PrecacheOther("grenade_energy");
 	BaseClass::Precache();
@@ -521,7 +524,7 @@ void CNPC_Houndeye::AlertSound ( void )
 //=========================================================
 // DeathSound 
 //=========================================================
-void CNPC_Houndeye::DeathSound ( void )
+void CNPC_Houndeye::DeathSound(const CTakeDamageInfo &info)
 {
 	EmitSound( "NPC_Houndeye.Die" );
 }
@@ -686,7 +689,7 @@ void CNPC_Houndeye::SonicAttack ( void )
 	}
 	Vector vFacingDir = EyeDirection3D( );
 	m_pEnergyWave = (CEnergyWave*)Create( "energy_wave", EyePosition(), GetLocalAngles() );
-	m_flEndEnergyWaveTime = gpGlobals->curtime + 1; //<<TEMP>> magic
+	m_flEndEnergyWaveTime = gpGlobals->curtime + 1; //<> magic 
 	m_pEnergyWave->SetAbsVelocity( 100*vFacingDir );
 
 	CBaseEntity *pEntity = NULL;
@@ -802,7 +805,7 @@ void CNPC_Houndeye::StartTask( const Task_t *pTask )
 			Vector vTargetPos = GetEnemyLKP();
 			vTargetPos.z	= GetFloorZ(vTargetPos);
 
-			if (GetNavigator()->SetRadialGoal(vTargetPos, random->RandomInt(50,500), 90, 175, m_bLoopClockwise))
+											  if (GetNavigator()->IsGoalActive())
 			{
 				TaskComplete();
 				return;
@@ -868,7 +871,7 @@ void CNPC_Houndeye::StartTask( const Task_t *pTask )
 		}
 	case TASK_HOUND_CLOSE_EYE:
 		{
-//<<TEMP>>			pev->skin = 0;
+								 //<> pev->skin = 0; 
 			m_fDontBlink = true; // tell blink code to leave the eye alone.
 			break;
 		}
@@ -915,7 +918,7 @@ void CNPC_Houndeye::RunTask( const Task_t *pTask )
 		}
 	case TASK_HOUND_CLOSE_EYE:
 		{
-			/*//<<TEMP>>
+								 /*//<>
 			if ( pev->skin < HOUNDEYE_EYE_FRAMES - 1 )
 			{
 				pev->skin++;
@@ -939,7 +942,6 @@ void CNPC_Houndeye::RunTask( const Task_t *pTask )
 	}
 }
 
-
 //------------------------------------------------------------------------------
 // Purpose :
 // Input   :
@@ -958,7 +960,7 @@ void CNPC_Houndeye::PrescheduleThink ( void )
 	// at random, initiate a blink if not already blinking or sleeping
 	if ( !m_fDontBlink )
 	{
-		/*//<<TEMP>>//<<TEMP>>
+		/*//<>//<>
 		if ( ( pev->skin == 0 ) && random->RandomInt(0,0x7F) == 0 )
 		{// start blinking!
 			pev->skin = HOUNDEYE_EYE_FRAMES - 1;
@@ -1133,7 +1135,7 @@ int CNPC_Houndeye::SelectSchedule( void )
 						return SCHED_HOUND_GROUP_ATTACK;
 					}
 				}
-				//<<TEMP>>comment
+								 //<>comment 
 				SetCollisionGroup( COLLISION_GROUP_NONE );
 				return SCHED_RANGE_ATTACK1;
 			}
@@ -1190,7 +1192,6 @@ bool CNPC_Houndeye::HandleInteraction(int interactionType, void *data, CBaseComb
 
 	return false;
 }
-
 
 //-----------------------------------------------------------------------------
 //
@@ -1375,7 +1376,7 @@ AI_DEFINE_SCHEDULE
 	"		 TASK_RANGE_ATTACK1			0"
 	""
 	"	Interrupts"
-	//"		COND_LIGHT_DAMAGE"	// don't interupt on small damage
+" COND_LIGHT_DAMAGE" // don't interupt on small damage 
 	"		COND_HEAVY_DAMAGE"
 );
 

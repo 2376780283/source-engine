@@ -88,6 +88,11 @@ void CAchievementNotificationPanel::PerformLayout( void )
 	m_pPanelBackground->SetBgColor( Color( 128, 128, 128, 128 ) );
 }
 
+
+ConVar sde_achievement_notifications( "sde_achievement_notifications", "2", FCVAR_ARCHIVE | FCVAR_DONTRECORD, 
+	"Display on screen achievements.\n"
+	"1 - Only accomplishment notifications are displayed.\n"
+	"2 - Accomplished and progress notifications are displayed" );
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -96,6 +101,9 @@ void CAchievementNotificationPanel::FireGameEvent( IGameEvent * event )
 	const char *name = event->GetName();
 	if ( Q_strcmp( name, "achievement_event" ) == 0 )
 	{
+		if( sde_achievement_notifications.GetInt() == 0 )
+			return;
+
 		const char *pchName = event->GetString( "achievement_name" );
 		int iCur = event->GetInt( "cur_val" );
 		int iMax = event->GetInt( "max_val" );
@@ -137,6 +145,9 @@ void CAchievementNotificationPanel::FireGameEvent( IGameEvent * event )
 				AddNotification( pchName, g_pVGuiLocalize->Find( "#GameUI_Achievement_Awarded" ), szLocalizedName );
 				return;
 			}
+
+			if( sde_achievement_notifications.GetInt() < 2 )
+				return;
 
 			_snwprintf( szNumFound, ARRAYSIZE( szNumFound ), L"%i", iCur );
 			_snwprintf( szNumTotal, ARRAYSIZE( szNumTotal ), L"%i", iMax );
@@ -259,23 +270,23 @@ CON_COMMAND( achievement_notification_test, "Test the hud notification UI" )
 {
 	static int iCount=0;
 
+#ifndef HL2_EPISODIC
 	CAchievementNotificationPanel *pPanel = GET_HUDELEMENT( CAchievementNotificationPanel );
 	if ( pPanel )
-	{
+	{		
 		pPanel->AddNotification( "HL2_KILL_ODESSAGUNSHIP", L"Achievement Progress", ( 0 == ( iCount % 2 ) ? L"Test Notification Message A (1/10)" :
 			L"Test Message B" ) );
 	}
-
-#if 0
+#else
 	IGameEvent *event = gameeventmanager->CreateEvent( "achievement_event" );
-	if ( event )
+	if( event )
 	{
-		const char *szTestStr[] = { "TF_GET_HEADSHOTS", "TF_PLAY_GAME_EVERYMAP", "TF_PLAY_GAME_EVERYCLASS", "TF_GET_HEALPOINTS" };
-		event->SetString( "achievement_name", szTestStr[iCount%ARRAYSIZE(szTestStr)] );
-		event->SetInt( "cur_val", ( iCount%9 ) + 1 );
+		const char *szTestStr[] = { "ACH_SWELTER_END_ANARCHY", "ACH_SWELTER_END_RESIST", "ACH_SWELTER_RADAR", "ACH_SWELTER_VORT", "ACH_SWELTER_AK", "ACH_SWELTER_SPAWN", "ACH_SWELTER_TURRET", "ACH_SWELTER_HELI", "ACH_SWELTER_APERTURE", "ACH_SWELTER_TEA", "ACH_SWELTER_TRAIN", "ACH_SWELTER_AIR", "ACH_SWELTER_ARSENAL" };
+		event->SetString( "achievement_name", szTestStr[iCount % ARRAYSIZE( szTestStr )] );
+		event->SetInt( "cur_val", (iCount % 9) + 1 );
 		event->SetInt( "max_val", 10 );
 		gameeventmanager->FireEvent( event );
-	}	
+	}
 #endif
 
 	iCount++;

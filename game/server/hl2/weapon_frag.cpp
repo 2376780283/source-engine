@@ -19,7 +19,7 @@
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
-#define GRENADE_TIMER	3.0f //Seconds
+#define GRENADE_TIMER	3.0f //Seconds было 3,0
 
 #define GRENADE_PAUSED_NO			0
 #define GRENADE_PAUSED_PRIMARY		1
@@ -40,6 +40,7 @@ public:
 	CWeaponFrag();
 
 	void	Precache( void );
+
 	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 	void	PrimaryAttack( void );
 	void	SecondaryAttack( void );
@@ -99,6 +100,8 @@ CWeaponFrag::CWeaponFrag() :
 	m_bRedraw( false )
 {
 	NULL;
+	m_bIsIronsighted = false;
+	m_bCanIronsighted = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -119,6 +122,10 @@ void CWeaponFrag::Precache( void )
 //-----------------------------------------------------------------------------
 bool CWeaponFrag::Deploy( void )
 {
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+		pPlayer->ShowCrosshair(true);
+	DisplaySDEHudHint();
 	m_bRedraw = false;
 	m_fDrawbackFinished = false;
 
@@ -279,6 +286,12 @@ void CWeaponFrag::PrimaryAttack( void )
 		return;
 	}
 
+	//new
+	if (m_bIsIronsighted)
+	{
+		SecondaryAttack();
+	}
+
 	CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );;
 
 	if ( !pPlayer )
@@ -314,6 +327,18 @@ void CWeaponFrag::DecrementAmmo( CBaseCombatCharacter *pOwner )
 //-----------------------------------------------------------------------------
 void CWeaponFrag::ItemPostFrame( void )
 {
+
+	//Зачем по айронсайту кидать грену?
+
+	/*if (m_bIsIronsighted)
+	{
+		SecondaryAttack();
+	}
+	if (m_bIsIronsighted)
+	{
+		DisableIronsights();
+	}
+	*/
 	if( m_fDrawbackFinished )
 	{
 		CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
@@ -397,7 +422,8 @@ void CWeaponFrag::ThrowGrenade( CBasePlayer *pPlayer )
 
 	Vector vecThrow;
 	pPlayer->GetVelocity( &vecThrow, NULL );
-	vecThrow += vForward * 1200;
+	vecThrow += vForward * 800; //1200
+
 	Fraggrenade_Create( vecSrc, vec3_angle, vecThrow, AngularImpulse(600,random->RandomInt(-1200,1200),0), pPlayer, GRENADE_TIMER, false );
 
 	m_bRedraw = true;

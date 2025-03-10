@@ -13,7 +13,7 @@
 #include "basebludgeonweapon.h"
 
 #define	STUNSTICK_RANGE		75.0f
-#define	STUNSTICK_REFIRE	0.6f
+#define	STUNSTICK_REFIRE	0.8f
 
 class CWeaponStunStick : public CBaseHLBludgeonWeapon
 {
@@ -44,6 +44,7 @@ public:
 	void		SecondaryAttack( void )	{}
 	void		SetStunState( bool state );
 	bool		GetStunState( void );
+	void		ItemPostFrame( void );
 	void		Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 	
 	float		GetDamageForActivity( Activity hitActivity );
@@ -53,6 +54,7 @@ public:
 private:
 
 	CNetworkVar( bool, m_bActive );
+	//void			Swing(int bIsSecondary);
 };
 
 #endif // WEAPON_STUNSTICK_H

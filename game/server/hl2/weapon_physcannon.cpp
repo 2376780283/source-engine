@@ -68,11 +68,11 @@ ConVar physcannon_right_turrets( "physcannon_right_turrets", "0" );
 extern ConVar hl2_normspeed;
 extern ConVar hl2_walkspeed;
 
-#define PHYSCANNON_BEAM_SPRITE "sprites/orangelight1.vmt"
+#define PHYSCANNON_BEAM_SPRITE "sprites/physbeam.vmt"
 #define PHYSCANNON_GLOW_SPRITE "sprites/glow04_noz.vmt"
-#define PHYSCANNON_ENDCAP_SPRITE "sprites/orangeflare1.vmt"
-#define PHYSCANNON_CENTER_GLOW "sprites/orangecore1.vmt"
-#define PHYSCANNON_BLAST_SPRITE "sprites/orangecore2.vmt"
+#define PHYSCANNON_ENDCAP_SPRITE "sprites/blueflare1.vmt"
+#define PHYSCANNON_CENTER_GLOW "sprites/physcannon_bluecore1b.vmt"
+#define PHYSCANNON_BLAST_SPRITE "sprites/physcannon_bluecore1b.vmt"
  
 #define MEGACANNON_BEAM_SPRITE "sprites/lgtning_noz.vmt"
 #define MEGACANNON_GLOW_SPRITE "sprites/blueflare1_noz.vmt"
@@ -1478,6 +1478,9 @@ CWeaponPhysCannon::CWeaponPhysCannon( void )
 	m_flEndSpritesOverride[1] = 0.0f;
 
 	m_bPhyscannonState = false;
+
+	m_bIsIronsighted = false;
+	m_bCanIronsighted = false;
 }
 
 //-----------------------------------------------------------------------------
@@ -1583,6 +1586,11 @@ bool CWeaponPhysCannon::Deploy( void )
 {
 	CloseElements();
 	DoEffect( EFFECT_READY );
+
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer == NULL)
+		return false;
+	pPlayer->ShowCrosshair(true);
 
 	// Unbloat our bounds
 	if ( IsMegaPhysCannon() )
@@ -2283,6 +2291,7 @@ void CWeaponPhysCannon::PrimaryAttack( void )
 //-----------------------------------------------------------------------------
 void CWeaponPhysCannon::SecondaryAttack( void )
 {
+	/*
 	if ( m_flNextSecondaryAttack > gpGlobals->curtime )
 		return;
 
@@ -2331,6 +2340,8 @@ void CWeaponPhysCannon::SecondaryAttack( void )
 
 		DoEffect( EFFECT_HOLDING );
 	}
+	*/
+	return;
 }	
 
 //-----------------------------------------------------------------------------
@@ -3287,6 +3298,15 @@ void CWeaponPhysCannon::ItemPostFrame()
 		return;
 	}
 
+	if (m_bIsIronsighted)
+		DisableIronsights();
+
+	if (pOwner->m_bIsCrosshaired)
+		pOwner->ShowCrosshair(true);
+
+	if (GetActivity() == ACT_VM_HOLSTER) //new
+		m_flNextPrimaryAttack = gpGlobals->curtime + 1.25f; //new
+
 	//Check for object in pickup range
 	if ( m_bActive == false )
 	{
@@ -3480,31 +3500,31 @@ bool CWeaponPhysCannon::CanPickupObject( CBaseEntity *pTarget )
 //-----------------------------------------------------------------------------
 void CWeaponPhysCannon::OpenElements( void )
 {
-	if ( m_bOpen )
+	//if ( m_bOpen )
 		return;
-
-	WeaponSound( SPECIAL2 );
-
-	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
-
-	if ( pOwner == NULL )
-		return;
-
-	if( !IsMegaPhysCannon() )
-	{
-		pOwner->RumbleEffect( RUMBLE_PHYSCANNON_OPEN, 0, RUMBLE_FLAG_RESTART );
-	}
-
-	if ( m_flElementPosition < 0.0f )
-		m_flElementPosition = 0.0f;
-
-	m_flElementDestination = 1.0f;
-
-	SendWeaponAnim( ACT_VM_IDLE );
-
-	m_bOpen = true;
-
-	DoEffect( EFFECT_READY );
+	//
+	//WeaponSound( SPECIAL2 );
+	//
+	//CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
+	//
+	//if ( pOwner == NULL )
+	//	return;
+	//
+	//if( !IsMegaPhysCannon() )
+	//{
+	//	pOwner->RumbleEffect( RUMBLE_PHYSCANNON_OPEN, 0, RUMBLE_FLAG_RESTART );
+	//}
+	//
+	//if ( m_flElementPosition < 0.0f )
+	//	m_flElementPosition = 0.0f;
+	//
+	//m_flElementDestination = 1.0f;
+	//
+	//SendWeaponAnim( ACT_VM_IDLE );
+	//
+	//m_bOpen = true;
+	//
+	//DoEffect( EFFECT_READY );
 }
 
 //-----------------------------------------------------------------------------
@@ -3711,141 +3731,142 @@ void CWeaponPhysCannon::StopEffects( bool stopSound )
 //-----------------------------------------------------------------------------
 void CWeaponPhysCannon::StartEffects( void )
 {
-	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
-	if ( pOwner == NULL )
+	//CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
+	//if ( pOwner == NULL )
+	//	return;
+	//
+	//bool bIsMegaCannon = IsMegaPhysCannon();
+	//
+	//int i;
+	//float flScaleFactor = SpriteScaleFactor();
+	//CBaseEntity *pBeamEnt = pOwner->GetViewModel();
+	//
+	//// Create the beams
+	//for ( i = 0; i < NUM_BEAMS; i++ )
+	//{
+	//	if ( m_hBeams[i] )
+	//		continue;
+	//
+	//	const char *beamAttachNames[] = 
+	//	{
+	//		"fork1t",
+	//		"fork2t",
+	//		"fork1t",
+	//		"fork2t",
+	//		"fork1t",
+	//		"fork2t",
+	//	};
+	//
+	//	m_hBeams[i] = CBeam::BeamCreate( 
+	//		bIsMegaCannon ? MEGACANNON_BEAM_SPRITE : PHYSCANNON_BEAM_SPRITE, 1.0f );
+	//	m_hBeams[i]->EntsInit( pBeamEnt, pBeamEnt );
+	//
+	//	int	startAttachment = LookupAttachment( beamAttachNames[i] );
+	//	int endAttachment	= 1;
+	//
+	//	m_hBeams[i]->FollowEntity( pBeamEnt );
+	//
+	//	m_hBeams[i]->AddSpawnFlags( SF_BEAM_TEMPORARY );	
+	//	m_hBeams[i]->SetStartAttachment( startAttachment );
+	//	m_hBeams[i]->SetEndAttachment( endAttachment );
+	//	m_hBeams[i]->SetNoise( random->RandomFloat( 8.0f, 16.0f ) );
+	//	m_hBeams[i]->SetColor( 255, 255, 255 );
+	//	m_hBeams[i]->SetScrollRate( 25 );
+	//	m_hBeams[i]->SetBrightness( 128 );
+	//	m_hBeams[i]->SetWidth( 0 );
+	//	m_hBeams[i]->SetEndWidth( random->RandomFloat( 2, 4 ) );
+	//}
+	//
+	////Create the glow sprites
+	//for ( i = 0; i < NUM_SPRITES; i++ )
+	//{
+	//	if ( m_hGlowSprites[i] )
+	//		continue;
+	//
+	//	const char *attachNames[] = 
+	//	{
+	//		"fork1b",
+	//		"fork1m",
+	//		"fork1t",
+	//		"fork2b",
+	//		"fork2m",
+	//		"fork2t"
+	//	};
+	//
+	//	m_hGlowSprites[i] = CSprite::SpriteCreate( 
+	//		bIsMegaCannon ? MEGACANNON_GLOW_SPRITE : PHYSCANNON_GLOW_SPRITE, 
+	//		GetAbsOrigin(), false );
+	//
+	//	m_hGlowSprites[i]->SetAsTemporary();
+	//
+	//	m_hGlowSprites[i]->SetAttachment( pOwner->GetViewModel(), LookupAttachment( attachNames[i] ) );
+	//	
+	//	if ( bIsMegaCannon )
+	//	{
+	//		m_hGlowSprites[i]->SetTransparency( kRenderTransAdd, 255, 255, 255, 128, kRenderFxNone );
+	//	}
+	//	else
+	//	{
+	//		m_hGlowSprites[i]->SetTransparency( kRenderTransAdd, 255, 128, 0, 64, kRenderFxNoDissipation );
+	//	}
+	//
+	//	m_hGlowSprites[i]->SetBrightness( 255, 0.2f );
+	//	m_hGlowSprites[i]->SetScale( 0.25f * flScaleFactor, 0.2f );
+	//}
+	//
+	////Create the endcap sprites
+	//for ( i = 0; i < 2; i++ )
+	//{
+	//	if ( m_hEndSprites[i] == NULL )
+	//	{
+	//		const char *attachNames[] = 
+	//		{
+	//			"fork1t",
+	//			"fork2t"
+	//		};
+	//
+	//		m_hEndSprites[i] = CSprite::SpriteCreate( 
+	//			bIsMegaCannon ? MEGACANNON_ENDCAP_SPRITE : PHYSCANNON_ENDCAP_SPRITE, 
+	//			GetAbsOrigin(), false );
+	//
+	//		m_hEndSprites[i]->SetAsTemporary();
+	//		m_hEndSprites[i]->SetAttachment( pOwner->GetViewModel(), LookupAttachment( attachNames[i] ) );
+	//		m_hEndSprites[i]->SetTransparency( kRenderTransAdd, 255, 255, 255, 255, kRenderFxNoDissipation );
+	//		m_hEndSprites[i]->SetBrightness( 255, 0.2f );
+	//		m_hEndSprites[i]->SetScale( 0.25f * flScaleFactor, 0.2f );
+	//		m_hEndSprites[i]->TurnOff();
+	//	}
+	//}
+	//
+	////Create the center glow
+	//if ( m_hCenterSprite == NULL )
+	//{
+	//	m_hCenterSprite = CSprite::SpriteCreate( 
+	//		bIsMegaCannon ? MEGACANNON_CENTER_GLOW : PHYSCANNON_CENTER_GLOW, 
+	//		GetAbsOrigin(), false );
+	//
+	//	m_hCenterSprite->SetAsTemporary();
+	//	m_hCenterSprite->SetAttachment( pOwner->GetViewModel(), 1 );
+	//	m_hCenterSprite->SetTransparency( kRenderTransAdd, 255, 255, 255, 255, kRenderFxNone );
+	//	m_hCenterSprite->SetBrightness( 255, 0.2f );
+	//	m_hCenterSprite->SetScale( 0.1f, 0.2f );
+	//}
+	//
+	////Create the blast sprite
+	//if ( m_hBlastSprite == NULL )
+	//{
+	//	m_hBlastSprite = CSprite::SpriteCreate( 
+	//		bIsMegaCannon ? MEGACANNON_BLAST_SPRITE : PHYSCANNON_BLAST_SPRITE, 
+	//		GetAbsOrigin(), false );
+	//
+	//	m_hBlastSprite->SetAsTemporary();
+	//	m_hBlastSprite->SetAttachment( pOwner->GetViewModel(), 1 );
+	//	m_hBlastSprite->SetTransparency( kRenderTransAdd, 255, 255, 255, 255, kRenderFxNone );
+	//	m_hBlastSprite->SetBrightness( 255, 0.2f );
+	//	m_hBlastSprite->SetScale( 0.1f, 0.2f );
+	//	m_hBlastSprite->TurnOff();
+	//}
 		return;
-
-	bool bIsMegaCannon = IsMegaPhysCannon();
-
-	int i;
-	float flScaleFactor = SpriteScaleFactor();
-	CBaseEntity *pBeamEnt = pOwner->GetViewModel();
-
-	// Create the beams
-	for ( i = 0; i < NUM_BEAMS; i++ )
-	{
-		if ( m_hBeams[i] )
-			continue;
-
-		const char *beamAttachNames[] = 
-		{
-			"fork1t",
-			"fork2t",
-			"fork1t",
-			"fork2t",
-			"fork1t",
-			"fork2t",
-		};
-
-		m_hBeams[i] = CBeam::BeamCreate( 
-			bIsMegaCannon ? MEGACANNON_BEAM_SPRITE : PHYSCANNON_BEAM_SPRITE, 1.0f );
-		m_hBeams[i]->EntsInit( pBeamEnt, pBeamEnt );
-
-		int	startAttachment = LookupAttachment( beamAttachNames[i] );
-		int endAttachment	= 1;
-
-		m_hBeams[i]->FollowEntity( pBeamEnt );
-
-		m_hBeams[i]->AddSpawnFlags( SF_BEAM_TEMPORARY );	
-		m_hBeams[i]->SetStartAttachment( startAttachment );
-		m_hBeams[i]->SetEndAttachment( endAttachment );
-		m_hBeams[i]->SetNoise( random->RandomFloat( 8.0f, 16.0f ) );
-		m_hBeams[i]->SetColor( 255, 255, 255 );
-		m_hBeams[i]->SetScrollRate( 25 );
-		m_hBeams[i]->SetBrightness( 128 );
-		m_hBeams[i]->SetWidth( 0 );
-		m_hBeams[i]->SetEndWidth( random->RandomFloat( 2, 4 ) );
-	}
-
-	//Create the glow sprites
-	for ( i = 0; i < NUM_SPRITES; i++ )
-	{
-		if ( m_hGlowSprites[i] )
-			continue;
-
-		const char *attachNames[] = 
-		{
-			"fork1b",
-			"fork1m",
-			"fork1t",
-			"fork2b",
-			"fork2m",
-			"fork2t"
-		};
-
-		m_hGlowSprites[i] = CSprite::SpriteCreate( 
-			bIsMegaCannon ? MEGACANNON_GLOW_SPRITE : PHYSCANNON_GLOW_SPRITE, 
-			GetAbsOrigin(), false );
-
-		m_hGlowSprites[i]->SetAsTemporary();
-
-		m_hGlowSprites[i]->SetAttachment( pOwner->GetViewModel(), LookupAttachment( attachNames[i] ) );
-		
-		if ( bIsMegaCannon )
-		{
-			m_hGlowSprites[i]->SetTransparency( kRenderTransAdd, 255, 255, 255, 128, kRenderFxNone );
-		}
-		else
-		{
-			m_hGlowSprites[i]->SetTransparency( kRenderTransAdd, 255, 128, 0, 64, kRenderFxNoDissipation );
-		}
-
-		m_hGlowSprites[i]->SetBrightness( 255, 0.2f );
-		m_hGlowSprites[i]->SetScale( 0.25f * flScaleFactor, 0.2f );
-	}
-
-	//Create the endcap sprites
-	for ( i = 0; i < 2; i++ )
-	{
-		if ( m_hEndSprites[i] == NULL )
-		{
-			const char *attachNames[] = 
-			{
-				"fork1t",
-				"fork2t"
-			};
-
-			m_hEndSprites[i] = CSprite::SpriteCreate( 
-				bIsMegaCannon ? MEGACANNON_ENDCAP_SPRITE : PHYSCANNON_ENDCAP_SPRITE, 
-				GetAbsOrigin(), false );
-
-			m_hEndSprites[i]->SetAsTemporary();
-			m_hEndSprites[i]->SetAttachment( pOwner->GetViewModel(), LookupAttachment( attachNames[i] ) );
-			m_hEndSprites[i]->SetTransparency( kRenderTransAdd, 255, 255, 255, 255, kRenderFxNoDissipation );
-			m_hEndSprites[i]->SetBrightness( 255, 0.2f );
-			m_hEndSprites[i]->SetScale( 0.25f * flScaleFactor, 0.2f );
-			m_hEndSprites[i]->TurnOff();
-		}
-	}
-
-	//Create the center glow
-	if ( m_hCenterSprite == NULL )
-	{
-		m_hCenterSprite = CSprite::SpriteCreate( 
-			bIsMegaCannon ? MEGACANNON_CENTER_GLOW : PHYSCANNON_CENTER_GLOW, 
-			GetAbsOrigin(), false );
-
-		m_hCenterSprite->SetAsTemporary();
-		m_hCenterSprite->SetAttachment( pOwner->GetViewModel(), 1 );
-		m_hCenterSprite->SetTransparency( kRenderTransAdd, 255, 255, 255, 255, kRenderFxNone );
-		m_hCenterSprite->SetBrightness( 255, 0.2f );
-		m_hCenterSprite->SetScale( 0.1f, 0.2f );
-	}
-
-	//Create the blast sprite
-	if ( m_hBlastSprite == NULL )
-	{
-		m_hBlastSprite = CSprite::SpriteCreate( 
-			bIsMegaCannon ? MEGACANNON_BLAST_SPRITE : PHYSCANNON_BLAST_SPRITE, 
-			GetAbsOrigin(), false );
-
-		m_hBlastSprite->SetAsTemporary();
-		m_hBlastSprite->SetAttachment( pOwner->GetViewModel(), 1 );
-		m_hBlastSprite->SetTransparency( kRenderTransAdd, 255, 255, 255, 255, kRenderFxNone );
-		m_hBlastSprite->SetBrightness( 255, 0.2f );
-		m_hBlastSprite->SetScale( 0.1f, 0.2f );
-		m_hBlastSprite->TurnOff();
-	}
 }
 
 //-----------------------------------------------------------------------------

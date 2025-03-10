@@ -64,6 +64,11 @@ ConVar debug_latch_reset_onduck( "debug_latch_reset_onduck", "1", FCVAR_CHEAT );
 // [MD] I'll remove this eventually. For now, I want the ability to A/B the optimizations.
 bool g_bMovementOptimizations = true;
 
+// Camera Bob
+ConVar cl_viewbob_enabled("sde_viewbob_enabled", "1", 0, "Oscillation Toggle", true, 0, true, 1);
+ConVar cl_viewbob_timer("sde_viewbob_timer", "10", 0, "Speed of Oscillation");
+ConVar cl_viewbob_scale("sde_viewbob_scale", "0.01", 0, "Magnitude of Oscillation");
+
 // Roughly how often we want to update the info about the ground surface we're on.
 // We don't need to do this very often.
 #define CATEGORIZE_GROUND_SURFACE_INTERVAL			0.3f
@@ -1894,6 +1899,14 @@ void CGameMovement::StayOnGround( void )
 //-----------------------------------------------------------------------------
 void CGameMovement::WalkMove( void )
 {
+	if (cl_viewbob_enabled.GetInt() == 1 && !engine->IsPaused())
+	{
+		float xoffset = sin(gpGlobals->curtime * cl_viewbob_timer.GetFloat()) * player->GetAbsVelocity().Length() * cl_viewbob_scale.GetFloat() / 100;
+		float yoffset = sin(2 * gpGlobals->curtime * cl_viewbob_timer.GetFloat()) * player->GetAbsVelocity().Length() * cl_viewbob_scale.GetFloat() / 400;
+		player->ViewPunch(QAngle(xoffset, yoffset, 0));
+
+	}
+
 	int i;
 
 	Vector wishvel;
@@ -2851,6 +2864,9 @@ ConVar sv_ladder_angle( "sv_ladder_angle", "-0.707", FCVAR_REPLICATED, "Cos of a
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+CBasePlayer *player;
+//No Weapons on ladders
+CBaseCombatWeapon *m_pWeapon;
 bool CGameMovement::LadderMove( void )
 {
 	trace_t pm;
@@ -2894,6 +2910,9 @@ bool CGameMovement::LadderMove( void )
 	// no ladder in that direction, return
 	if ( pm.fraction == 1.0f || !OnLadder( pm ) )
 		return false;
+	m_pWeapon = player->GetActiveWeapon(); //new
+	if (m_pWeapon)	//new	
+		m_pWeapon->Holster();	//new
 
 	player->SetMoveType( MOVETYPE_LADDER );
 	player->SetMoveCollide( MOVECOLLIDE_DEFAULT );
@@ -4619,11 +4638,16 @@ void CGameMovement::PlayerMove( void )
 		//bool bCheckLadder = CheckInterval( LADDER );
 		//if ( bCheckLadder || player->GetMoveType() == MOVETYPE_LADDER )
 		{
-			if ( !LadderMove() && 
-				( player->GetMoveType() == MOVETYPE_LADDER ) )
+			if (!LadderMove() && (player->GetMoveType() == MOVETYPE_LADDER))
 			{
+				//Dark_Alex No Weapons on ladders
+				if (m_pWeapon)
+			{
+					m_pWeapon->Deploy();
+				}
+
 				// Clear ladder stuff unless player is dead or riding a train
-				// It will be reset immediately again next frame if necessary
+				// It will be reset immediatly again next frame if necessary
 				player->SetMoveType( MOVETYPE_WALK );
 				player->SetMoveCollide( MOVECOLLIDE_DEFAULT );
 			}

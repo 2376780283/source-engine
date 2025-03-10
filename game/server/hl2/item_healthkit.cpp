@@ -18,6 +18,7 @@
 ConVar	sk_healthkit( "sk_healthkit","0" );		
 ConVar	sk_healthvial( "sk_healthvial","0" );		
 ConVar	sk_healthcharger( "sk_healthcharger","0" );		
+ConVar	sk_healthadot("sk_healthadot", "0");
 
 //-----------------------------------------------------------------------------
 // Small health kit. Heals the player when picked up.
@@ -54,6 +55,11 @@ void CHealthKit::Spawn( void )
 void CHealthKit::Precache( void )
 {
 	PrecacheModel("models/items/healthkit.mdl");
+	PrecacheModel("models/props_se/healthKit_emptyt.mdl");
+	PrecacheModel("models/props_se/healthvial_empty.mdl");
+	PrecacheModel("models/props_se/healthvial_empty_cmb.mdl");
+	
+
 
 	PrecacheScriptSound( "HealthKit.Touch" );
 }
@@ -66,6 +72,11 @@ void CHealthKit::Precache( void )
 //-----------------------------------------------------------------------------
 bool CHealthKit::MyTouch( CBasePlayer *pPlayer )
 {
+	if (pPlayer->GetVehicle() != NULL)
+	{
+		DevMsg("SDE: cant pick up healthkit coz you in a car \n");  //added vehicle check
+		return false;
+	}
 	if ( pPlayer->TakeHealth( sk_healthkit.GetFloat(), DMG_GENERIC ) )
 	{
 		CSingleUserRecipientFilter user( pPlayer );
@@ -77,6 +88,28 @@ bool CHealthKit::MyTouch( CBasePlayer *pPlayer )
 
 		CPASAttenuationFilter filter( pPlayer, "HealthKit.Touch" );
 		EmitSound( filter, pPlayer->entindex(), "HealthKit.Touch" );
+
+		Vector vecForward;
+		AngleVectors(pPlayer->EyeAngles(), &vecForward);
+
+		CBaseEntity *pEjectProp = (CBaseEntity *)CreateEntityByName("prop_physics_override");
+
+		if (pEjectProp)
+		{
+			Vector vecOrigin = pPlayer->GetAbsOrigin() + vecForward * 32 + Vector(0, 0, 35);
+			QAngle vecAngles(0, pPlayer->GetAbsAngles().y - 10, 0);
+			pEjectProp->SetAbsOrigin(vecOrigin);
+			pEjectProp->SetAbsAngles(vecAngles);
+			pEjectProp->KeyValue("model", "models/props_se/healthKit_empty.mdl");
+			pEjectProp->KeyValue("solid", "1");
+			pEjectProp->KeyValue("targetname", "EjectProp");
+			pEjectProp->KeyValue("spawnflags", "260");
+			DispatchSpawn(pEjectProp);
+			pEjectProp->Activate();
+			pEjectProp->Teleport(&vecOrigin, &vecAngles, NULL);
+			pEjectProp->SUB_StartFadeOut(30, false);
+		}
+
 
 		if ( g_pGameRules->ItemShouldRespawn( this ) )
 		{
@@ -119,6 +152,11 @@ public:
 
 	bool MyTouch( CBasePlayer *pPlayer )
 	{
+		if (pPlayer->GetVehicle() != NULL)
+		{
+			DevMsg("SDE: cant pick up healthvial coz you in a car \n");  //added vehicle check
+			return false;
+		}
 		if ( pPlayer->TakeHealth( sk_healthvial.GetFloat(), DMG_GENERIC ) )
 		{
 			CSingleUserRecipientFilter user( pPlayer );
@@ -140,6 +178,28 @@ public:
 				UTIL_Remove(this);	
 			}
 
+
+			Vector vecForward;
+			AngleVectors(pPlayer->EyeAngles(), &vecForward);
+
+			CBaseEntity *pEjectProp = (CBaseEntity *)CreateEntityByName("prop_physics_override");
+
+			if (pEjectProp)
+			{
+				Vector vecOrigin = pPlayer->GetAbsOrigin() + vecForward * 32 + Vector(0, 0, 35);
+				QAngle vecAngles(0, pPlayer->GetAbsAngles().y - 10, 0);
+				pEjectProp->SetAbsOrigin(vecOrigin);
+				pEjectProp->SetAbsAngles(vecAngles);
+				pEjectProp->KeyValue("model", "models/props_se/healthvial_empty.mdl");
+				pEjectProp->KeyValue("solid", "1");
+				pEjectProp->KeyValue("targetname", "EjectProp");
+				pEjectProp->KeyValue("spawnflags", "260");
+				DispatchSpawn(pEjectProp);
+				pEjectProp->Activate();
+				pEjectProp->Teleport(&vecOrigin, &vecAngles, NULL);
+				pEjectProp->SUB_StartFadeOut(30, false);
+			}
+
 			return true;
 		}
 
@@ -149,6 +209,147 @@ public:
 
 LINK_ENTITY_TO_CLASS( item_healthvial, CHealthVial );
 PRECACHE_REGISTER( item_healthvial );
+
+//defoult cmb healthvial
+class CHealthVialCmb : public CItem
+{
+public:
+	DECLARE_CLASS(CHealthVialCmb, CItem);
+
+	void Spawn(void)
+	{
+		Precache();
+		SetModel("models/healthvial_cmb.mdl");
+
+		BaseClass::Spawn();
+	}
+
+	void Precache(void)
+	{
+		PrecacheModel("models/healthvial_cmb.mdl");
+
+		PrecacheScriptSound("HealthVial.Touch");
+	}
+
+	bool MyTouch(CBasePlayer *pPlayer)
+	{
+		if (pPlayer->GetVehicle() != NULL)
+		{
+			DevMsg("SDE: cant pick up healthvial coz you in a car \n");  //added vehicle check
+			return false;
+		}
+		if (pPlayer->TakeHealth(sk_healthvial.GetFloat(), DMG_GENERIC))
+		{
+			CSingleUserRecipientFilter user(pPlayer);
+			user.MakeReliable();
+
+			UserMessageBegin(user, "ItemPickup");
+			WRITE_STRING(GetClassname());
+			MessageEnd();
+
+			CPASAttenuationFilter filter(pPlayer, "HealthVial.Touch");
+			EmitSound(filter, pPlayer->entindex(), "HealthVial.Touch");
+
+			if (g_pGameRules->ItemShouldRespawn(this))
+			{
+				Respawn();
+			}
+			else
+			{
+				UTIL_Remove(this);
+			}
+
+
+			Vector vecForward;
+			AngleVectors(pPlayer->EyeAngles(), &vecForward);
+
+			CBaseEntity *pEjectProp = (CBaseEntity *)CreateEntityByName("prop_physics_override");
+
+			if (pEjectProp)
+			{
+				Vector vecOrigin = pPlayer->GetAbsOrigin() + vecForward * 32 + Vector(0, 0, 35);
+				QAngle vecAngles(0, pPlayer->GetAbsAngles().y - 10, 0);
+				pEjectProp->SetAbsOrigin(vecOrigin);
+				pEjectProp->SetAbsAngles(vecAngles);
+				pEjectProp->KeyValue("model", "models/props_se/healthvial_empty_cmb.mdl");
+				pEjectProp->KeyValue("solid", "1");
+				pEjectProp->KeyValue("targetname", "EjectProp");
+				pEjectProp->KeyValue("spawnflags", "260");
+				DispatchSpawn(pEjectProp);
+				pEjectProp->Activate();
+				pEjectProp->Teleport(&vecOrigin, &vecAngles, NULL);
+				pEjectProp->SUB_StartFadeOut(30, false);
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+};
+
+LINK_ENTITY_TO_CLASS(item_healthvial_cmb, CHealthVialCmb);
+PRECACHE_REGISTER(item_healthvial_cmb);
+
+
+//adot
+class CAdot : public CItem
+{
+public:
+	DECLARE_CLASS(CAdot, CItem);
+
+	void Spawn(void)
+	{
+		Precache();
+		SetModel("models/weapons/w_adot.mdl");
+
+		BaseClass::Spawn();
+	}
+
+	void Precache(void)
+	{
+		PrecacheModel("models/weapons/w_adot.mdl");
+
+		PrecacheScriptSound("HealthVial.Touch");
+	}
+
+	bool MyTouch(CBasePlayer *pPlayer)
+	{
+		if (pPlayer->TakeHealth(sk_healthadot.GetFloat(), DMG_GENERIC))
+		{
+			CSingleUserRecipientFilter user(pPlayer);
+			user.MakeReliable();
+
+			UserMessageBegin(user, "ItemPickup");
+			WRITE_STRING(GetClassname());
+			MessageEnd();
+
+			CPASAttenuationFilter filter(pPlayer, "HealthVial.Touch");
+			EmitSound(filter, pPlayer->entindex(), "HealthVial.Touch");
+
+			if (g_pGameRules->ItemShouldRespawn(this))
+			{
+				Respawn();
+			}
+			else
+			{
+				UTIL_Remove(this);
+			}
+
+			return true;
+		}
+
+		return false;
+	}
+};
+
+LINK_ENTITY_TO_CLASS(item_adot, CAdot);
+PRECACHE_REGISTER(item_adot);
+
+
+
+
+
 
 //-----------------------------------------------------------------------------
 // Wall mounted health kit. Heals the player when used.

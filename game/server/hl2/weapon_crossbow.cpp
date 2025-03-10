@@ -451,6 +451,7 @@ private:
 	void	StopEffects( void );
 	void	SetSkin( int skinNum );
 	void	CheckZoomToggle( void );
+	void	HoldIronsight(void);
 	void	FireBolt( void );
 	void	ToggleZoom( void );
 	
@@ -584,10 +585,20 @@ void CWeaponCrossbow::CheckZoomToggle( void )
 {
 	CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );
 	
-	if ( pPlayer->m_afButtonPressed & IN_ATTACK2 )
-	{
+	if (pPlayer->m_afButtonPressed & IN_ZOOM)
+
 			ToggleZoom();
 	}
+
+void CWeaponCrossbow::HoldIronsight(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+
+	if (pPlayer->m_afButtonPressed & IN_IRONSIGHT)
+
+		EnableIronsights();
+	if (pPlayer->m_afButtonReleased & IN_IRONSIGHT)
+		DisableIronsights();
 }
 
 //-----------------------------------------------------------------------------
@@ -604,7 +615,8 @@ void CWeaponCrossbow::ItemBusyFrame( void )
 //-----------------------------------------------------------------------------
 void CWeaponCrossbow::ItemPostFrame( void )
 {
-	// Allow zoom toggling
+	// Allow zoom toggling & Ironsight
+	HoldIronsight();
 	CheckZoomToggle();
 
 	if ( m_bMustReload && HasWeaponIdleTimeElapsed() )

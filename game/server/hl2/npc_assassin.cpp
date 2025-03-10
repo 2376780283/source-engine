@@ -15,7 +15,6 @@
 #include "ai_squad.h"
 #include "AI_SquadSlot.h"
 #include "ai_moveprobe.h"
-
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -128,7 +127,7 @@ END_DATADESC()
 //-----------------------------------------------------------------------------
 void CNPC_Assassin::Precache( void )
 {
-	PrecacheModel( "models/fassassin.mdl" );
+	PrecacheModel( "models/hassassin.mdl" );
 
 	PrecacheScriptSound( "NPC_Assassin.ShootPistol" );
 	PrecacheScriptSound( "Zombie.AttackHit" );
@@ -150,7 +149,7 @@ void CNPC_Assassin::Spawn( void )
 {
 	Precache();
 
-	SetModel( "models/fassassin.mdl" );
+	SetModel( "models/hassassin.mdl" );
 
 	SetHullType(HULL_HUMAN);
 	SetHullSizeNormal();
@@ -708,16 +707,16 @@ void CNPC_Assassin::StartTask( const Task_t *pTask )
 	
 			hint.SetFlag( bits_HINT_NODE_NEAREST );
 
-			CAI_Hint *pHint = CAI_HintManager::FindHint( this, GetEnemy()->GetAbsOrigin(), &hint );
-
-			if ( pHint == NULL )
-			{
-				TaskFail( "Unable to find vantage point!\n" );
-				break;
-			}
-
-			pHint->GetPosition( this, &goalPos );
-
+			//CAI_Hint *pHint = CAI_HintManager::FindHint( this, GetEnemy()->GetAbsOrigin(), &hint );
+			//
+			//if ( pHint == NULL )
+			//{
+			//	TaskFail( "Unable to find vantage point!\n" );
+			//	break;
+			//}
+			//
+			//pHint->GetPosition( this, &goalPos );
+			//
 			AI_NavGoal_t goal( goalPos );
 			
 			//Try to run directly there

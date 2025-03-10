@@ -375,7 +375,7 @@ void CMissile::Explode( void )
 
 	if ( m_hOwner != NULL )
 	{
-		m_hOwner->NotifyRocketDied();
+		//m_hOwner->NotifyRocketDied();
 		m_hOwner = NULL;
 	}
 
@@ -721,7 +721,7 @@ CMissile *CMissile::Create( const Vector &vecOrigin, const QAngle &vecAngles, ed
 	Vector vecForward;
 	AngleVectors( vecAngles, &vecForward );
 
-	pMissile->SetAbsVelocity( vecForward * 300 + Vector( 0,0, 128 ) );
+	pMissile->SetAbsVelocity( vecForward * 500 + Vector( 0,0, 128 ) );
 
 	return pMissile;
 }
@@ -1637,6 +1637,7 @@ void CWeaponRPG::PrimaryAttack( void )
 	gamestats->Event_WeaponFired( pOwner, true, GetClassname() );
 
 	CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), 1000, 0.2, GetOwner(), SOUNDENT_CHANNEL_WEAPON );
+	NotifyRocketDied();
 
 	// Check to see if we should trigger any RPG firing triggers
 	int iCount = g_hWeaponFireTriggers.Count();
@@ -1665,6 +1666,23 @@ void CWeaponRPG::PrimaryAttack( void )
 				ppAIs[ i ]->DispatchInteraction( g_interactionPlayerLaunchedRPG, NULL, m_hMissile );
 			}
 		}
+	}
+	
+}
+
+void CWeaponRPG::HoldIronsight(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+
+	if (pPlayer->m_afButtonPressed & IN_IRONSIGHT)
+	{
+		EnableIronsights();
+		pPlayer->ShowCrosshair(false);
+	}
+	if (pPlayer->m_afButtonReleased & IN_IRONSIGHT)
+	{
+		DisableIronsights();
+		pPlayer->ShowCrosshair(true);
 	}
 }
 
@@ -1722,6 +1740,7 @@ bool CWeaponRPG::Lower( void )
 //-----------------------------------------------------------------------------
 void CWeaponRPG::ItemPostFrame( void )
 {
+	HoldIronsight();
 	BaseClass::ItemPostFrame();
 
 	CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );
@@ -1830,7 +1849,9 @@ bool CWeaponRPG::IsGuiding( void )
 bool CWeaponRPG::Deploy( void )
 {
 	m_bInitialStateUpdate = true;
-
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+		pPlayer->ShowCrosshair(true);
 	return BaseClass::Deploy();
 }
 
@@ -1980,13 +2001,13 @@ void CWeaponRPG::UpdateLaserPosition( Vector vecMuzzlePos, Vector vecEndPos )
 //-----------------------------------------------------------------------------
 void CWeaponRPG::CreateLaserPointer( void )
 {
-	if ( m_hLaserDot != NULL )
-		return;
-
-	m_hLaserDot = CLaserDot::Create( GetAbsOrigin(), GetOwnerEntity() );
-	m_hLaserDot->TurnOff();
-
-	UpdateLaserPosition();
+//	if ( m_hLaserDot != NULL )
+//		return;
+//
+//	m_hLaserDot = CLaserDot::Create( GetAbsOrigin(), GetOwnerEntity() );
+//	m_hLaserDot->TurnOff();
+//
+//	UpdateLaserPosition();
 }
 
 //-----------------------------------------------------------------------------
@@ -2013,7 +2034,7 @@ bool CWeaponRPG::Reload( void )
 		return false;
 
 	WeaponSound( RELOAD );
-	
+	DisableIronsights();
 	SendWeaponAnim( ACT_VM_RELOAD );
 
 	return true;
@@ -2105,76 +2126,76 @@ int CWeaponRPG::WeaponRangeAttack1Condition( float flDot, float flDist )
 //-----------------------------------------------------------------------------
 void CWeaponRPG::StartLaserEffects( void )
 {
-	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
-	if ( pOwner == NULL )
-		return;
-
-	CBaseViewModel *pBeamEnt = static_cast<CBaseViewModel *>(pOwner->GetViewModel());
-
-	if ( m_hLaserBeam == NULL )
-	{
-		m_hLaserBeam = CBeam::BeamCreate( RPG_BEAM_SPRITE, 1.0f );
-		
-		if ( m_hLaserBeam == NULL )
-		{
-			// We were unable to create the beam
-			Assert(0);
-			return;
-		}
-
-		m_hLaserBeam->EntsInit( pBeamEnt, pBeamEnt );
-
-		int	startAttachment = LookupAttachment( "laser" );
-		int endAttachment	= LookupAttachment( "laser_end" );
-
-		m_hLaserBeam->FollowEntity( pBeamEnt );
-		m_hLaserBeam->SetStartAttachment( startAttachment );
-		m_hLaserBeam->SetEndAttachment( endAttachment );
-		m_hLaserBeam->SetNoise( 0 );
-		m_hLaserBeam->SetColor( 255, 0, 0 );
-		m_hLaserBeam->SetScrollRate( 0 );
-		m_hLaserBeam->SetWidth( 0.5f );
-		m_hLaserBeam->SetEndWidth( 0.5f );
-		m_hLaserBeam->SetBrightness( 128 );
-		m_hLaserBeam->SetBeamFlags( SF_BEAM_SHADEIN );
-#ifdef PORTAL
-		m_hLaserBeam->m_bDrawInMainRender = true;
-		m_hLaserBeam->m_bDrawInPortalRender = false;
-#endif
-	}
-	else
-	{
-		m_hLaserBeam->SetBrightness( 128 );
-	}
-
-	if ( m_hLaserMuzzleSprite == NULL )
-	{
-		m_hLaserMuzzleSprite = CSprite::SpriteCreate( RPG_LASER_SPRITE, GetAbsOrigin(), false );
-
-		if ( m_hLaserMuzzleSprite == NULL )
-		{
-			// We were unable to create the sprite
-			Assert(0);
-			return;
-		}
-
-#ifdef PORTAL
-		m_hLaserMuzzleSprite->m_bDrawInMainRender = true;
-		m_hLaserMuzzleSprite->m_bDrawInPortalRender = false;
-#endif
-
-		m_hLaserMuzzleSprite->SetAttachment( pOwner->GetViewModel(), LookupAttachment( "laser" ) );
-		m_hLaserMuzzleSprite->SetTransparency( kRenderTransAdd, 255, 255, 255, 255, kRenderFxNoDissipation );
-		m_hLaserMuzzleSprite->SetBrightness( 255, 0.5f );
-		m_hLaserMuzzleSprite->SetScale( 0.25f, 0.5f );
-		m_hLaserMuzzleSprite->TurnOn();
-	}
-	else
-	{
-		m_hLaserMuzzleSprite->TurnOn();
-		m_hLaserMuzzleSprite->SetScale( 0.25f, 0.25f );
-		m_hLaserMuzzleSprite->SetBrightness( 255 );
-	}
+//	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
+//	if ( pOwner == NULL )
+//		return;
+//
+//	CBaseViewModel *pBeamEnt = static_cast<CBaseViewModel *>(pOwner->GetViewModel());
+//
+//	if ( m_hLaserBeam == NULL )
+//	{
+//		m_hLaserBeam = CBeam::BeamCreate( RPG_BEAM_SPRITE, 1.0f );
+//		
+//		if ( m_hLaserBeam == NULL )
+//		{
+//			// We were unable to create the beam
+//			Assert(0);
+//			return;
+//		}
+//
+//		m_hLaserBeam->EntsInit( pBeamEnt, pBeamEnt );
+//
+//		int	startAttachment = LookupAttachment( "laser" );
+//		int endAttachment	= LookupAttachment( "laser_end" );
+//
+//		m_hLaserBeam->FollowEntity( pBeamEnt );
+//		m_hLaserBeam->SetStartAttachment( startAttachment );
+//		m_hLaserBeam->SetEndAttachment( endAttachment );
+//		m_hLaserBeam->SetNoise( 0 );
+//		m_hLaserBeam->SetColor( 255, 0, 0 );
+//		m_hLaserBeam->SetScrollRate( 0 );
+//		m_hLaserBeam->SetWidth( 0.5f );
+//		m_hLaserBeam->SetEndWidth( 0.5f );
+//		m_hLaserBeam->SetBrightness( 128 );
+//		m_hLaserBeam->SetBeamFlags( SF_BEAM_SHADEIN );
+//#ifdef PORTAL
+//		m_hLaserBeam->m_bDrawInMainRender = true;
+//		m_hLaserBeam->m_bDrawInPortalRender = false;
+//#endif
+//	}
+//	else
+//	{
+//		m_hLaserBeam->SetBrightness( 128 );
+//	}
+//
+//	if ( m_hLaserMuzzleSprite == NULL )
+//	{
+//		m_hLaserMuzzleSprite = CSprite::SpriteCreate( RPG_LASER_SPRITE, GetAbsOrigin(), false );
+//
+//		if ( m_hLaserMuzzleSprite == NULL )
+//		{
+//			// We were unable to create the sprite
+//			Assert(0);
+//			return;
+//		}
+//
+//#ifdef PORTAL
+//		m_hLaserMuzzleSprite->m_bDrawInMainRender = true;
+//		m_hLaserMuzzleSprite->m_bDrawInPortalRender = false;
+//#endif
+//
+//		m_hLaserMuzzleSprite->SetAttachment( pOwner->GetViewModel(), LookupAttachment( "laser" ) );
+//		m_hLaserMuzzleSprite->SetTransparency( kRenderTransAdd, 255, 255, 255, 255, kRenderFxNoDissipation );
+//		m_hLaserMuzzleSprite->SetBrightness( 255, 0.5f );
+//		m_hLaserMuzzleSprite->SetScale( 0.25f, 0.5f );
+//		m_hLaserMuzzleSprite->TurnOn();
+//	}
+//	else
+//	{
+//		m_hLaserMuzzleSprite->TurnOn();
+//		m_hLaserMuzzleSprite->SetScale( 0.25f, 0.25f );
+//		m_hLaserMuzzleSprite->SetBrightness( 255 );
+//	}
 }
 
 //-----------------------------------------------------------------------------
@@ -2314,26 +2335,26 @@ CLaserDot *CLaserDot::Create( const Vector &origin, CBaseEntity *pOwner, bool bV
 //-----------------------------------------------------------------------------
 void CLaserDot::LaserThink( void )
 {
-	SetNextThink( gpGlobals->curtime + 0.05f, g_pLaserDotThink );
-
-	if ( GetOwnerEntity() == NULL )
-		return;
-
-	Vector	viewDir = GetAbsOrigin() - GetOwnerEntity()->GetAbsOrigin();
-	float	dist = VectorNormalize( viewDir );
-
-	float	scale = RemapVal( dist, 32, 1024, 0.01f, 0.5f );
-	float	scaleOffs = random->RandomFloat( -scale * 0.25f, scale * 0.25f );
-
-	scale = clamp( scale + scaleOffs, 0.1f, 32.0f );
-
-	SetScale( scale );
+//	SetNextThink( gpGlobals->curtime + 0.05f, g_pLaserDotThink );
+//
+//	if ( GetOwnerEntity() == NULL )
+//		return;
+//
+//	Vector	viewDir = GetAbsOrigin() - GetOwnerEntity()->GetAbsOrigin();
+//	float	dist = VectorNormalize( viewDir );
+//
+//	float	scale = RemapVal( dist, 32, 1024, 0.01f, 0.5f );
+//	float	scaleOffs = random->RandomFloat( -scale * 0.25f, scale * 0.25f );
+//
+//	scale = clamp( scale + scaleOffs, 0.1f, 32.0f );
+//
+//	SetScale( scale );
 }
 
 void CLaserDot::SetLaserPosition( const Vector &origin, const Vector &normal )
 {
-	SetAbsOrigin( origin );
-	m_vecSurfaceNormal = normal;
+//	SetAbsOrigin( origin );
+//	m_vecSurfaceNormal = normal;
 }
 
 Vector CLaserDot::GetChasePosition()
@@ -2346,11 +2367,11 @@ Vector CLaserDot::GetChasePosition()
 //-----------------------------------------------------------------------------
 void CLaserDot::TurnOn( void )
 {
-	m_bIsOn = true;
-	if ( m_bVisibleLaserDot )
-	{
-		BaseClass::TurnOn();
-	}
+	//m_bIsOn = true;
+	//if ( m_bVisibleLaserDot )
+	//{
+	//	BaseClass::TurnOn();
+	//}
 }
 
 
@@ -2359,11 +2380,11 @@ void CLaserDot::TurnOn( void )
 //-----------------------------------------------------------------------------
 void CLaserDot::TurnOff( void )
 {
-	m_bIsOn = false;
-	if ( m_bVisibleLaserDot )
-	{
-		BaseClass::TurnOff();
-	}
+	//m_bIsOn = false;
+	//if ( m_bVisibleLaserDot )
+	//{
+	//	BaseClass::TurnOff();
+	//}
 }
 
 

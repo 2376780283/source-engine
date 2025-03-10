@@ -40,7 +40,7 @@ struct SpawnInfo_t
 static DynamicResupplyItems_t g_DynamicResupplyHealthItems[] =
 {
 	{ "item_healthkit", "Health",	0, 0.0f, },
-	{ "item_battery",	"Armor",	0, 0.0f },
+	{ "item_healthvial_cmb",	"Armor",	0, 0.0f }, //тут было item_battery
 };
 
 // Ammo types
@@ -345,11 +345,11 @@ void CItem_DynamicResupply::SpawnFullItem( CItem_DynamicResupply *pMaster, CBase
 		// If we're supposed to fallback to just a health vial, do that and finish.
 		if ( pMaster->HasSpawnFlags(SF_DYNAMICRESUPPLY_FALLBACK_TO_VIAL) )
 		{
-			CBaseEntity::Create( "item_healthvial", GetAbsOrigin(), GetAbsAngles(), this );
+			CBaseEntity::Create( "item_healthvial_cmb", GetAbsOrigin(), GetAbsAngles(), this );
 
 			if ( iDebug )
 			{
-				Msg("Player is full, spawning item_healthvial due to spawnflag.\n");
+				Msg("Player is full, spawning item_healthvial_cmb due to spawnflag.\n");
 			}
 			return;
 		}
@@ -446,7 +446,8 @@ void CItem_DynamicResupply::ComputeHealthRatios( CItem_DynamicResupply* pMaster,
 		{
 			// Armor 
 			// Ignore armor if we don't have the suit
-			if ( !pPlayer->IsSuitEquipped() )
+			//if ( !pPlayer->IsSuitEquipped() )
+			if (false)
 			{
 				pSpawnInfo[i].m_flCurrentRatio = 1.0;
 			}

@@ -1,11 +1,6 @@
 name: Build All Games Android AArch64
 
 on:
-  push:
-    branches:
-      - master
-      - EntropyZero
-      - nh2
   workflow_dispatch:
     inputs:
       ndk_version:
@@ -27,16 +22,7 @@ on:
         default: 'all'
         type: choice
         options:
-          - all
-          - hl2
-          - hl1
-          - hl2mp
-          - cstrike
-          - episodic
-          - portal
-          - entropyzero2
-          - nh2
-          - hl1mp
+          - swelter
       android_api:
         description: 'Android API level'
         required: true
@@ -58,7 +44,7 @@ jobs:
             echo "Building single selected game: $SELECTED_GAME"
             GAMES_JSON=$(jq -nc --arg g "$SELECTED_GAME" '[$g]')
           else
-            BASE_GAMES='["hl2", "hl1", "hl1mp", "hl2mp", "cstrike", "episodic", "portal"]'
+            BASE_GAMES='["swelter"]'
             if [ "$BRANCH" = "EntropyZero" ]; then
               echo "Branch is EntropyZero. Adding entropyzero2 to matrix..."
               GAMES_JSON=$(echo $BASE_GAMES | jq '. + ["entropyzero2"]')

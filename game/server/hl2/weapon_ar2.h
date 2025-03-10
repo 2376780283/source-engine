@@ -16,6 +16,7 @@
 
 #include "basegrenade_shared.h"
 #include "basehlcombatweapon.h"
+#include "hl2_player.h"
 
 class CWeaponAR2 : public CHLMachineGun
 {
@@ -28,9 +29,15 @@ public:
 
 	void	ItemPostFrame( void );
 	void	Precache( void );
+	bool	Deploy(void);
 	
+	void	PrimaryAttack(void);
 	void	SecondaryAttack( void );
+	void	ChargeEnergySphere(CHL2_Player *pHL2Player);
+	void	HoldIronsight(void);
 	void	DelayedAttack( void );
+	void	SecondaryEject(void); //new
+	void	SecondaryEjectSpawn(void); //new
 
 	const char *GetTracerType( void ) { return "AR2Tracer"; }
 
@@ -41,12 +48,16 @@ public:
 	void	Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
 	void	Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
 
-	int		GetMinBurst( void ) { return 2; }
+	int		GetMinBurst(void) { return 4; }
 	int		GetMaxBurst( void ) { return 5; }
-	float	GetFireRate( void ) { return 0.1f; }
+	float	GetFireRate(void) { return 0.1f; } //{ return 0.115f; } { return 0.13f; } все эти вариации - скорострельность у игрока меньше, чем у NPC, потому закомментил
 
 	bool	CanHolster( void );
 	bool	Reload( void );
+
+	bool shouldDropMag; //drop mag
+	float dropMagTime; //drop mag
+	void DropMag(void); //drop mag
 
 	int		CapabilitiesGet( void ) { return bits_CAP_WEAPON_RANGE_ATTACK1; }
 
@@ -58,7 +69,7 @@ public:
 	{
 		static Vector cone;
 		
-		cone = VECTOR_CONE_3DEGREES;
+		cone = VECTOR_CONE_2DEGREES;
 
 		return cone;
 	}
@@ -71,8 +82,17 @@ protected:
 	bool					m_bShotDelayed;
 	int						m_nVentPose;
 	
+	float m_flSecondaryReloadActivationTime; //new
+	float m_flSecondaryReloadDeactivationTime; //new
+	float m_flSecondaryEjectTime; //new
+	bool m_bSecondaryEjectPending; //new
+	float m_flSecondaryEjectTime2; //new
+	bool m_bSecondaryEjectPending2; //new
+
 	DECLARE_ACTTABLE();
 	DECLARE_DATADESC();
+private:
+	void	SetSkin(int skinNum);
 };
 
 

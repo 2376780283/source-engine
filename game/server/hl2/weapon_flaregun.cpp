@@ -125,7 +125,7 @@ void KillFlare( CBaseEntity *pOwnerEntity, CBaseEntity *pEntity, float flKillTim
 //-----------------------------------------------------------------------------
 CFlare::CFlare( void )
 {
-	m_flScale		= 1.0f;
+	m_flScale = 4.0f; //было 1
 	m_nBounces		= 0;
 	m_bFading		= false;
 	m_bLight		= true;
@@ -136,6 +136,8 @@ CFlare::CFlare( void )
 	m_bPropFlare	= false;
 	m_bInActiveList	= false;
 	m_pNextFlare	= NULL;
+	//m_bIsIronsighted = false;
+	//m_bCanIronsighted = false;
 }
 
 CFlare::~CFlare()
@@ -197,8 +199,8 @@ void CFlare::Spawn( void )
 
 	SetMoveType( MOVETYPE_NONE );
 	SetFriction( 0.6f );
-	SetGravity( UTIL_ScaleForGravity( 400 ) );
-	m_flTimeBurnOut = gpGlobals->curtime + 30;
+	SetGravity(UTIL_ScaleForGravity(200)); //было 400
+	m_flTimeBurnOut = gpGlobals->curtime + 10;
 
 	AddEffects( EF_NOSHADOW|EF_NORECEIVESHADOW );
 
@@ -364,7 +366,7 @@ void CFlare::FlareBurnTouch( CBaseEntity *pOther )
 {
 	if ( pOther && pOther->m_takedamage && ( m_flNextDamage < gpGlobals->curtime ) )
 	{
-		pOther->TakeDamage( CTakeDamageInfo( this, m_pOwner, 1, (DMG_BULLET|DMG_BURN) ) );
+		pOther->TakeDamage(CTakeDamageInfo(this, m_pOwner, 1, (DMG_BURN | DMG_BURN)));
 		m_flNextDamage = gpGlobals->curtime + 1.0f;
 	}
 }
@@ -379,10 +381,11 @@ void CFlare::FlareTouch( CBaseEntity *pOther )
 	if ( !pOther->IsSolid() )
 		return;
 
+	//скрыто
 	if ( ( m_nBounces < 10 ) && ( GetWaterLevel() < 1 ) )
 	{
 		// Throw some real chunks here
-		g_pEffects->Sparks( GetAbsOrigin() );
+		//g_pEffects->Sparks(GetAbsOrigin());
 	}
 
 	//If the flare hit a person or NPC, do damage here.
@@ -410,7 +413,7 @@ void CFlare::FlareTouch( CBaseEntity *pOther )
 		pAnim = dynamic_cast<CBaseAnimating*>(pOther);
 		if( pAnim )
 		{
-			pAnim->Ignite( 30.0f );
+			pAnim->Ignite(10.0f);
 		}
 
 		Vector vecNewVelocity = GetAbsVelocity();
@@ -424,7 +427,7 @@ void CFlare::FlareTouch( CBaseEntity *pOther )
 		Die( 0.5 );
 
 		return;
-	}
+	} /*
 	else
 	{
 		// hit the world, check the material type here, see if the flare should stick.
@@ -508,7 +511,7 @@ void CFlare::FlareTouch( CBaseEntity *pOther )
 			AddSolidFlags( FSOLID_TRIGGER );
 			SetTouch( &CFlare::FlareBurnTouch );
 		}
-	}
+	} */
 }
 
 //-----------------------------------------------------------------------------
@@ -571,7 +574,7 @@ void CFlare::Launch( const Vector &direction, float speed )
 	// Punch our velocity towards our facing
 	SetAbsVelocity( direction * speed );
 
-	SetGravity( 1.0f );
+	SetGravity(0.3f); //тут было 1,0
 }
 
 //-----------------------------------------------------------------------------
@@ -657,8 +660,6 @@ void CFlare::AddToActiveFlares( void )
 	}
 }
 
-#if 0
-
 IMPLEMENT_SERVERCLASS_ST(CFlaregun, DT_Flaregun)
 END_SEND_TABLE()
 
@@ -713,7 +714,16 @@ void CFlaregun::PrimaryAttack( void )
 
 	WeaponSound( SINGLE );
 }
+bool CFlaregun::Deploy(void)
+{
 
+	DevMsg("SDE_SMG!_deploy\n");
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+		pPlayer->ShowCrosshair(true);
+	DisplaySDEHudHint();
+	return BaseClass::Deploy();
+}
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -751,5 +761,17 @@ void CFlaregun::SecondaryAttack( void )
 
 	WeaponSound( SINGLE );
 }
+void CFlaregun::ItemPostFrame(void)
+{
+	BaseClass::ItemPostFrame();
+	DisableIronsights();
 
-#endif
+	if (m_bInReload)
+		return;
+
+	CBasePlayer *pOwner = ToBasePlayer(GetOwner());
+
+	if (pOwner == NULL)
+		return;
+
+}

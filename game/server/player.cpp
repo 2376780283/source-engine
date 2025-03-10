@@ -7,6 +7,7 @@
 #include "cbase.h"
 #include "const.h"
 #include "baseplayer_shared.h"
+#include "hl2_player_shared.h"
 #include "trains.h"
 #include "soundent.h"
 #include "gib.h"
@@ -5215,6 +5216,8 @@ int CBasePlayer::Restore( IRestore &restore )
 		UTIL_SetSize(this, VEC_HULL_MIN, VEC_HULL_MAX);
 	}
 
+	SetFOV(this, 0);
+
 	// We need to get at m_vecAbsOrigin as it was restored but can't let it be
 	// recalculated by a call to GetAbsOrigin because hierarchy isn't fully restored yet,
 	// so we use this backdoor to get at the private data in CBaseEntity.
@@ -5232,6 +5235,8 @@ void CBasePlayer::OnRestore( void )
 {
 	BaseClass::OnRestore();
 
+	Msg("SDE LOADED \n");
+	//engine->ClientCommand(edict(), "+ironsight");
 
 	SetViewEntity( m_hViewEntity );
 	SetDefaultFOV(m_iDefaultFOV);		// force this to reset if zero
@@ -5559,6 +5564,7 @@ void CBasePlayer::LeaveVehicle( const Vector &vecExitPoint, const QAngle &vecExi
 			GetActiveWeapon()->Deploy();
 			ShowCrosshair( true );
 		}
+
 	}
 
 	// Just cut all of the rumble effects. 
@@ -5897,7 +5903,7 @@ void CBasePlayer::ImpulseCommands( )
 		break;
 
 	case 200:
-		if ( sv_cheats->GetBool() )
+		//if ( sv_cheats->GetBool() ) //была проверка на читы
 		{
 			CBaseCombatWeapon *pWeapon;
 
@@ -6036,10 +6042,10 @@ static void CreateJeep( CBasePlayer *pPlayer )
 		QAngle vecAngles( 0, pPlayer->GetAbsAngles().y - 90, 0 );
 		pJeep->SetAbsOrigin( vecOrigin );
 		pJeep->SetAbsAngles( vecAngles );
-		pJeep->KeyValue( "model", "models/buggy.mdl" );
+		pJeep->KeyValue( "model", "models/props_se/uaz469/uaz469_drivable.mdl" );
 		pJeep->KeyValue( "solid", "6" );
-		pJeep->KeyValue( "targetname", "jeep" );
-		pJeep->KeyValue( "vehiclescript", "scripts/vehicles/jeep_test.txt" );
+		pJeep->KeyValue( "targetname", "uaz" );
+		pJeep->KeyValue( "vehiclescript", "scripts/vehicles/jeep_uaz.txt" );
 		DispatchSpawn( pJeep );
 		pJeep->Activate();
 		pJeep->Teleport( &vecOrigin, &vecAngles, NULL );
@@ -6152,28 +6158,35 @@ void CBasePlayer::CheatImpulseCommands( int iImpulse )
 		// Give the player everything!
 		GiveAmmo( 255,	"Pistol");
 		GiveAmmo( 255,	"AR2");
+		GiveAmmo( 255,  "AR1");
 		GiveAmmo( 5,	"AR2AltFire");
 		GiveAmmo( 255,	"SMG1");
 		GiveAmmo( 255,	"Buckshot");
-		GiveAmmo( 3,	"smg1_grenade");
-		GiveAmmo( 3,	"rpg_round");
+		GiveAmmo( 5,	"smg1_grenade");
+		GiveAmmo( 5,    "smg2_grenade");
 		GiveAmmo( 5,	"grenade");
 		GiveAmmo( 32,	"357" );
+		GiveAmmo( 32,   "356");
 		GiveAmmo( 16,	"XBowBolt" );
+		GiveAmmo( 3,	"bugbottle" );
 #ifdef HL2_EPISODIC
 		GiveAmmo( 5,	"Hopwire" );
 #endif		
 		GiveNamedItem( "weapon_smg1" );
 		GiveNamedItem( "weapon_frag" );
-		GiveNamedItem( "weapon_crowbar" );
+		GiveNamedItem( "weapon_handgren" );
+		GiveNamedItem( "weapon_stunstick" );
 		GiveNamedItem( "weapon_pistol" );
 		GiveNamedItem( "weapon_ar2" );
 		GiveNamedItem( "weapon_shotgun" );
 		GiveNamedItem( "weapon_physcannon" );
 		GiveNamedItem( "weapon_bugbait" );
-		GiveNamedItem( "weapon_rpg" );
-		GiveNamedItem( "weapon_357" );
-		GiveNamedItem( "weapon_crossbow" );
+		GiveNamedItem( "weapon_356" );
+		GiveNamedItem( "weapon_annabelle" );
+		GiveNamedItem( "weapon_bugbottle" );
+		GiveNamedItem( "weapon_glauncher");
+		GiveNamedItem( "weapon_adot");
+
 #ifdef HL2_EPISODIC
 		// GiveNamedItem( "weapon_magnade" );
 #endif
@@ -6265,6 +6278,61 @@ void CBasePlayer::CheatImpulseCommands( int iImpulse )
 		}
 		break;
 	}
+	case 116:
+		gEvilImpulse101 = true;
+
+		EquipSuit();
+
+		// Give the player everything!
+		GiveAmmo(255, "Pistol" );
+		GiveAmmo(255, "AR2" );
+		GiveAmmo(255, "AR1" );
+		GiveAmmo(5, "AR2AltFire" );
+		GiveAmmo(255, "SMG1" );
+		GiveAmmo(255, "Buckshot" );
+		GiveAmmo(5, "smg1_grenade" );
+		GiveAmmo(5, "smg2_grenade" );
+		GiveAmmo(3, "rpg_round" );
+		GiveAmmo(5, "grenade" );
+		GiveAmmo(32, "357" );
+		GiveAmmo(32, "356" );
+		GiveAmmo(16, "XBowBolt" );
+		GiveAmmo(3, "bugbottle" );
+		GiveAmmo(5, "FlareRound"); 
+		GiveNamedItem( "weapon_smg1" );
+		GiveNamedItem( "weapon_smg2" );
+		GiveNamedItem( "weapon_frag" );
+		GiveNamedItem( "weapon_handgren" );
+		GiveNamedItem( "weapon_stunstick" );
+		GiveNamedItem( "weapon_pistol" );
+		GiveNamedItem( "weapon_ar2" );
+		GiveNamedItem( "weapon_shotgun" );
+		GiveNamedItem( "weapon_sos" );
+		GiveNamedItem( "weapon_physcannon" );
+		GiveNamedItem( "weapon_bugbait" );
+		GiveNamedItem( "weapon_356" );
+		GiveNamedItem( "weapon_357" );
+		GiveNamedItem( "weapon_ar1m1" );
+		GiveNamedItem( "weapon_ar1" );
+		GiveNamedItem( "weapon_annabelle" );
+		GiveNamedItem( "weapon_bugbottle" );
+		GiveNamedItem( "weapon_glauncher" );
+		GiveNamedItem( "weapon_adot" );
+		GiveNamedItem( "weapon_rpg" );
+		GiveNamedItem( "weapon_flaregun" );
+		GiveNamedItem( "weapon_alyxgun" );
+		GiveNamedItem( "weapon_alyxgun_s" );
+		GiveNamedItem( "weapon_wrench" );
+		GiveNamedItem( "weapon_wrench2" );
+
+		if (GetHealth() < 100)
+		{
+			TakeHealth(100, DMG_GENERIC);
+		}
+
+		gEvilImpulse101 = false;
+
+		break;
 
 	case	195:// show shortest paths for entire level to nearest node
 		{
@@ -6556,7 +6624,115 @@ bool CBasePlayer::ClientCommand( const CCommand &args )
 		}
 		return true;
 	}
-
+	else if (stricmp(cmd, "sde_ironsight") == 0)
+	{
+		CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+		if (pWeapon != NULL && !(pWeapon->m_bInReload || pWeapon->m_bInSecondaryReload || pWeapon->m_bForbidIronsight || pWeapon->GetActivity() == ACT_VM_HOLSTER))
+		{
+			const char* ActiveWeaponName = pWeapon->GetName();
+			if (strcmp(ActiveWeaponName, "weapon_pistol") == 0 || strcmp(ActiveWeaponName, "weapon_356") == 0 ||
+				strcmp(ActiveWeaponName, "weapon_alyxgun") == 0 || strcmp(ActiveWeaponName, "weapon_alyxgun_s") == 0 ||
+				strcmp(ActiveWeaponName, "weapon_smg1") == 0 || strcmp(ActiveWeaponName, "weapon_smg2") == 0 ||
+				strcmp(ActiveWeaponName, "weapon_ar1") == 0 || strcmp(ActiveWeaponName, "weapon_ar1m1") == 0 ||
+				strcmp(ActiveWeaponName, "weapon_annabelle") == 0 || strcmp(ActiveWeaponName, "weapon_357") == 0 ||
+				strcmp(ActiveWeaponName, "weapon_shotgun") == 0 || strcmp(ActiveWeaponName, "weapon_ar2") == 0)
+			{
+				pWeapon->ToggleIronsights();
+				ToggleCrosshair();
+			}
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "crosshair_on") == 0)
+	{
+		ShowCrosshair(true);
+		return true;
+	}
+	else if (stricmp(cmd, "crosshair_off") == 0)
+	{
+		ShowCrosshair(false);
+		return true;
+	}
+	else if (stricmp(cmd, "sde_rifle_chamber") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->R357_Round_Chamber();
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "sde_rifle_unchamber") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->R357_Round_Unchamber();
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "sde_sniper_chamber") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->Annabelle_Round_Chamber();
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "sde_sniper_unchamber") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->Annabelle_Round_Unchamber();
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "sde_ar1m1_gl_load") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->AR1M1_GL_Load();
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "sde_ar1m1_gl_unload") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->AR1M1_GL_Unload();
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "sde_ar2_gl_load") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->AR2_GL_Load();
+		}
+		return true;
+	}
+	else if (stricmp(cmd, "sde_ar2_gl_unload") == 0)
+	{
+		CBasePlayer *pPlayer = UTIL_PlayerByIndex(1);
+		if (pPlayer)
+		{
+			CHL2_Player *pHL2Player = dynamic_cast<CHL2_Player*>(pPlayer);
+			pHL2Player->AR2_GL_Unload();
+		}
+		return true;
+	}
 	return false;
 }
 
@@ -6699,10 +6875,28 @@ void CBasePlayer::ShowCrosshair( bool bShow )
 	if ( bShow )
 	{
 		m_Local.m_iHideHUD &= ~HIDEHUD_CROSSHAIR;
+		m_bIsCrosshaired = false;
 	}
 	else
 	{
 		m_Local.m_iHideHUD |= HIDEHUD_CROSSHAIR;
+		m_bIsCrosshaired = true;
+	}
+}
+
+void CBasePlayer::ToggleCrosshair(void)
+{
+	CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+	if (pWeapon->m_bCanIronsighted)
+	{
+	}
+
+	else
+	{
+		if (m_bIsCrosshaired)
+			ShowCrosshair(true);
+		else
+			ShowCrosshair(false);
 	}
 }
 
@@ -7693,6 +7887,13 @@ CBaseEntity *CreatePlayerLoadSave( Vector vOrigin, float flDuration, float flHol
 	pRevertSaved->SetHoldTime( flHoldTime );
 	pRevertSaved->SetLoadTime( flLoadTime );
 
+	//CBaseCombatCharacter *pOwner = GetOwner();
+	//if (pOwner->IsPlayer())
+	//{
+	//	
+	//}
+	
+
 	return pRevertSaved;
 }
 
@@ -7849,6 +8050,9 @@ void CMovementSpeedMod::InputSpeedMod(inputdata_t &data)
 	{
 		if ( data.value.Float() != 1.0f )
 		{
+
+		
+
 			// Holster weapon immediately, to allow it to cleanup
 			if ( HasSpawnFlags( SF_SPEED_MOD_SUPPRESS_WEAPONS ) )
 			{
@@ -7857,6 +8061,7 @@ void CMovementSpeedMod::InputSpeedMod(inputdata_t &data)
 					pPlayer->Weapon_SetLast( pPlayer->GetActiveWeapon() );
 					pPlayer->GetActiveWeapon()->Holster();
 					pPlayer->ClearActiveWeapon();
+
 				}
 				
 				pPlayer->HideViewModels();

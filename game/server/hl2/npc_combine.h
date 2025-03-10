@@ -79,6 +79,7 @@ public:
 
 	Class_T			Classify( void );
 	bool			IsElite() { return m_fIsElite; }
+	bool			IsAperture() { return m_fIsAperture; }
 	void			DelayAltFireAttack( float flDelay );
 	void			DelaySquadAltFireAttack( float flDelay );
 	float			MaxYawSpeed( void );
@@ -126,7 +127,7 @@ public:
 	// Sounds
 	// -------------
 	void			DeathSound( void );
-	void			PainSound( const CTakeDamageInfo &damageinfo );
+	void 			PainSound( const CTakeDamageInfo &info );
 	void			IdleSound( void );
 	void			AlertSound( void );
 	void			LostEnemySound( void );
@@ -287,6 +288,7 @@ private:
 public:
 	int				m_iLastAnimEventHandled;
 	bool			m_fIsElite;
+	bool			m_fIsAperture;
 	Vector			m_vecAltFireTarget;
 
 	int				m_iTacticalVariant;

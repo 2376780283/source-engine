@@ -182,6 +182,7 @@ public:
 	void	Precache( void );
 
 	void	PrimaryAttack( void );
+	void	HoldIronsight(void);
 	virtual float GetFireRate( void ) { return 1; };
 	void	ItemPostFrame( void );
 

@@ -78,6 +78,8 @@ public:
 
 	virtual bool CanBeAnEnemyOf( CBaseEntity *pEnemy );
 
+	//COutputEvent		m_OnToxin; //added
+
 	bool	IsHangingFromCeiling( void ) 
 	{ 
 #ifdef HL2_EPISODIC

@@ -73,7 +73,9 @@ ConVar g_debug_headcrab( "g_debug_headcrab", "0", FCVAR_CHEAT );
 #define SF_HEADCRAB_START_HIDDEN		(1 << 16)
 #define SF_HEADCRAB_START_HANGING		(1 << 17)
 
-
+//BEGIN_DATADESC(CAI_BaseNPC)
+//
+//END_DATADESC()
 //-----------------------------------------------------------------------------
 // Think contexts.
 //-----------------------------------------------------------------------------
@@ -1710,7 +1712,7 @@ int CBaseHeadcrab::OnTakeDamage_Alive( const CTakeDamageInfo &inputInfo )
 	}
 
 	//
-	// Certain death from melee bludgeon weapons!
+	// Certain death from melee bludgeon weapons! ван шот ван килл но лак джаст скилл
 	//
 	if ( info.GetDamageType() & DMG_CLUB )
 	{
@@ -3258,6 +3260,7 @@ int CBlackHeadcrab::SelectSchedule( void )
 //-----------------------------------------------------------------------------
 // Purpose: Black headcrab's touch attack damage. Evil!
 //-----------------------------------------------------------------------------
+
 void CBlackHeadcrab::TouchDamage( CBaseEntity *pOther )
 {
 	if ( pOther->m_iHealth > 1 )

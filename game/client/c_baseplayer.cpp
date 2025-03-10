@@ -70,6 +70,7 @@ int g_nKillCamTarget1 = 0;
 int g_nKillCamTarget2 = 0;
 
 extern ConVar mp_forcecamera; // in gamevars_shared.h
+extern void	FormatViewModelAttachment(Vector &vOrigin, bool bInverse);
 
 #define FLASHLIGHT_DISTANCE		1000
 #define MAX_VGUI_INPUT_MODE_SPEED 30
@@ -87,7 +88,7 @@ extern ConVar sensitivity;
 
 static C_BasePlayer *s_pLocalPlayer = NULL;
 
-static ConVar	cl_customsounds ( "cl_customsounds", "1", 0, "Enable customized player sound playback" );
+static ConVar	cl_customsounds ( "cl_customsounds", "0", 0, "Enable customized player sound playback" );
 static ConVar	spec_track		( "spec_track", "0", 0, "Tracks an entity in spec mode" );
 static ConVar	cl_smooth		( "cl_smooth", "1", 0, "Smooth view/eye origin after prediction errors" );
 static ConVar	cl_smoothtime	( 
@@ -110,6 +111,8 @@ ConVar	spec_freeze_traveltime( "spec_freeze_traveltime", "0.4", FCVAR_CHEAT | FC
 ConVar	spec_freeze_distance_min( "spec_freeze_distance_min", "96", FCVAR_CHEAT, "Minimum random distance from the target to stop when framing them in observer freeze cam." );
 ConVar	spec_freeze_distance_max( "spec_freeze_distance_max", "200", FCVAR_CHEAT, "Maximum random distance from the target to stop when framing them in observer freeze cam." );
 #endif
+
+extern ConVar sde_enable_muzzle_flash_light;
 
 static ConVar	cl_first_person_uses_world_model ( "cl_first_person_uses_world_model", "0", FCVAR_ARCHIVE, "Causes the third person model to be drawn instead of the view model" );
 
@@ -438,6 +441,8 @@ C_BasePlayer::C_BasePlayer() : m_iv_vecViewOffset( "C_BasePlayer::m_iv_vecViewOf
 	m_nForceVisionFilterFlags = 0;
 
 	ListenForGameEvent( "base_player_teleported" );
+
+	m_flMuzzleFlashTime = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -469,7 +474,8 @@ void C_BasePlayer::Spawn( void )
 
 	m_iFOV	= 0;	// init field of view.
 
-    SetModel( "models/player.mdl" );
+    //SetModel( "models/player.mdl" );
+	SetModel("models/humans/group03/male_09.mdl");
 
 	Precache();
 
@@ -1197,14 +1203,21 @@ void C_BasePlayer::TeamChange( int iNewTeam )
 	// Base class does nothing
 }
 
+bool C_BasePlayer::ShouldDisplayMuzzleLight()
+{
+	if (sde_enable_muzzle_flash_light.GetBool() && m_flMuzzleFlashTime > gpGlobals->curtime)
+		return true;
 
+	return false;
+}
 //-----------------------------------------------------------------------------
 // Purpose: Creates, destroys, and updates the flashlight effect as needed.
 //-----------------------------------------------------------------------------
 void C_BasePlayer::UpdateFlashlight()
 {
+	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 	// The dim light is the flashlight.
-	if ( IsEffectActive( EF_DIMLIGHT ) )
+	if ((IsEffectActive(EF_DIMLIGHT) || ShouldDisplayMuzzleLight()) && (pPlayer))
 	{
 		if (!m_pFlashlight)
 		{
@@ -1217,11 +1230,44 @@ void C_BasePlayer::UpdateFlashlight()
 			m_pFlashlight->TurnOn();
 		}
 
-		Vector vecForward, vecRight, vecUp;
-		EyeVectors( &vecForward, &vecRight, &vecUp );
+		QAngle angLightDir;
+		Vector vecLightOrigin, vecForward, vecRight, vecUp;
 
-		// Update the light with the new position and direction.		
-		m_pFlashlight->UpdateLight( EyePosition(), vecForward, vecRight, vecUp, FLASHLIGHT_DISTANCE );
+		CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+		if (pWeapon)
+		{
+			if (true)
+			{
+				C_BaseViewModel  *pVM = pPlayer->GetViewModel();
+				if (pVM)
+				{
+					if (ShouldDisplayMuzzleLight())
+					{
+						pVM->GetAttachment(1, vecLightOrigin, angLightDir);
+						AngleVectors(angLightDir, &vecForward, &vecRight, &vecUp);
+					}
+					else
+					{
+						EyeVectors(&vecForward, &vecRight, &vecUp);
+						vecLightOrigin = EyePosition();
+					}
+					::FormatViewModelAttachment(vecLightOrigin, true);
+				}
+				
+			}
+			else
+			{
+		EyeVectors( &vecForward, &vecRight, &vecUp );
+				vecLightOrigin = EyePosition();
+			}
+		}
+		else
+		{
+			EyeVectors(&vecForward, &vecRight, &vecUp);
+			vecLightOrigin = EyePosition();
+		}
+
+		m_pFlashlight->UpdateLight(vecLightOrigin, vecForward, vecRight, vecUp, FLASHLIGHT_DISTANCE, ShouldDisplayMuzzleLight());
 	}
 	else if (m_pFlashlight)
 	{
@@ -1231,6 +1277,13 @@ void C_BasePlayer::UpdateFlashlight()
 	}
 }
 
+
+
+
+void C_BasePlayer::DisplayMuzzleLight()
+{
+	m_flMuzzleFlashTime = gpGlobals->curtime + .03; //time
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: Creates player flashlight if it's ative

@@ -53,7 +53,7 @@ float CNPC_FloorTurret::fMaxTipControllerAngularVelocity = 90.0f * 90.0f;
 #define FLOOR_TURRET_GLOW_SPRITE	"sprites/glow1.vmt"
 // #define FLOOR_TURRET_BC_YAW			"aim_yaw"
 // #define FLOOR_TURRET_BC_PITCH		"aim_pitch"
-#define	FLOOR_TURRET_RANGE			1200
+#define	FLOOR_TURRET_RANGE			2200 //added
 #define	FLOOR_TURRET_MAX_WAIT		5
 #define FLOOR_TURRET_SHORT_WAIT		2.0		// Used for FAST_RETIRE spawnflag
 #define	FLOOR_TURRET_PING_TIME		1.0f	//LPB!!
@@ -1263,17 +1263,17 @@ void CNPC_FloorTurret::TippedThink( void )
 			}
 			else if ( IsCitizenTurret() == false )	// Citizen turrets don't wildly fire
 			{
-				Vector vecMuzzle, vecMuzzleDir;
-				UpdateMuzzleMatrix();
-				MatrixGetColumn( m_muzzleToWorld, 0, vecMuzzleDir );
-				MatrixGetColumn( m_muzzleToWorld, 3, vecMuzzle );
-
-				ResetActivity();
-				SetActivity( (Activity) ACT_FLOOR_TURRET_FIRE );
-
-#if !DISABLE_SHOT
-				Shoot( vecMuzzle, vecMuzzleDir );
-#endif
+//				Vector vecMuzzle, vecMuzzleDir;
+//				UpdateMuzzleMatrix();
+//				MatrixGetColumn( m_muzzleToWorld, 0, vecMuzzleDir );
+//				MatrixGetColumn( m_muzzleToWorld, 3, vecMuzzle );
+//
+//				ResetActivity();
+//				SetActivity( (Activity) ACT_FLOOR_TURRET_FIRE );
+//
+//#if !DISABLE_SHOT
+//				Shoot( vecMuzzle, vecMuzzleDir );
+//#endif
 			}
 
 			m_flShotTime = gpGlobals->curtime + 0.05f;

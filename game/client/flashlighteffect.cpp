@@ -1,6 +1,7 @@
-//========= Copyright Valve Corporation, All rights reserved. ============//
+//===== Copyright © 1996-2005, Valve Corporation, All rights reserved. ======//
 //
 // Purpose: 
+// Other: Heavily edited by Team Gear for City17: Episode 1.
 //
 //===========================================================================//
 
@@ -10,47 +11,50 @@
 #include "iefx.h"
 #include "iviewrender.h"
 #include "view.h"
+#include "viewrender.h"
 #include "engine/ivdebugoverlay.h"
 #include "tier0/vprof.h"
 #include "tier1/KeyValues.h"
 #include "toolframework_client.h"
+#include "iinput.h"
 
 #ifdef HL2_CLIENT_DLL
 #include "c_basehlplayer.h"
+#include "hl2_gamerules.h"
 #endif // HL2_CLIENT_DLL
 
-#if defined( _X360 )
 extern ConVar r_flashlightdepthres;
-#else
-extern ConVar r_flashlightdepthres;
-#endif
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 extern ConVar r_flashlightdepthtexture;
+//extern ConVar r_dynamicshadows_use_c17_improvements;
+//extern ConVar r_dynamic_shadow_mode;
+extern ConVar r_flashlightdepthres;
 
 void r_newflashlightCallback_f( IConVar *pConVar, const char *pOldString, float flOldValue );
 
 static ConVar r_newflashlight( "r_newflashlight", "1", FCVAR_CHEAT, "", r_newflashlightCallback_f );
-static ConVar r_swingflashlight( "r_swingflashlight", "1", FCVAR_CHEAT );
+static ConVar r_swingflashlight("r_swingflashlight", "0", FCVAR_CHEAT);
 static ConVar r_flashlightlockposition( "r_flashlightlockposition", "0", FCVAR_CHEAT );
-static ConVar r_flashlightfov( "r_flashlightfov", "45.0", FCVAR_CHEAT );
-static ConVar r_flashlightoffsetx( "r_flashlightoffsetx", "10.0", FCVAR_CHEAT );
-static ConVar r_flashlightoffsety( "r_flashlightoffsety", "-20.0", FCVAR_CHEAT );
-static ConVar r_flashlightoffsetz( "r_flashlightoffsetz", "24.0", FCVAR_CHEAT );
+static ConVar r_flashlightfov("r_flashlightfov", "55.0", FCVAR_CHEAT);
+static ConVar r_flashlightoffsetx("r_flashlightoffsetx", "0.0", FCVAR_CHEAT);
+static ConVar r_flashlightoffsety("r_flashlightoffsety", "0.0", FCVAR_CHEAT);
+static ConVar r_flashlightoffsetz("r_flashlightoffsetz", "-20.0", FCVAR_CHEAT);
 static ConVar r_flashlightnear( "r_flashlightnear", "4.0", FCVAR_CHEAT );
-static ConVar r_flashlightfar( "r_flashlightfar", "750.0", FCVAR_CHEAT );
+static ConVar r_flashlightfar("r_flashlightfar", "500.0", FCVAR_CHEAT); //750.0
 static ConVar r_flashlightconstant( "r_flashlightconstant", "0.0", FCVAR_CHEAT );
 static ConVar r_flashlightlinear( "r_flashlightlinear", "100.0", FCVAR_CHEAT );
 static ConVar r_flashlightquadratic( "r_flashlightquadratic", "0.0", FCVAR_CHEAT );
 static ConVar r_flashlightvisualizetrace( "r_flashlightvisualizetrace", "0", FCVAR_CHEAT );
 static ConVar r_flashlightambient( "r_flashlightambient", "0.0", FCVAR_CHEAT );
-static ConVar r_flashlightshadowatten( "r_flashlightshadowatten", "0.35", FCVAR_CHEAT );
 static ConVar r_flashlightladderdist( "r_flashlightladderdist", "40.0", FCVAR_CHEAT );
-static ConVar mat_slopescaledepthbias_shadowmap( "mat_slopescaledepthbias_shadowmap", "16", FCVAR_CHEAT );
-static ConVar mat_depthbias_shadowmap(	"mat_depthbias_shadowmap", "0.0005", FCVAR_CHEAT  );
-
+static ConVar mat_slopescaledepthbias_shadowmap("mat_slopescaledepthbias_shadowmap", "3.0", FCVAR_CHEAT);
+static ConVar mat_depthbias_shadowmap("mat_depthbias_shadowmap", "0.00001", FCVAR_CHEAT);
+static ConVar r_flashlightcolor_r("r_flashlightcolor_r", "3.0", FCVAR_CHEAT); //1.0
+static ConVar r_flashlightcolor_g("r_flashlightcolor_g", "3.0", FCVAR_CHEAT); //1.0
+static ConVar r_flashlightcolor_b("r_flashlightcolor_b", "2.5", FCVAR_CHEAT); //0.75
 
 void r_newflashlightCallback_f( IConVar *pConVar, const char *pOldString, float flOldValue )
 {
@@ -72,19 +76,36 @@ CFlashlightEffect::CFlashlightEffect(int nEntIndex)
 	m_nEntIndex = nEntIndex;
 
 	m_bIsOn = false;
+
+	if (true)
+	{
+		m_bUseShadows = true;
+	}
+	else
+	{
+		m_bUseShadows = false;
+	}
+
 	m_pPointLight = NULL;
 	if( engine->GetDXSupportLevel() < 70 )
 	{
 		r_newflashlight.SetValue( 0 );
 	}	
 
-	if ( g_pMaterialSystemHardwareConfig->SupportsBorderColor() )
+	if (false) // (g_pMaterialSystemHardwareConfig->SupportsBorderColor()
 	{
 		m_FlashlightTexture.Init( "effects/flashlight_border", TEXTURE_GROUP_OTHER, true );
+		m_MuzzlelightTexture.Init("effects/muzzlelight_border", TEXTURE_GROUP_OTHER, true);
+		m_ARMuzzlelightTexture.Init("effects/armuzzlelight_border", TEXTURE_GROUP_OTHER, true);
 	}
 	else
 	{
 		m_FlashlightTexture.Init( "effects/flashlight001", TEXTURE_GROUP_OTHER, true );
+		m_MuzzlelightTexture.Init("effects/muzzlelight001", TEXTURE_GROUP_OTHER, true);
+		m_ARMuzzlelightTexture.Init("effects/armuzzlelight001", TEXTURE_GROUP_OTHER, true);
+		m_ShotgunMuzzlelightTexture.Init("effects/shotgunmuzzlelight001", TEXTURE_GROUP_OTHER, true);
+		m_PistolMuzzlelightTexture.Init("effects/shotgunmuzzlelight001", TEXTURE_GROUP_OTHER, true);
+		m_SilenserMuzzlelightTexture.Init("effects/silensermuzzlelight001", TEXTURE_GROUP_OTHER, true);
 	}
 }
 
@@ -97,7 +118,6 @@ CFlashlightEffect::~CFlashlightEffect()
 	LightOff();
 }
 
-
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -106,7 +126,6 @@ void CFlashlightEffect::TurnOn()
 	m_bIsOn = true;
 	m_flDistMod = 1.0f;
 }
-
 
 //-----------------------------------------------------------------------------
 // Purpose: 
@@ -149,7 +168,7 @@ public:
 //-----------------------------------------------------------------------------
 // Purpose: Do the headlight
 //-----------------------------------------------------------------------------
-void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecForward, const Vector &vecRight, const Vector &vecUp )
+void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecForward, const Vector &vecRight, const Vector &vecUp, bool bMuzzleFlash)
 {
 	VPROF_BUDGET( "CFlashlightEffect::UpdateLightNew", VPROF_BUDGETGROUP_SHADOW_DEPTH_TEXTURING );
 
@@ -176,7 +195,7 @@ void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecFo
 		}
 	}
 
-	Vector vOrigin = vecPos + flOffsetY * vecUp;
+	Vector vOrigin = vecPos + (flOffsetY * vecUp) + (r_flashlightoffsetx.GetFloat() * vecRight) + (r_flashlightoffsetz.GetFloat() * vecForward);
 
 	// Not on ladder...trace a hull
 	if ( !bPlayerOnLadder ) 
@@ -199,7 +218,26 @@ void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecFo
 	iMask &= ~CONTENTS_HITBOX;
 	iMask |= CONTENTS_WINDOW;
 
-	Vector vTarget = vecPos + vecForward * r_flashlightfar.GetFloat();
+	//Vector vTarget = vecPos + vecForward * r_flashlightfar.GetFloat();
+
+	C_BaseCombatWeapon *wpn = C_BasePlayer::GetLocalPlayer()->GetActiveWeapon();
+	bool DoMuzzle = false;
+
+	if (wpn && bMuzzleFlash)
+	{
+		DoMuzzle = true;
+	}
+
+
+	Vector vTarget;
+	if (DoMuzzle)
+	{
+		vTarget = vecPos + vecForward * r_flashlightfar.GetFloat();
+	}
+	else
+	{
+		vTarget = vecPos + vecForward * r_flashlightfar.GetFloat();
+	}
 
 	// Work with these local copies of the basis for the rest of the function
 	Vector vDir   = vTarget - vOrigin;
@@ -231,12 +269,13 @@ void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecFo
 	}
 
 	float flDist = (pmDirectionTrace.endpos - vOrigin).Length();
+	float flFov = r_flashlightfov.GetFloat();
 	if ( flDist < flDistCutoff )
 	{
 		// We have an intersection with our cutoff range
 		// Determine how far to pull back, then trace to see if we are clear
 		float flPullBackDist = bPlayerOnLadder ? r_flashlightladderdist.GetFloat() : flDistCutoff - flDist;	// Fixed pull-back distance if on ladder
-		m_flDistMod = Lerp( flDistDrag, m_flDistMod, flPullBackDist );
+		float flDistModTmp = Lerp(flDistDrag, m_flDistMod, flPullBackDist);
 		
 		if ( !bPlayerOnLadder )
 		{
@@ -246,10 +285,17 @@ void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecFo
 			{
 				// We have an intersection behind us as well, so limit our m_flDistMod
 				float flMaxDist = (pmBackTrace.endpos - vOrigin).Length() - flEpsilon;
-				if( m_flDistMod > flMaxDist )
-					m_flDistMod = flMaxDist;
+				if (flDistModTmp > flMaxDist)
+					flDistModTmp = flMaxDist;
 			}
+			}
+		if (::input->CAM_IsThirdPerson())
+		{
+			flFov += MIN(100, (abs(flDistModTmp) * 4));
+			m_flDistMod = Lerp(flDistDrag, m_flDistMod, 0.0f);
 		}
+		else
+			m_flDistMod = flDistModTmp;
 	}
 	else
 	{
@@ -263,7 +309,7 @@ void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecFo
 
 	state.m_fQuadraticAtten = r_flashlightquadratic.GetFloat();
 
-	bool bFlicker = false;
+	/*bool bFlicker = false;
 
 #ifdef HL2_EPISODIC
 	C_BaseHLPlayer *pPlayer = (C_BaseHLPlayer *)C_BasePlayer::GetLocalPlayer();
@@ -311,29 +357,123 @@ void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecFo
 			bFlicker = true;
 		}
 	}
-#endif // HL2_EPISODIC
+	#endif // HL2_EPISODIC*/
 
-	if ( bFlicker == false )
-	{
 		state.m_fLinearAtten = r_flashlightlinear.GetFloat();
-		state.m_fHorizontalFOVDegrees = r_flashlightfov.GetFloat();
-		state.m_fVerticalFOVDegrees = r_flashlightfov.GetFloat();
-	}
 
 	state.m_fConstantAtten = r_flashlightconstant.GetFloat();
-	state.m_Color[0] = 1.0f;
-	state.m_Color[1] = 1.0f;
-	state.m_Color[2] = 1.0f;
+
+	bool weaponAr2 = false;
+	bool weaponShot = false;
+	bool weaponPistol = false;
+	bool weapon357 = false;
+	bool weaponMP5 = false;
+	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+	if (pPlayer)
+	{
+		CBaseCombatWeapon *pWeapon = GetActiveWeapon();
+		if (pWeapon)
+		{
+			
+			weaponAr2 = (strcmp(pWeapon->GetClassname(), "weapon_ar2") == 0);
+			weaponShot = (strcmp(pWeapon->GetClassname(), "weapon_shotgun") == 0);
+			weaponPistol = (strcmp(pWeapon->GetClassname(), "weapon_pistol") == 0);
+			weapon357 = (strcmp(pWeapon->GetClassname(), "weapon_357") == 0);
+			weaponMP5 = (strcmp(pWeapon->GetClassname(), "weapon_smg2") == 0);
+		}
+	}
+
+	if (DoMuzzle)
+	{
+		if (weaponAr2)
+		{
+			state.m_fHorizontalFOVDegrees = abs(flFov);
+			state.m_fVerticalFOVDegrees = abs(flFov);
+			state.m_Color[0] = 2.5f;
+			state.m_Color[1] = 2.5f;
+			state.m_Color[2] = 2.5f;
+			state.m_pSpotlightTexture = m_ARMuzzlelightTexture;
+			state.m_FarZ = r_flashlightfar.GetFloat();
+		}
+		else if (weaponShot || weapon357)
+		{
+			state.m_fHorizontalFOVDegrees = abs(flFov);
+			state.m_fVerticalFOVDegrees = abs(flFov);
+			state.m_Color[0] = 2.5f;
+			state.m_Color[1] = 2.4f;
+			state.m_Color[2] = 2.3f;
+			state.m_pSpotlightTexture = m_ShotgunMuzzlelightTexture;
+			state.m_FarZ = r_flashlightfar.GetFloat();
+		}
+		else if (weaponPistol)
+		{
+			state.m_fHorizontalFOVDegrees = abs(flFov);
+			state.m_fVerticalFOVDegrees = abs(flFov);
+			state.m_Color[0] = 2.5f;
+			state.m_Color[1] = 2.5f;
+			state.m_Color[2] = 2.3f;
+			state.m_pSpotlightTexture = m_PistolMuzzlelightTexture;
+			state.m_FarZ = r_flashlightfar.GetFloat();
+		}
+		else if (weaponMP5)
+		{
+			state.m_fHorizontalFOVDegrees = abs(flFov);
+			state.m_fVerticalFOVDegrees = abs(flFov);
+			state.m_Color[0] = 2.5f;
+			state.m_Color[1] = 2.5f;
+			state.m_Color[2] = 2.3f;
+			state.m_pSpotlightTexture = m_SilenserMuzzlelightTexture;
+			state.m_FarZ = r_flashlightfar.GetFloat();
+		}
+		else
+		{
+			state.m_fHorizontalFOVDegrees = abs(flFov);
+			state.m_fVerticalFOVDegrees = abs(flFov);
+			state.m_Color[0] = 2.5f;
+			state.m_Color[1] = 2.5f;
+			state.m_Color[2] = 2.3f;
+			state.m_pSpotlightTexture = m_MuzzlelightTexture;
+			state.m_FarZ = r_flashlightfar.GetFloat();
+		}
+
+	}
+	else
+	{
+		state.m_fHorizontalFOVDegrees = abs(flFov);
+		state.m_fVerticalFOVDegrees = abs(flFov);
+		state.m_Color[0] = 2.5f;
+		state.m_Color[1] = 2.5f;
+		state.m_Color[2] = 2.3f;
+		state.m_pSpotlightTexture = m_FlashlightTexture;
+		state.m_FarZ = r_flashlightfar.GetFloat();
+	}
 	state.m_Color[3] = r_flashlightambient.GetFloat();
 	state.m_NearZ = r_flashlightnear.GetFloat() + m_flDistMod;	// Push near plane out so that we don't clip the world when the flashlight pulls back 
-	state.m_FarZ = r_flashlightfar.GetFloat();
-	state.m_bEnableShadows = r_flashlightdepthtexture.GetBool();
+
+	if (r_flashlightdepthtexture.GetBool() && m_bUseShadows)
+	{
+		state.m_bEnableShadows = true;
+	}
+	else
+	{
+		state.m_bEnableShadows = false;
+	}
+	//state.m_bEnableShadows = r_flashlightdepthtexture.GetBool();
+
 	state.m_flShadowMapResolution = r_flashlightdepthres.GetInt();
 
-	state.m_pSpotlightTexture = m_FlashlightTexture;
 	state.m_nSpotlightTextureFrame = 0;
 
-	state.m_flShadowAtten = r_flashlightshadowatten.GetFloat();
+	if (true)
+	{
+		state.m_flShadowAtten = 5.0f;
+		state.m_flShadowFilterSize = 1.0f;
+	}
+	else
+	{
+		state.m_flShadowAtten = 0.35f;
+		state.m_flShadowFilterSize = 3.0f;
+	}
 	state.m_flShadowSlopeScaleDepthBias = mat_slopescaledepthbias_shadowmap.GetFloat();
 	state.m_flShadowDepthBias = mat_depthbias_shadowmap.GetFloat();
 
@@ -367,6 +507,18 @@ void CFlashlightEffect::UpdateLightNew(const Vector &vecPos, const Vector &vecFo
 	}
 #endif
 }
+
+/*//-----------------------------------------------------------------------------
+// Purpose: Do the headlight
+//-----------------------------------------------------------------------------
+void CFlashlightEffect::RefreshFlashlight( void )
+{
+// Clear out the light
+if( m_FlashlightHandle && g_pClientShadowMgr && m_FlashlightHandle != CLIENTSHADOW_INVALID_HANDLE )
+{
+g_pClientShadowMgr->AddToDirtyShadowList( m_FlashlightHandle, true );
+}
+}*/
 
 //-----------------------------------------------------------------------------
 // Purpose: Do the headlight
@@ -407,7 +559,7 @@ void CFlashlightEffect::UpdateLightOld(const Vector &vecPos, const Vector &vecDi
 	m_pPointLight->color.exponent = 0;
 	
 	// Make it live for a bit
-	m_pPointLight->die = gpGlobals->curtime + 0.2f;
+	m_pPointLight->die = gpGlobals->curtime + 0.2f; //time
 	
 	// Update list of surfaces we influence
 	render->TouchLight( m_pPointLight );
@@ -419,15 +571,16 @@ void CFlashlightEffect::UpdateLightOld(const Vector &vecPos, const Vector &vecDi
 //-----------------------------------------------------------------------------
 // Purpose: Do the headlight
 //-----------------------------------------------------------------------------
-void CFlashlightEffect::UpdateLight(const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp, int nDistance)
+void CFlashlightEffect::UpdateLight(const Vector &vecPos, const Vector &vecDir, const Vector &vecRight, const Vector &vecUp, int nDistance, bool bMuzzleFlash)
 {
-	if ( !m_bIsOn )
+	if (!m_bIsOn || CurrentViewID() == VIEW_SHADOW_DEPTH_TEXTURE /*|| CurrentViewID() == VIEW_SUN_SHAFTS*/)
 	{
 		return;
 	}
+
 	if( r_newflashlight.GetBool() )
 	{
-		UpdateLightNew( vecPos, vecDir, vecRight, vecUp );
+		UpdateLightNew(vecPos, vecDir, vecRight, vecUp, bMuzzleFlash);
 	}
 	else
 	{
@@ -498,6 +651,11 @@ void CHeadlightEffect::UpdateLight( const Vector &vecPos, const Vector &vecDir, 
 	if ( IsOn() == false )
 		 return;
 
+	if (!r_newflashlight.GetBool())
+		return;
+
+	VPROF_BUDGET("CHeadlightEffect::UpdateLight", VPROF_BUDGETGROUP_SHADOW_DEPTH_TEXTURING);
+
 	FlashlightState_t state;
 	Vector basisX, basisY, basisZ;
 	basisX = vecDir;
@@ -522,10 +680,30 @@ void CHeadlightEffect::UpdateLight( const Vector &vecPos, const Vector &vecDir, 
 	state.m_Color[3] = r_flashlightambient.GetFloat();
 	state.m_NearZ = r_flashlightnear.GetFloat();
 	state.m_FarZ = r_flashlightfar.GetFloat();
+
+	if (r_flashlightdepthtexture.GetBool() && m_bUseShadows)
+	{
 	state.m_bEnableShadows = true;
+	}
+	else
+	{
+		state.m_bEnableShadows = false;
+	}
+
 	state.m_pSpotlightTexture = m_FlashlightTexture;
 	state.m_nSpotlightTextureFrame = 0;
 	
+	if (true)
+	{
+		state.m_flShadowAtten = 5.0f;
+		state.m_flShadowFilterSize = 1.0f;
+	}
+	else
+	{
+		state.m_flShadowAtten = 0.35f;
+		state.m_flShadowFilterSize = 3.0f;
+	}
+
 	if( GetFlashlightHandle() == CLIENTSHADOW_INVALID_HANDLE )
 	{
 		SetFlashlightHandle( g_pClientShadowMgr->CreateFlashlight( state ) );

@@ -14,6 +14,7 @@
 #include "entitylist.h"
 #include "antlion_maker.h"
 #include "eventqueue.h"
+#include "gib.h"
 
 #ifdef PORTAL
 	#include "portal_util_shared.h"
@@ -65,7 +66,7 @@ LINK_ENTITY_TO_CLASS( point_bugbait, CBugBaitSensor );
 // Bugbait grenade
 //=============================================================================
 
-#define GRENADE_MODEL "models/weapons/w_bugbait.mdl"
+#define GRENADE_MODEL "models/weapons/w_bugbottle.mdl"
 
 BEGIN_DATADESC( CGrenadeBugBait )
 
@@ -129,6 +130,10 @@ void CGrenadeBugBait::Precache( void )
 	PrecacheModel( GRENADE_MODEL );
 
 	PrecacheScriptSound( "GrenadeBugBait.Splat" );
+
+	PrecacheModel("models/props_se/bottle_beer_gib1.mdl");
+	PrecacheModel("models/props_se/bottle_beer_gib2.mdl");
+	PrecacheModel("models/props_se/bottle_beer_gib3.mdl");
 
 	BaseClass::Precache();
 }
@@ -199,6 +204,63 @@ void CGrenadeBugBait::BugBaitTouch( CBaseEntity *pOther )
 
 	// Tell all spawners to now fight to this position
 	g_AntlionMakerManager.BroadcastFightGoal( GetAbsOrigin() );
+
+	Vector vecForward;
+	AngleVectors(this->EyeAngles(), &vecForward);
+
+	/* old gib spawner 
+	CBaseEntity *pEjectProp = (CBaseEntity *)CreateEntityByName("prop_physics");
+	CBaseEntity *pEjectProp2 = (CBaseEntity *)CreateEntityByName("prop_physics");
+	CBaseEntity *pEjectProp3 = (CBaseEntity *)CreateEntityByName("prop_physics");
+
+	if (pEjectProp)
+	{
+		Vector vecOrigin = this->GetAbsOrigin() + vecForward * 32 + Vector(0, 0, 10);
+		QAngle vecAngles(0, this->GetAbsAngles().y - 10, 0);
+		pEjectProp->SetAbsOrigin(vecOrigin);
+		pEjectProp->SetAbsAngles(vecAngles);
+		pEjectProp->KeyValue("model", "models/props_se/bottle_beer_gib1.mdl");
+		pEjectProp->KeyValue("solid", "1");
+		pEjectProp->KeyValue("targetname", "EjectProp");
+		pEjectProp->KeyValue("spawnflags", "260");
+		DispatchSpawn(pEjectProp);
+		pEjectProp->Activate();
+		pEjectProp->Teleport(&vecOrigin, &vecAngles, NULL);
+	}
+	if (pEjectProp2)
+	{
+		Vector vecOrigin = this->GetAbsOrigin() + vecForward * 32 + Vector(2, -2, 10);
+		QAngle vecAngles(0, this->GetAbsAngles().y - 10, 0);
+		pEjectProp2->SetAbsOrigin(vecOrigin);
+		pEjectProp2->SetAbsAngles(vecAngles);
+		pEjectProp2->KeyValue("model", "models/props_se/bottle_beer_gib2.mdl");
+		pEjectProp2->KeyValue("solid", "1");
+		pEjectProp2->KeyValue("targetname", "EjectProp");
+		pEjectProp2->KeyValue("spawnflags", "260");
+		DispatchSpawn(pEjectProp2);
+		pEjectProp2->Activate();
+		pEjectProp2->Teleport(&vecOrigin, &vecAngles, NULL);
+	}
+	if (pEjectProp3)
+	{
+		Vector vecOrigin = this->GetAbsOrigin() + vecForward * 32 + Vector(-2, 2, 10);
+		QAngle vecAngles(0, this->GetAbsAngles().y - 10, 0);
+		pEjectProp3->SetAbsOrigin(vecOrigin);
+		pEjectProp3->SetAbsAngles(vecAngles);
+		pEjectProp3->KeyValue("model", "models/props_se/bottle_beer_gib3.mdl");
+		pEjectProp3->KeyValue("solid", "1");
+		pEjectProp3->KeyValue("targetname", "EjectProp");
+		pEjectProp3->KeyValue("spawnflags", "260");
+		DispatchSpawn(pEjectProp3);
+		pEjectProp3->Activate();
+		pEjectProp3->Teleport(&vecOrigin, &vecAngles, NULL);
+	}
+	*/
+
+	//new correct gib spawner 
+	CGib::SpawnSpecificGibs(this, 1, 50, 25, "models/props_se/bottle_beer_gib1.mdl");
+	CGib::SpawnSpecificGibs(this, 1, 50, 25, "models/props_se/bottle_beer_gib2.mdl");
+	CGib::SpawnSpecificGibs(this, 1, 50, 25, "models/props_se/bottle_beer_gib3.mdl");
 
 	//Go away
 	UTIL_Remove( this );

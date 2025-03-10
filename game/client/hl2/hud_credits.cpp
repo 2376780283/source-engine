@@ -133,6 +133,9 @@ private:
 	char m_szLogo2[256];
 
 	Color m_cColor;
+
+	vgui::HFont m_hTFont_logo;
+	vgui::HFont m_hTFont_tahoma;
 };	
 
 
@@ -175,6 +178,17 @@ CHudCredits::CHudCredits( const char *pElementName ) : CHudElement( pElementName
 {
 	vgui::Panel *pParent = g_pClientMode->GetViewport();
 	SetParent( pParent );
+	
+	vgui::IScheme *pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("ClientScheme"));
+	m_hTFont_logo = vgui::surface()->CreateFont();
+	m_hTFont_tahoma = vgui::surface()->CreateFont();
+   		
+   	if (pScheme)
+    {
+		printf("I'LL DO IT and Metamorphosis\n" );
+        vgui::surface()->SetFontGlyphSet(m_hTFont_logo, "HALFLIFE2", 40, 100, 0, 0, vgui::ISurface::FONTFLAG_NONE);
+        vgui::surface()->SetFontGlyphSet(m_hTFont_tahoma, "Trebuchet MS", 20, 100, 0, 0, vgui::ISurface::FONTFLAG_NONE);
+    }
 }
 
 void CHudCredits::LevelShutdown()
@@ -515,6 +529,11 @@ void CHudCredits::DrawIntroCreditsName( void )
 		vgui::HScheme scheme = vgui::scheme()->GetScheme( "ClientScheme" );
 		vgui::HFont m_hTFont = vgui::scheme()->GetIScheme(scheme)->GetFont( pCredit->szFontName, true );
 
+		if (FStrEq( pCredit->szFontName, "WeaponIcons" ))
+			m_hTFont = m_hTFont_logo;
+		else
+			m_hTFont = m_hTFont_tahoma;
+
 		float localTime = gpGlobals->curtime - pCredit->flTimeStart;
 
 		surface()->DrawSetTextFont( m_hTFont );
@@ -677,6 +696,11 @@ void CHudCredits::PrepareIntroCredits( void )
 		vgui::HScheme scheme = vgui::scheme()->GetScheme( "ClientScheme" );
 		vgui::HFont m_hTFont = vgui::scheme()->GetIScheme(scheme)->GetFont( pCredit->szFontName, true );
 
+		if ( FStrEq( pCredit->szFontName, "WeaponIcons" ) )
+			m_hTFont = m_hTFont_logo;
+		else
+			m_hTFont = m_hTFont_tahoma;
+
 		pCredit->flYPos = m_flY + ( iSlot * surface()->GetFontTall ( m_hTFont ) );
 		pCredit->flXPos = m_flX;
 				
@@ -731,5 +755,3 @@ void CHudCredits::MsgFunc_LogoTimeMsg( bf_read &msg )
 	m_iCreditsType = CREDITS_LOGO;
 	PrepareLogo( msg.ReadFloat() );
 }
-
-

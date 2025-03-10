@@ -17,11 +17,14 @@
 #include "soundent.h"
 #include "rumble_shared.h"
 #include "gamestats.h"
+#include "convar.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 extern ConVar    sk_plr_dmg_smg1_grenade;	
+
+extern ConVar	sde_drop_mag;
 
 class CWeaponSMG1 : public CHLSelectFireMachineGun
 {
@@ -35,7 +38,12 @@ public:
 	
 	void	Precache( void );
 	void	AddViewKick( void );
+	void	PrimaryAttack(void);
+	void	HoldIronsight(void);
 	void	SecondaryAttack( void );
+	void	ItemPostFrame(void);
+	bool	Deploy(void);
+	void	SetSkin(int skinNum);
 
 	int		GetMinBurst() { return 2; }
 	int		GetMaxBurst() { return 5; }
@@ -45,13 +53,24 @@ public:
 
 	float	GetFireRate( void ) { return 0.075f; }	// 13.3hz
 	int		CapabilitiesGet( void ) { return bits_CAP_WEAPON_RANGE_ATTACK1; }
-	int		WeaponRangeAttack2Condition(/* float flDot, float flDist */);
+	int		WeaponRangeAttack2Condition(float flDot, float flDist);
 	Activity	GetPrimaryAttackActivity( void );
+	bool shouldDropMag; //drop mag
+	float dropMagTime; //drop mag
+	void DropMag(void); //drop mag
 
 	virtual const Vector& GetBulletSpread( void )
 	{
-		static const Vector cone = VECTOR_CONE_5DEGREES;
+		if (m_bIsIronsighted)
+		{
+			static const Vector cone = VECTOR_CONE_3DEGREES;
+			return cone;
+		}
+		else
+		{
+			static const Vector cone = VECTOR_CONE_6DEGREES;
 		return cone;
+	}
 	}
 
 	const WeaponProficiencyInfo_t *GetProficiencyValues();
@@ -59,7 +78,8 @@ public:
 	void FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector &vecShootOrigin, Vector &vecShootDir );
 	void Operator_ForceNPCFire( CBaseCombatCharacter  *pOperator, bool bSecondary );
 	void Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatCharacter *pOperator );
-
+	void PickupAnim(void);
+public: int smg1_anim_status = 0;
 	DECLARE_ACTTABLE();
 
 protected:
@@ -78,6 +98,8 @@ BEGIN_DATADESC( CWeaponSMG1 )
 
 	DEFINE_FIELD( m_vecTossVelocity, FIELD_VECTOR ),
 	DEFINE_FIELD( m_flNextGrenadeCheck, FIELD_TIME ),
+DEFINE_FIELD(shouldDropMag, FIELD_BOOLEAN),
+DEFINE_FIELD(dropMagTime, FIELD_TIME),
 
 END_DATADESC()
 
@@ -150,7 +172,7 @@ CWeaponSMG1::CWeaponSMG1( )
 void CWeaponSMG1::Precache( void )
 {
 	UTIL_PrecacheOther("grenade_ar2");
-
+	PrecacheModel("models/items/empty_mag_mp7.mdl");
 	BaseClass::Precache();
 }
 
@@ -170,7 +192,32 @@ void CWeaponSMG1::Equip( CBaseCombatCharacter *pOwner )
 
 	BaseClass::Equip( pOwner );
 }
+bool CWeaponSMG1::Deploy(void)
+{
+	m_nShotsFired = 0;
+	DevMsg("SDE_SMG!_deploy\n");
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+		pPlayer->ShowCrosshair(true);
+	DisplaySDEHudHint();
+	shouldDropMag = false;
 
+	bool return_value = BaseClass::Deploy();
+
+	if (!m_iClip1 && pPlayer->GetAmmoCount(m_iPrimaryAmmoType))
+	{
+		m_bForbidIronsight = true; // to suppress ironsight during deploy in case the weapon is empty and the player has ammo 
+	}							   // -> reload will be forced. Behavior of ironsightable weapons that don't bolt on deploy
+
+	return return_value;
+}
+
+//added
+ConVar sde_pickup_smg1("sde_pickup_smg1", "0");
+void CWeaponSMG1::PickupAnim(void)
+{
+	SendWeaponAnim(ACT_VM_DRYFIRE);
+}
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -186,7 +233,122 @@ void CWeaponSMG1::FireNPCPrimaryAttack( CBaseCombatCharacter *pOperator, Vector 
 	pOperator->DoMuzzleFlash();
 	m_iClip1 = m_iClip1 - 1;
 }
+void CWeaponSMG1::SetSkin(int skinNum)
+{
+	CBasePlayer *pOwner = ToBasePlayer(GetOwner());
 
+	if (pOwner == NULL)
+		return;
+
+	CBaseViewModel *pViewModel = pOwner->GetViewModel();
+
+	if (pViewModel == NULL)
+		return;
+
+	pViewModel->m_nSkin = skinNum;
+}
+void CWeaponSMG1::ItemPostFrame(void)
+{
+	CBasePlayer *pOwner = ToBasePlayer(GetOwner());
+
+	if (pOwner == NULL)
+		return;
+
+	if (m_bForbidIronsight && gpGlobals->curtime >= m_flNextPrimaryAttack)
+	{
+		m_bForbidIronsight = false;
+		if (!m_iClip1 && pOwner->GetAmmoCount(m_iPrimaryAmmoType))
+			Reload();
+	}
+
+	// Ironsight if not reloading or deploying before forced reload
+	if (!(m_bInReload || m_bForbidIronsight || GetActivity() == ACT_VM_HOLSTER))
+		HoldIronsight();
+
+	// Debounce the recoiling counter
+	if ((pOwner->m_nButtons & IN_ATTACK) == false)
+	{
+		m_nShotsFired = 0;
+	}
+
+	if (shouldDropMag && (gpGlobals->curtime > dropMagTime)) //drop mag
+	{
+		DropMag();
+	}
+
+	/* тут закоменчен дальноер из SDE
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (!pPlayer)
+		return;
+	if (pPlayer)
+	{
+		CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+
+		
+		// подготавливаем вектора и трасировщики
+		trace_t tr;
+		Vector	vecStart, vecStop, vecDir;
+
+		// получаем углы
+		AngleVectors(pPlayer->EyeAngles(), &vecDir);
+
+		// получаем вектора
+		vecStart = pPlayer->EyePosition();
+		vecStop = vecStart + vecDir * MAX_TRACE_LENGTH;
+
+		UTIL_TraceLine(vecStart, vecStop, MASK_ALL, pPlayer, COLLISION_GROUP_NONE, &tr);
+		if (tr.fraction != 1.0)
+		{
+			float flDist = (tr.startpos - tr.endpos).Length();
+			//DevMsg("DIST: %.0f \n", flDist);
+
+			//skins
+			if (flDist < 700)
+			{
+				SetSkin(0);
+			}
+			else if ((flDist > 700) & (flDist < 850))
+			{
+				SetSkin(1);
+			}
+			else if ((flDist > 850) & (flDist < 1000))
+			{
+				SetSkin(2);
+			}
+			else if ((flDist > 850) & (flDist < 1000))
+			{
+				SetSkin(3);
+			}
+			else if ((flDist > 1000) & (flDist < 1200))
+			{
+				SetSkin(4);
+			}
+			else if ((flDist > 1200) & (flDist < 1400))
+			{
+				SetSkin(5);
+			}
+			else if ((flDist > 1400) & (flDist < 1550))
+			{
+				SetSkin(6);
+			}
+			else if ((flDist > 1550) & (flDist < 1700))
+			{
+				SetSkin(7);
+			}
+			else if ((flDist > 1700) & (flDist < 1900))
+			{
+				SetSkin(8);
+			}
+			else if (flDist > 1900)
+			{
+				SetSkin(9);
+			}
+		}
+		
+	}
+	*/
+	BaseClass::ItemPostFrame();
+}
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
@@ -228,50 +390,32 @@ void CWeaponSMG1::Operator_HandleAnimEvent( animevent_t *pEvent, CBaseCombatChar
 		}
 		break;
 
-		case EVENT_WEAPON_AR2_ALTFIRE:
+		/*//FIXME: Re-enable
+		case EVENT_WEAPON_AR2_GRENADE:
 		{
 			CAI_BaseNPC *npc = pOperator->MyNPCPointer();
 
 			Vector vecShootOrigin, vecShootDir;
 			vecShootOrigin = pOperator->Weapon_ShootPosition();
-			//vecShootDir = npc->GetShootEnemyDir( vecShootOrigin );
-
-			//Checks if it can fire the grenade
-			WeaponRangeAttack2Condition();
+		vecShootDir = npc->GetShootEnemyDir( vecShootOrigin );
 
 			Vector vecThrow = m_vecTossVelocity;
 
-			//If on the rare case the vector is 0 0 0, cancel for avoid launching the grenade without speed
-			//This should be on WeaponRangeAttack2Condition(), but for some unknown reason return CASE_NONE
-			//doesn't stop the launch
-			if( vecThrow == Vector(0, 0, 0) )
-			{
-				break;
-			}
-
 			CGrenadeAR2 *pGrenade = (CGrenadeAR2*)Create("grenade_ar2", vecShootOrigin, vec3_angle, npc);
 			pGrenade->SetAbsVelocity( vecThrow );
-			pGrenade->SetLocalAngularVelocity(RandomAngle(-400, 400)); //tumble in air
-			pGrenade->SetMoveType( MOVETYPE_FLYGRAVITY, MOVECOLLIDE_FLY_BOUNCE );
+		pGrenade->SetLocalAngularVelocity( QAngle( 0, 400, 0 ) );
+		pGrenade->SetMoveType( MOVETYPE_FLYGRAVITY );
+		pGrenade->m_hOwner			= npc;
+		pGrenade->m_pMyWeaponAR2	= this;
+		pGrenade->SetDamage(sk_npc_dmg_ar2_grenade.GetFloat());
 
-			pGrenade->SetThrower(GetOwner());
-
-			pGrenade->SetGravity(0.5); // lower gravity since grenade is aerodynamic and engine doesn't know it.
-
-			pGrenade->SetDamage( sk_plr_dmg_smg1_grenade.GetFloat() );
-
-			if( g_pGameRules->IsSkillLevel( SKILL_HARD ) )
-			{
-				m_flNextGrenadeCheck = gpGlobals->curtime + RandomFloat(2, 3);
-			}
-			else
-			{
+		// FIXME: arrgg ,this is hard coded into the weapon???
 				m_flNextGrenadeCheck = gpGlobals->curtime + 6;// wait six seconds before even looking again to see if a grenade can be thrown.
-			}
 
 			m_iClip2--;
 		}
 		break;
+		*/
 
 	default:
 		BaseClass::Operator_HandleAnimEvent( pEvent, pOperator );
@@ -301,21 +445,48 @@ Activity CWeaponSMG1::GetPrimaryAttackActivity( void )
 //-----------------------------------------------------------------------------
 bool CWeaponSMG1::Reload( void )
 {
-	bool fRet;
+	{
 	float fCacheTime = m_flNextSecondaryAttack;
 
-	fRet = DefaultReload( GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD );
+
+		CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+		if (pPlayer)
+		{
+			pPlayer->ShowCrosshair(true); // show crosshair to fix crosshair for reloading weapons in toggle ironsight
+			if (m_iClip1 < 1)
+			{
+				//Msg("SDE_R+ \n");
+				bool fRet = DefaultReload(GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD);
 	if ( fRet )
 	{
-		// Undo whatever the reload process has done to our secondary
-		// attack timer. We allow you to interrupt reloading to fire
-		// a grenade.
+					WeaponSound(RELOAD);
 		m_flNextSecondaryAttack = GetOwner()->m_flNextAttack = fCacheTime;
-
+					dropMagTime = (gpGlobals->curtime + 0.7f); //drop mag
+					if (sde_drop_mag.GetInt())
+						shouldDropMag = true; //drop mag
+				}
+				return fRet;
+			}
+			else
+			{
+				//Msg("SDE_R- \n");
+				bool fRet = DefaultReload(GetMaxClip1(), GetMaxClip2(), ACT_VM_RELOAD_NOBOLD);
+				if (fRet)
+				{
 		WeaponSound( RELOAD );
+					m_flNextSecondaryAttack = GetOwner()->m_flNextAttack = fCacheTime;
+					dropMagTime = (gpGlobals->curtime + 0.7f); //drop mag
+					if (sde_drop_mag.GetInt())
+						shouldDropMag = true; //drop mag
 	}
-
 	return fRet;
+}
+		}
+		else
+		{
+			return false;
+		}
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -341,6 +512,7 @@ void CWeaponSMG1::AddViewKick( void )
 //-----------------------------------------------------------------------------
 void CWeaponSMG1::SecondaryAttack( void )
 {
+	/*
 	// Only the player fires this way so we can cast
 	CBasePlayer *pPlayer = ToBasePlayer( GetOwner() );
 	
@@ -368,40 +540,53 @@ void CWeaponSMG1::SecondaryAttack( void )
 	Vector	vecThrow;
 	// Don't autoaim on grenade tosses
 	AngleVectors( pPlayer->EyeAngles() + pPlayer->GetPunchAngle(), &vecThrow );
-	VectorScale( vecThrow, 1000.0f, vecThrow );
+	VectorScale( vecThrow, 2000.0f, vecThrow );
 	
 	//Create the grenade
 	QAngle angles;
 	VectorAngles( vecThrow, angles );
 	CGrenadeAR2 *pGrenade = (CGrenadeAR2*)Create( "grenade_ar2", vecSrc, angles, pPlayer );
+	pGrenade->SetModel("models/items/ar3_grenade_noshell.mdl");
 	pGrenade->SetAbsVelocity( vecThrow );
 
-	pGrenade->SetLocalAngularVelocity( RandomAngle( -400, 400 ) );
+	//pGrenade->SetLocalAngularVelocity( RandomAngle( -400, 400 ) );
+	pGrenade->SetLocalAngularVelocity(RandomAngle(-5, 5));
 	pGrenade->SetMoveType( MOVETYPE_FLYGRAVITY, MOVECOLLIDE_FLY_BOUNCE ); 
 	pGrenade->SetThrower( GetOwner() );
 	pGrenade->SetDamage( sk_plr_dmg_smg1_grenade.GetFloat() );
 
-	SendWeaponAnim( ACT_VM_SECONDARYATTACK );
-
+	//WeaponSound(RELOAD);
 	CSoundEnt::InsertSound( SOUND_COMBAT, GetAbsOrigin(), 1000, 0.2, GetOwner(), SOUNDENT_CHANNEL_WEAPON );
 
 	// player "shoot" animation
-	pPlayer->SetAnimation( PLAYER_ATTACK1 );
+	//pPlayer->SetAnimation( PLAYER_ATTACK1 );
+	if (pPlayer->GetAmmoCount(m_iSecondaryAmmoType) > 1)
+	{
+	DisableIronsights();
+	SendWeaponAnim(ACT_VM_SECONDARYATTACK_RELOAD);
+	m_flNextPrimaryAttack = gpGlobals->curtime + 2.2f;
+	m_flNextSecondaryAttack = gpGlobals->curtime + 2.2f;
+	}
+	else
+	{
+	SendWeaponAnim(ACT_VM_SECONDARYATTACK);
+	m_flNextPrimaryAttack = gpGlobals->curtime + 0.5f;
+	m_flNextSecondaryAttack = gpGlobals->curtime + 0.5f;
+	}
 
 	// Decrease ammo
 	pPlayer->RemoveAmmo( 1, m_iSecondaryAmmoType );
 
 	// Can shoot again immediately
-	m_flNextPrimaryAttack = gpGlobals->curtime + 0.5f;
 
-	// Can blow up after a short delay (so have time to release mouse button)
-	m_flNextSecondaryAttack = gpGlobals->curtime + 1.0f;
 
 	// Register a muzzleflash for the AI.
 	pPlayer->SetMuzzleFlashTime( gpGlobals->curtime + 0.5 );	
 
 	m_iSecondaryAttacks++;
 	gamestats->Event_WeaponFired( pPlayer, false, GetClassname() );
+	*/
+	return;
 }
 
 #define	COMBINE_MIN_GRENADE_CLEAR_DIST 256
@@ -412,11 +597,11 @@ void CWeaponSMG1::SecondaryAttack( void )
 //			flDist - 
 // Output : int
 //-----------------------------------------------------------------------------
-int CWeaponSMG1::WeaponRangeAttack2Condition(/* float flDot, float flDist */)
+int CWeaponSMG1::WeaponRangeAttack2Condition(float flDot, float flDist)
 {
 	CAI_BaseNPC *npcOwner = GetOwner()->MyNPCPointer();
 
-	// return COND_NONE;
+	return COND_NONE;
 
 /*
 	// --------------------------------------------------------
@@ -527,4 +712,141 @@ const WeaponProficiencyInfo_t *CWeaponSMG1::GetProficiencyValues()
 	COMPILE_TIME_ASSERT( ARRAYSIZE(proficiencyTable) == WEAPON_PROFICIENCY_PERFECT + 1);
 
 	return proficiencyTable;
+}
+
+
+void CWeaponSMG1::PrimaryAttack(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (!pPlayer)
+		return;
+
+
+	//dist 
+	/*
+	if (pPlayer)
+	{
+	CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+
+	// подготавливаем вектора и трасировщики
+	trace_t tr;
+	Vector	vecStart, vecStop, vecDir;
+
+	// получаем углы
+	AngleVectors(pPlayer->EyeAngles(), &vecDir);
+
+	// получаем вектора
+	vecStart = pPlayer->EyePosition();
+	vecStop = vecStart + vecDir * MAX_TRACE_LENGTH;
+
+	UTIL_TraceLine(vecStart, vecStop, MASK_ALL, pPlayer, COLLISION_GROUP_NONE, &tr);
+	if (tr.fraction != 1.0)
+	{
+	float flDist = (tr.startpos - tr.endpos).Length();
+	Msg("DIST: %.0f \n", flDist);
+	}
+	}
+	*/
+	//end dist
+
+	if (m_bFireOnEmpty)
+	{
+		return;
+	}
+	switch (m_iFireMode)
+	{
+	case FIREMODE_FULLAUTO:
+		BaseClass::PrimaryAttack();
+		// Msg("%.3f\n", m_flNextPrimaryAttack.Get() );
+		SetWeaponIdleTime(gpGlobals->curtime + 3.0f);
+		break;
+
+	case FIREMODE_3RNDBURST:
+		m_iBurstSize = GetBurstSize();
+
+		// Call the think function directly so that the first round gets fired immediately.
+		BurstThink();
+		SetThink(&CHLSelectFireMachineGun::BurstThink);
+		m_flNextPrimaryAttack = gpGlobals->curtime + GetBurstCycleRate();
+		m_flNextSecondaryAttack = gpGlobals->curtime + GetBurstCycleRate();
+
+		// Pick up the rest of the burst through the think function.
+		SetNextThink(gpGlobals->curtime + GetFireRate());
+		break;
+	}
+
+	QAngle	viewPunch;
+	if (m_bIsIronsighted)
+	{
+		SendWeaponAnim(ACT_VM_IRONSHOOT);
+
+		viewPunch.x = random->RandomFloat(-0.4f, 0.4f);
+		viewPunch.y = random->RandomFloat(-0.3f, 0.3f);
+		viewPunch.z = 0.0f;
+	}
+	else
+	{
+		SendWeaponAnim(ACT_VM_PRIMARYATTACK);
+
+		viewPunch.x = random->RandomFloat(-1.2f, 1.2f);
+		viewPunch.y = random->RandomFloat(-1.2f, 0.6f);
+		viewPunch.z = 0.0f;
+	}
+
+	pPlayer->ViewPunch(viewPunch);
+	CBasePlayer *pOwner = ToBasePlayer(GetOwner());
+	if (pOwner)
+	{
+		m_iPrimaryAttacks++;
+		gamestats->Event_WeaponFired(pOwner, true, GetClassname());
+	}
+}
+
+void CWeaponSMG1::HoldIronsight(void)
+{
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+
+	if (pPlayer->m_afButtonPressed & IN_IRONSIGHT)
+	{
+		EnableIronsights();
+		pPlayer->ShowCrosshair(false);
+	}
+	if (pPlayer->m_afButtonReleased & IN_IRONSIGHT)
+	{
+		DisableIronsights();
+		pPlayer->ShowCrosshair(true);
+	}
+}
+
+void CWeaponSMG1::DropMag(void) //drop mag
+{
+	shouldDropMag = false;
+	CBasePlayer *pPlayer = ToBasePlayer(GetOwner());
+	if (pPlayer)
+	{
+		Vector SpawnHeight(0, 0, 50); // высота спауна энергосферного контейнера
+		QAngle ForwardAngles = pPlayer->EyeAngles(); // + pPlayer->GetPunchAngle() математически неправильно так просто прибавлять, да и смысл?
+		Vector vecForward, vecRight, vecUp;
+		AngleVectors(ForwardAngles, &vecForward, &vecRight, &vecUp);
+		Vector vecEject = SpawnHeight + 10 * vecRight - 10 * vecUp;
+
+		CBaseEntity *pEjectProp = (CBaseEntity *)CreateEntityByName("prop_physics_override");
+
+		if (pEjectProp)
+		{
+			Vector vecOrigin = pPlayer->GetAbsOrigin() + vecEject;
+			QAngle vecAngles(0, pPlayer->GetAbsAngles().y - 0.5, 0);
+			pEjectProp->SetAbsOrigin(vecOrigin);
+			pEjectProp->SetAbsAngles(vecAngles);
+			pEjectProp->KeyValue("model", "models/items/empty_mag_mp7.mdl");
+			pEjectProp->KeyValue("solid", "1");
+			pEjectProp->KeyValue("targetname", "EjectProp");
+			pEjectProp->KeyValue("spawnflags", "516");
+			pEjectProp->SetAbsVelocity(vecForward);
+			DispatchSpawn(pEjectProp);
+			pEjectProp->Activate();
+			pEjectProp->Teleport(&vecOrigin, &vecAngles, NULL);
+			pEjectProp->SUB_StartFadeOut(15, false);
+		}
+	}
 }

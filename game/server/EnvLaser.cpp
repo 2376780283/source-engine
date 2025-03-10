@@ -22,6 +22,7 @@ BEGIN_DATADESC( CEnvLaser )
 	DEFINE_KEYFIELD( m_iszSpriteName, FIELD_STRING, "EndSprite" ),
 	DEFINE_FIELD( m_firePosition, FIELD_VECTOR ),
 	DEFINE_KEYFIELD( m_flStartFrame, FIELD_FLOAT, "framestart" ),
+	DEFINE_KEYFIELD( m_iszDecal, FIELD_STRING, "decalname" ),
 
 	// Function Pointers
 	DEFINE_FUNCTION( StrikeThink ),

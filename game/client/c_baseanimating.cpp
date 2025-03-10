@@ -1756,6 +1756,8 @@ CollideType_t C_BaseAnimating::GetCollideType( void )
 	return BaseClass::GetCollideType();
 }
 
+ConVar ai_death_pose_enabled("ai_death_pose_enabled", "1", FCVAR_NONE, "Toggles the death pose fix code, which cancels sequence transitions while a NPC is ragdolling.");
+
 //-----------------------------------------------------------------------------
 // Purpose: if the active sequence changes, keep track of the previous ones and decay them based on their decay rate
 //-----------------------------------------------------------------------------
@@ -1767,6 +1769,12 @@ void C_BaseAnimating::MaintainSequenceTransitions( IBoneSetup &boneSetup, float 
 		return;
 
 	if ( prediction->InPrediction() )
+	{
+		m_nPrevNewSequenceParity = m_nNewSequenceParity;
+		return;
+	}
+
+	if (IsAboutToRagdoll() && ai_death_pose_enabled.GetBool())
 	{
 		m_nPrevNewSequenceParity = m_nNewSequenceParity;
 		return;
@@ -3308,6 +3316,15 @@ extern ConVar muzzleflash_light;
 
 void C_BaseAnimating::ProcessMuzzleFlashEvent()
 {
+	if (IsViewModel())
+	{
+		C_BasePlayer *pPlayer = ToBasePlayer(dynamic_cast<C_BaseViewModel *>(this)->GetOwner());
+		if (pPlayer && pPlayer == C_BasePlayer::GetLocalPlayer())
+		{
+			pPlayer->DisplayMuzzleLight();
+		}
+	}
+
 	// If we have an attachment, then stick a light on it.
 	if ( muzzleflash_light.GetBool() )
 	{

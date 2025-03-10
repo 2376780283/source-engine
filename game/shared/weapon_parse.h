@@ -39,6 +39,7 @@ typedef enum {
 	SPECIAL3,
 	TAUNT,
 	DEPLOY,
+	EMPTY_SHOT,
 
 	// Add new shoot sound types here
 
@@ -69,6 +70,18 @@ class FileWeaponInfo_t
 public:
 
 	FileWeaponInfo_t();
+	//ironsight
+	Vector m_expOffset; //ADDED
+	QAngle m_expOriOffset; //ADDED
+
+
+	//++++++++++++++++++++++++++++++++
+	//Переменные для Ironsight
+
+	Vector					vecIronsightPosOffset;
+	QAngle					angIronsightAngOffset;
+	float					flIronsightFOVOffset;
+	//++++++++++++++++++++++++++++++++
 	
 	// Each game can override this to get whatever values it wants from the script.
 	virtual void Parse( KeyValues *pKeyValuesData, const char *szWeaponName );
@@ -91,6 +104,7 @@ public:
 	int						iMaxClip2;								// max secondary clip size (-1 if no clip)
 	int						iDefaultClip1;							// amount of primary ammo in the gun when it's created
 	int						iDefaultClip2;							// amount of secondary ammo in the gun when it's created
+	int						iDefaultIsFOV; //added
 	int						iWeight;								// this value used to determine this weapon's importance in autoselection.
 	int						iRumbleEffect;							// Which rumble effect to use when fired? (xbox)
 	bool					bAutoSwitchTo;							// whether this weapon should be considered for autoswitching to
@@ -120,9 +134,12 @@ public:
 	CHudTexture 					*iconAmmo;
 	CHudTexture 					*iconAmmo2;
 	CHudTexture 					*iconCrosshair;
+	CHudTexture						*iconCrosshairSwelter;
 	CHudTexture 					*iconAutoaim;
 	CHudTexture 					*iconZoomedCrosshair;
+	CHudTexture                     *iconZoomedCrosshairSwelter;
 	CHudTexture 					*iconZoomedAutoaim;
+	CHudTexture                     *iconZoomedAutoaimSwelter;
 	CHudTexture						*iconSmall;
 
 // TF2 specific

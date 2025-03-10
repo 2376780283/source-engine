@@ -62,6 +62,7 @@ public:
 	void	InputDie( inputdata_t &inputdata );
 	void	InputLaunch( inputdata_t &inputdata );
 
+
 	DECLARE_SERVERCLASS();
 	DECLARE_DATADESC();
 
@@ -85,6 +86,8 @@ public:
 
 	void		RemoveFromActiveFlares( void );
 	void		AddToActiveFlares( void );
+
+	CNetworkVar(bool, m_bIsIronsighted);
 };
 
 //---------------------
@@ -99,7 +102,10 @@ public:
 
 	void Precache( void );
 	void PrimaryAttack( void );
+	void ItemPostFrame(void);
 	void SecondaryAttack( void );
+	bool Deploy(void);
+
 };
 
 #endif // WEAPON_FLAREGUN_H

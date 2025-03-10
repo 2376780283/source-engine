@@ -46,6 +46,7 @@
 #include "gamestats.h"
 #include "filters.h"
 #include "tier0/icommandline.h"
+#include "SwelterModVersionBlockHandler.h"
 
 #ifdef HL2_EPISODIC
 #include "npc_alyx_episodic.h"
@@ -53,7 +54,7 @@
 
 #ifdef PORTAL
 #include "portal_player.h"
-#endif // PORTAL
+#endif // PO
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -106,6 +107,8 @@ ConVar sv_infinite_aux_power( "sv_infinite_aux_power", "0", FCVAR_CHEAT );
 ConVar autoaim_unlock_target( "autoaim_unlock_target", "0.8666" );
 
 ConVar sv_stickysprint("sv_stickysprint", "0", FCVAR_ARCHIVE | FCVAR_ARCHIVE_XBOX);
+
+
 
 #define	FLASH_DRAIN_TIME	 1.1111	// 100 units / 90 secs
 #define	FLASH_CHARGE_TIME	 50.0f	// 100 units / 2 secs
@@ -400,7 +403,7 @@ CHL2_Player::CHL2_Player()
 //
 // SUIT POWER DEVICES
 //
-#define SUITPOWER_CHARGE_RATE	12.5											// 100 units in 8 seconds
+#define SUITPOWER_CHARGE_RATE	22.5											// 100 units in 8 seconds
 
 #ifdef HL2MP
 	CSuitPowerDevice SuitDeviceSprint( bits_SUIT_DEVICE_SPRINT, 25.0f );				// 100 units in 4 seconds
@@ -435,6 +438,7 @@ void CHL2_Player::Precache( void )
 	PrecacheScriptSound( "HL2Player.TrainUse" );
 	PrecacheScriptSound( "HL2Player.Use" );
 	PrecacheScriptSound( "HL2Player.BurnPain" );
+	PrecacheModel("models/props_se/citizen_tech/battery.mdl");
 }
 
 //-----------------------------------------------------------------------------
@@ -522,7 +526,8 @@ void CHL2_Player::HandleSpeedChanges( void )
 	}
 	else
 	{
-		bWantWalking = true;
+		//bWantWalking = true;
+		bWantWalking = (m_nButtons & IN_WALK) && !IsSprinting() && !(m_nButtons & IN_DUCK);
 	}
 	
 	if( bIsWalking != bWantWalking )
@@ -1103,6 +1108,13 @@ void CHL2_Player::PlayerRunCommand(CUserCmd *ucmd, IMoveHelper *moveHelper)
 	BaseClass::PlayerRunCommand( ucmd, moveHelper );
 }
 
+ConVar	sde_mod_version("sde_mod_version", "0"); //save_message
+ConVar	sde_mod_version_display("sde_mod_version_display", "0"); //save_message
+ConVar	sde_mod_version_check_enable("sde_mod_version_check_enable", "1", FCVAR_ARCHIVE); //save_message
+ConVar	sde_mod_version_map_loaded("sde_mod_version_map_loaded", "1"); //save_message
+ConVar	sde_mod_version_map_red("sde_mod_version_map_red", "0"); //save_message
+ConVar	sde_mod_version_map_green("sde_mod_version_map_green", "0"); //save_message
+
 //-----------------------------------------------------------------------------
 // Purpose: Sets HL2 specific defaults.
 //-----------------------------------------------------------------------------
@@ -1215,6 +1227,8 @@ void CHL2_Player::StartSprinting( void )
 	filter.UsePredictionRules();
 	EmitSound( filter, entindex(), "HL2Player.SprintStart" );
 
+	//DisableIronsights();
+
 	SetMaxSpeed( HL2_SPRINT_SPEED );
 	m_fIsSprinting = true;
 }
@@ -1235,7 +1249,8 @@ void CHL2_Player::StopSprinting( void )
 	}
 	else
 	{
-		SetMaxSpeed( HL2_WALK_SPEED );
+		//SetMaxSpeed(HL2_WALK_SPEED);
+		SetMaxSpeed(HL2_NORM_SPEED); //we always need normalspeed
 	}
 
 	m_fIsSprinting = false;
@@ -1312,11 +1327,20 @@ void CHL2_Player::ToggleZoom(void)
 //-----------------------------------------------------------------------------
 void CHL2_Player::StartZooming( void )
 {
-	int iFOV = 25;
+	int iFOV = 40;
 	if ( SetFOV( this, iFOV, 0.4f ) )
 	{
 		m_HL2Local.m_bZooming = true;
 	}
+
+
+	//ConVar *sde_iron_enable = g_pCVar->FindVar("sde_iron_enable");
+	//
+	//if (sde_iron_enable)
+	//{
+	//	//sde_iron_enable->AddFlags(FCVAR_HIDDEN | FCVAR_CHEAT);
+	//	sde_iron_enable->SetValue(0);
+	//}
 }
 
 //-----------------------------------------------------------------------------
@@ -1330,6 +1354,13 @@ void CHL2_Player::StopZooming( void )
 	{
 		m_HL2Local.m_bZooming = false;
 	}
+	//ConVar *sde_iron_enable = g_pCVar->FindVar("sde_iron_enable");
+	//
+	//if (sde_iron_enable)
+	//{
+	//	//sde_iron_enable->AddFlags(FCVAR_HIDDEN | FCVAR_CHEAT);
+	//	sde_iron_enable->SetValue(1);
+	//}
 }
 
 //-----------------------------------------------------------------------------
@@ -1513,6 +1544,63 @@ int CHL2_Player::GetNumSquadCommandableMedics()
 			c++;
 	}
 	return c;
+}
+
+
+// Underbarrel grenade launchers
+
+void				CHL2_Player::AR1M1_GL_Load(void)
+{
+	m_HL2Local.m_bAR1M1_GL_Loaded = true;
+}
+void				CHL2_Player::AR1M1_GL_Unload(void)
+{
+	m_HL2Local.m_bAR1M1_GL_Loaded = false;
+}
+bool				CHL2_Player::Get_AR1M1_GLL(void)
+{
+	return m_HL2Local.m_bAR1M1_GL_Loaded;
+}
+
+void				CHL2_Player::AR2_GL_Load(void)
+{
+	m_HL2Local.m_bAR2_GL_Loaded = true;
+}
+void				CHL2_Player::AR2_GL_Unload(void)
+{
+	m_HL2Local.m_bAR2_GL_Loaded = false;
+}
+bool				CHL2_Player::Get_AR2_GLL(void)
+{
+	return m_HL2Local.m_bAR2_GL_Loaded;
+}
+
+// Bolt-action rifles' statuses
+
+void				CHL2_Player::R357_Round_Chamber(void)
+{
+	m_HL2Local.m_bR357_Round_Chambered = true;
+}
+void				CHL2_Player::R357_Round_Unchamber(void)
+{
+	m_HL2Local.m_bR357_Round_Chambered = false;
+}
+bool				CHL2_Player::Get_R357_Chamber(void)
+{
+	return m_HL2Local.m_bR357_Round_Chambered;
+}
+
+void				CHL2_Player::Annabelle_Round_Chamber(void)
+{
+	m_HL2Local.m_bAnnabelle_Round_Chambered = true;
+}
+void				CHL2_Player::Annabelle_Round_Unchamber(void)
+{
+	m_HL2Local.m_bAnnabelle_Round_Chambered = false;
+}
+bool				CHL2_Player::Get_Annabelle_Chamber(void)
+{
+	return m_HL2Local.m_bAnnabelle_Round_Chambered;
 }
 
 //-----------------------------------------------------------------------------
@@ -1974,12 +2062,17 @@ bool CHL2_Player::SuitPower_ShouldRecharge( void )
 
 //-----------------------------------------------------------------------------
 //-----------------------------------------------------------------------------
-ConVar	sk_battery( "sk_battery","0" );			
+ConVar	sk_battery("sk_battery", "15");
 
 bool CHL2_Player::ApplyBattery( float powerMultiplier )
 {
 	const float MAX_NORMAL_BATTERY = 100;
-	if ((ArmorValue() < MAX_NORMAL_BATTERY) && IsSuitEquipped())
+	if (GetVehicle() != NULL)
+	{
+		DevMsg("SDE: cant pick up battery coz you in a car \n");  //added vehicle check
+		return false;
+	}
+	if ((ArmorValue() < MAX_NORMAL_BATTERY) && IsSuitEquipped() && (GetVehicle() == NULL)) //added vehicle check
 	{
 		int pct;
 		char szcharge[64];
@@ -2008,6 +2101,29 @@ bool CHL2_Player::ApplyBattery( float powerMultiplier )
 		
 		//UTIL_EmitSoundSuit(edict(), szcharge);
 		//SetSuitUpdate(szcharge, FALSE, SUIT_NEXT_IN_30SEC);
+		CBasePlayer *pPlayer = (CBasePlayer *)this;
+		Msg("BATTERY_PICKUP_1 \n");  //new drop empty battery
+
+		Vector vecForward;
+		AngleVectors(pPlayer->EyeAngles(), &vecForward);
+		CBaseEntity *pEjectProp = (CBaseEntity *)CreateEntityByName("prop_physics_override");
+		
+		if (pEjectProp)
+		{
+			Vector vecOrigin = pPlayer->GetAbsOrigin() + vecForward * 32 + Vector(0, 0, 35);
+			QAngle vecAngles(0, pPlayer->GetAbsAngles().y - 10, 0);
+			pEjectProp->SetAbsOrigin(vecOrigin);
+			pEjectProp->SetAbsAngles(vecAngles);
+			pEjectProp->KeyValue("model", "models/props_se/citizen_tech/battery.mdl");
+			pEjectProp->KeyValue("solid", "1");
+			pEjectProp->KeyValue("targetname", "EjectProp");
+			pEjectProp->KeyValue("spawnflags", "260");
+			DispatchSpawn(pEjectProp);
+			pEjectProp->Activate();
+			pEjectProp->Teleport(&vecOrigin, &vecAngles, NULL);
+			pEjectProp->SUB_StartFadeOut(30, false);
+		}
+
 		return true;		
 	}
 	return false;
@@ -2586,6 +2702,11 @@ bool CHL2_Player::ShouldKeepLockedAutoaimTarget( EHANDLE hLockedTarget )
 //-----------------------------------------------------------------------------
 int CHL2_Player::GiveAmmo( int nCount, int nAmmoIndex, bool bSuppressSound)
 {
+	if (GetVehicle() != NULL)
+	{
+		DevMsg("SDE: cant pick up ammo coz you in a car \n");  //added vehicle check
+		return 0;
+	}
 	// Don't try to give the player invalid ammo indices.
 	if (nAmmoIndex < 0)
 		return 0;
@@ -2629,14 +2750,14 @@ int CHL2_Player::GiveAmmo( int nCount, int nAmmoIndex, bool bSuppressSound)
 //-----------------------------------------------------------------------------
 bool CHL2_Player::Weapon_CanUse( CBaseCombatWeapon *pWeapon )
 {
-#ifndef HL2MP	
-	if ( pWeapon->ClassMatches( "weapon_stunstick" ) )
-	{
-		if ( ApplyBattery( 0.5 ) )
-			UTIL_Remove( pWeapon );
-		return false;
-	}
-#endif
+//#ifndef HL2MP	
+//	if (pWeapon->ClassMatches("weapon_stunstick"))
+//	{
+//		if (ApplyBattery(0.5))
+//			UTIL_Remove(pWeapon);
+//		return false;
+//	}
+//#endif
 
 	return BaseClass::Weapon_CanUse( pWeapon );
 }
@@ -2648,7 +2769,6 @@ bool CHL2_Player::Weapon_CanUse( CBaseCombatWeapon *pWeapon )
 void CHL2_Player::Weapon_Equip( CBaseCombatWeapon *pWeapon )
 {
 #if	HL2_SINGLE_PRIMARY_WEAPON_MODE
-
 	if ( pWeapon->GetSlot() == WEAPON_PRIMARY_SLOT )
 	{
 		Weapon_DropSlot( WEAPON_PRIMARY_SLOT );
@@ -2672,8 +2792,7 @@ void CHL2_Player::Weapon_Equip( CBaseCombatWeapon *pWeapon )
 bool CHL2_Player::BumpWeapon( CBaseCombatWeapon *pWeapon )
 {
 
-#if	HL2_SINGLE_PRIMARY_WEAPON_MODE
-
+#if	HL2_SINGLE_PRIMARY_WEAPON_MODE //свич2
 	CBaseCombatCharacter *pOwner = pWeapon->GetOwner();
 
 	// Can I have this weapon type?
@@ -2711,13 +2830,13 @@ bool CHL2_Player::BumpWeapon( CBaseCombatWeapon *pWeapon )
 		//Make sure we're not trying to take a new weapon type we already have
 		if ( Weapon_SlotOccupied( pWeapon ) )
 		{
-			CBaseCombatWeapon *pActiveWeapon = Weapon_GetSlot( WEAPON_PRIMARY_SLOT );
+			//CBaseCombatWeapon *pActiveWeapon = Weapon_GetSlot(WEAPON_PRIMARY_SLOT); //закоментив это автовыброс пустого ствола прекратился.
 
-			if ( pActiveWeapon != NULL && pActiveWeapon->HasAnyAmmo() == false && Weapon_CanSwitchTo( pWeapon ) )
-			{
-				Weapon_Equip( pWeapon );
-				return true;
-			}
+			//if (pActiveWeapon != NULL && pActiveWeapon->HasAnyAmmo() == false && Weapon_CanSwitchTo(pWeapon)) //if (pActiveWeapon != NULL && pActiveWeapon->HasAnyAmmo() == false && Weapon_CanSwitchTo(pWeapon))
+			//{
+			//	Weapon_Equip(pWeapon);
+			//	return true;
+			//}
 
 			//Attempt to take ammo if this is the gun we're holding already
 			if ( Weapon_OwnsThisType( pWeapon->GetClassname(), pWeapon->GetSubType() ) )
@@ -2754,8 +2873,7 @@ bool CHL2_Player::BumpWeapon( CBaseCombatWeapon *pWeapon )
 //-----------------------------------------------------------------------------
 bool CHL2_Player::ClientCommand( const CCommand &args )
 {
-#if	HL2_SINGLE_PRIMARY_WEAPON_MODE
-
+#if	HL2_SINGLE_PRIMARY_WEAPON_MODE //свич3
 	//Drop primary weapon
 	if ( !Q_stricmp( args[0], "DropPrimary" ) )
 	{
@@ -2873,14 +2991,13 @@ void CHL2_Player::PlayerUse ( void )
 			usedSomething = true;
 		}
 
-#if	HL2_SINGLE_PRIMARY_WEAPON_MODE
-
+#if	HL2_SINGLE_PRIMARY_WEAPON_MODE //свич4
 		//Check for weapon pick-up
 		if ( m_afButtonPressed & IN_USE )
 		{
 			CBaseCombatWeapon *pWeapon = dynamic_cast<CBaseCombatWeapon *>(pUseEntity);
 
-			if ( ( pWeapon != NULL ) && ( Weapon_CanSwitchTo( pWeapon ) ) )
+			if ((pWeapon != NULL) && (Weapon_CanSwitchTo(pWeapon))) //((pWeapon != NULL) && (Weapon_CanSwitchTo(pWeapon))) // пытаюсь отключить отключение пустого оружя, получилось но можно создать вылет
 			{
 				//Try to take ammo or swap the weapon
 				if ( Weapon_OwnsThisType( pWeapon->GetClassname(), pWeapon->GetSubType() ) )
@@ -2891,6 +3008,7 @@ void CHL2_Player::PlayerUse ( void )
 				{
 					Weapon_DropSlot( pWeapon->GetSlot() );
 					Weapon_Equip( pWeapon );
+					Weapon_Switch(pWeapon);
 				}
 
 				usedSomething = true;
@@ -2922,6 +3040,10 @@ ConVar	sv_show_crosshair_target( "sv_show_crosshair_target", "0" );
 void CHL2_Player::UpdateWeaponPosture( void )
 {
 	CBaseCombatWeapon *pWeapon = dynamic_cast<CBaseCombatWeapon *>(GetActiveWeapon());
+
+	CBasePlayer *pPlayer = (CBasePlayer *)this; //new ladder use
+	if (IsOnLadder() && (pWeapon != NULL))pPlayer->GetActiveWeapon()->Deploy(); //new
+	else if (IsOnLadder() && (pWeapon != NULL)) pPlayer->GetActiveWeapon()->Holster(); //new
 
 	if ( pWeapon && m_LowerWeaponTimer.Expired() && pWeapon->CanLower() )
 	{
@@ -3087,6 +3209,8 @@ bool CHL2_Player::Weapon_Ready( void )
 bool CHL2_Player::Weapon_CanSwitchTo( CBaseCombatWeapon *pWeapon )
 {
 	CBasePlayer *pPlayer = (CBasePlayer *)this;
+	if (pPlayer->GetMoveType() == MOVETYPE_LADDER) //new
+		return false; //new
 #if !defined( CLIENT_DLL )
 	IServerVehicle *pVehicle = pPlayer->GetVehicle();
 #else
@@ -3131,7 +3255,6 @@ void CHL2_Player::PickupObject( CBaseEntity *pObject, bool bLimitMassAndSize )
 	// Can't be picked up if NPCs are on me
 	if ( pObject->HasNPCsOnIt() )
 		return;
-
 	PlayerPickupObject( this, pObject );
 }
 
@@ -3276,10 +3399,25 @@ void CHL2_Player::UpdateClientData( void )
 
 //---------------------------------------------------------
 //---------------------------------------------------------
+bool boolOldSaveLoaded;
 void CHL2_Player::OnRestore()
 {
 	BaseClass::OnRestore();
 	m_pPlayerAISquad = g_AI_SquadManager.FindCreateSquad(AllocPooledString(PLAYER_SQUADNAME));
+
+	if ((gpGlobals->eLoadType != MapLoad_Background) && (gpGlobals->eLoadType == MapLoad_LoadGame))
+	{
+		Color ConsoleColor(100, 100, 250, 255);
+		ConColorMsg(ConsoleColor, (char*)"\n  SDE_MAP_LOADED \n\n");
+	}
+
+	boolOldSaveLoaded = true;
+	if (sde_mod_version_map_loaded.GetInt() == 0 || sde_mod_version_map_green.GetInt() == 1)
+	{
+		//sde_mod_version_map_loaded.SetValue(1);
+		boolOldSaveLoaded = false;
+	}
+		
 }
 
 //---------------------------------------------------------
@@ -3590,10 +3728,25 @@ void CHL2_Player::ItemPostFrame()
 {
 	BaseClass::ItemPostFrame();
 
+
 	if ( m_bPlayUseDenySound )
 	{
 		m_bPlayUseDenySound = false;
 		EmitSound( "HL2Player.UseDeny" );
+	}
+
+	//save_message
+	if (sde_mod_version_check_enable.GetInt() == 1 && (gpGlobals->eLoadType != MapLoad_Background) && (gpGlobals->eLoadType == MapLoad_LoadGame))
+	if ((sde_mod_version_map_red.GetInt() == 1 && sde_mod_version_map_green.GetInt() == 0) || boolOldSaveLoaded)
+	//if (sde_mod_version_display.GetInt() == 1 || boolOldSaveLoaded)
+	{
+		CBasePlayer *pPlayer = UTIL_GetLocalPlayer();
+		engine->ClientCommand(pPlayer->edict(), "pause;OpenSwelterOutdate\n");
+		sde_mod_version_display.SetValue(0);
+		boolOldSaveLoaded = false;
+		sde_mod_version_map_loaded.SetValue(0);
+		sde_mod_version_map_red.SetValue(0);
+		sde_mod_version_map_green.SetValue(0);
 	}
 }
 

@@ -731,10 +731,7 @@ CBaseCombatCharacter::CBaseCombatCharacter( void )
 	}
 
 	// not standing on a nav area yet
-#ifdef MEXT_BOT
 	m_lastNavArea = NULL;
-#endif
-
 	m_registeredNavTeam = TEAM_INVALID;
 
 	for (int i = 0; i < MAX_WEAPONS; i++)
@@ -1615,7 +1612,7 @@ void CBaseCombatCharacter::Event_Killed( const CTakeDamageInfo &info )
 	// if flagged to drop a health kit
 	if (HasSpawnFlags(SF_NPC_DROP_HEALTHKIT))
 	{
-		CBaseEntity::Create( "item_healthvial", GetAbsOrigin(), GetAbsAngles() );
+		CBaseEntity::Create( "item_healthvial_cmb", GetAbsOrigin(), GetAbsAngles() );
 	}
 	// clear the deceased's sound channels.(may have been firing or reloading when killed)
 	EmitSound( "BaseCombatCharacter.StopWeaponSounds" );
@@ -2959,6 +2956,27 @@ CBaseEntity *CBaseCombatCharacter::Weapon_FindUsable( const Vector &range )
 
 
 	return pBestWeapon;
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: Find out player's max carrying capability of specific ammo
+// Input  : iAmmoIndex - Index of the ammo into the AmmoInfoArray
+// Output : Player's max carrying capability of specific ammo
+//-----------------------------------------------------------------------------
+
+int CBaseCombatCharacter::GetMaxCarry(int iAmmoIndex)
+{
+	if (!g_pGameRules->CanHaveAmmo(this, iAmmoIndex))
+	{
+		// game rules say I can't have any more of this ammo type.
+		return 0;
+	}
+
+	if (iAmmoIndex < 0 || iAmmoIndex >= MAX_AMMO_SLOTS)
+		return 0;
+
+	int iMax = GetAmmoDef()->MaxCarry(iAmmoIndex);
+	return iMax;
 }
 
 //-----------------------------------------------------------------------------

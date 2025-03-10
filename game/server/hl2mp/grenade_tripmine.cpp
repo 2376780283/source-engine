@@ -1,4 +1,4 @@
-//========= Copyright Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Implements the tripmine grenade.
 //
@@ -11,16 +11,15 @@
 #include "grenade_tripmine.h"
 #include "vstdlib/random.h"
 #include "engine/IEngineSound.h"
-#include "explode.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
 extern const char* g_pModelNameLaser;
 
-ConVar    sk_plr_dmg_tripmine		( "sk_plr_dmg_tripmine","150"); // commented values in hl2/skill.cfg
-ConVar    sk_npc_dmg_tripmine		( "sk_npc_dmg_tripmine","125");
-ConVar    sk_tripmine_radius		( "sk_tripmine_radius","200");
+ConVar    sk_plr_dmg_tripmine("sk_plr_dmg_tripmine", "0");
+ConVar    sk_npc_dmg_tripmine("sk_npc_dmg_tripmine", "0");
+ConVar    sk_tripmine_radius("sk_tripmine_radius", "0");
 
 LINK_ENTITY_TO_CLASS( npc_tripmine, CTripmineGrenade );
 
@@ -36,10 +35,10 @@ BEGIN_DATADESC( CTripmineGrenade )
 	DEFINE_FIELD( m_angleOwner,	FIELD_VECTOR ),
 
 	// Function Pointers
-	DEFINE_THINKFUNC( WarningThink ),
-	DEFINE_THINKFUNC( PowerupThink ),
-	DEFINE_THINKFUNC( BeamBreakThink ),
-	DEFINE_THINKFUNC( DelayDeathThink ),
+//	DEFINE_FUNCTION( WarningThink ),
+//	DEFINE_FUNCTION( PowerupThink ),
+//	DEFINE_FUNCTION( BeamBreakThink ),
+//	DEFINE_FUNCTION( DelayDeathThink ),
 
 END_DATADESC()
 
@@ -57,14 +56,14 @@ void CTripmineGrenade::Spawn( void )
 	// motor
 	SetMoveType( MOVETYPE_FLY );
 	SetSolid( SOLID_BBOX );
+	AddSolidFlags(FSOLID_NOT_SOLID);
 	SetModel( "models/Weapons/w_slam.mdl" );
-
-	IPhysicsObject *pObject = VPhysicsInitNormal( SOLID_BBOX, GetSolidFlags() | FSOLID_TRIGGER, true );
-	pObject->EnableMotion( false );
-	SetCollisionGroup( COLLISION_GROUP_WEAPON );
 
 	SetCycle( 0.0f );
 	m_nBody			= 3;
+	m_flDamage = sk_plr_dmg_tripmine.GetFloat();
+	m_DmgRadius = sk_tripmine_radius.GetFloat();
+
 	ResetSequenceInfo( );
 	m_flPlaybackRate	= 0;
 
@@ -72,23 +71,22 @@ void CTripmineGrenade::Spawn( void )
 
 	m_flPowerUp = gpGlobals->curtime + 2.0;
 
-	SetThink( &CTripmineGrenade::PowerupThink );
+	SetThink(PowerupThink);
 	SetNextThink( gpGlobals->curtime + 0.2 );
 
 	m_takedamage		= DAMAGE_YES;
 
 	m_iHealth = 1;
 
-	EmitSound( "TripmineGrenade.Place" );
-	SetDamage( sk_plr_dmg_tripmine.GetFloat() );
-	SetDamageRadius( sk_tripmine_radius.GetFloat() );
+	EmitSound("TripmineGrenade.Charge");
+	SetDamage(200);
 
 	// Tripmine sits at 90 on wall so rotate back to get m_vecDir
-	QAngle angles = GetAbsAngles();
+	QAngle angles = GetLocalAngles();
 	angles.x -= 90;
 
 	AngleVectors( angles, &m_vecDir );
-	m_vecEnd = GetAbsOrigin() + m_vecDir * 2048;
+	m_vecEnd = GetLocalOrigin() + m_vecDir * 2048;
 
 	AddEffects( EF_NOSHADOW );
 }
@@ -98,15 +96,19 @@ void CTripmineGrenade::Precache( void )
 {
 	PrecacheModel("models/Weapons/w_slam.mdl"); 
 
-	PrecacheScriptSound( "TripmineGrenade.Place" );
+	PrecacheScriptSound("TripmineGrenade.Charge");
+	PrecacheScriptSound("TripmineGrenade.PowerUp");
+	PrecacheScriptSound("TripmineGrenade.StopSound");
 	PrecacheScriptSound( "TripmineGrenade.Activate" );
+	PrecacheScriptSound("TripmineGrenade.ShootRope");
+	PrecacheScriptSound("TripmineGrenade.Hook");
 }
 
 
 void CTripmineGrenade::WarningThink( void  )
 {
 	// set to power up
-	SetThink( &CTripmineGrenade::PowerupThink );
+	SetThink(PowerupThink);
 	SetNextThink( gpGlobals->curtime + 1.0f );
 }
 
@@ -120,7 +122,7 @@ void CTripmineGrenade::PowerupThink( void  )
 		m_bIsLive			= true;
 
 		// play enabled sound
-		EmitSound( "TripmineGrenade.Activate" );
+		EmitSound("TripmineGrenade.PowerUp");;
 	}
 	SetNextThink( gpGlobals->curtime + 0.1f );
 }
@@ -163,7 +165,7 @@ void CTripmineGrenade::MakeBeam( void )
 	}
 
 	// set to follow laser spot
-	SetThink( &CTripmineGrenade::BeamBreakThink );
+	SetThink(BeamBreakThink);
 
 	// Delay first think slightly so beam has time
 	// to appear if person right in front of it
@@ -176,9 +178,6 @@ void CTripmineGrenade::MakeBeam( void )
 	m_pBeam->SetColor( 255, 55, 52 );
 	m_pBeam->SetScrollRate( 25.6 );
 	m_pBeam->SetBrightness( 64 );
-	
-	int beamAttach = LookupAttachment("beam_attach");
-	m_pBeam->SetEndAttachment( beamAttach );
 }
 
 
@@ -224,24 +223,22 @@ void CTripmineGrenade::BeamBreakThink( void  )
 		return;
 	}
 
-	SetNextThink( gpGlobals->curtime + 0.05f );
+	SetNextThink(gpGlobals->curtime + 0.1f);
 }
 
-#if 0 // FIXME: OnTakeDamage_Alive() is no longer called now that base grenade derives from CBaseAnimating
 int CTripmineGrenade::OnTakeDamage_Alive( const CTakeDamageInfo &info )
 {
 	if (gpGlobals->curtime < m_flPowerUp && info.GetDamage() < m_iHealth)
 	{
 		// disable
 		// Create( "weapon_tripmine", GetLocalOrigin() + m_vecDir * 24, GetAngles() );
-		SetThink( &CTripmineGrenade::SUB_Remove );
+		SetThink(SUB_Remove);
 		SetNextThink( gpGlobals->curtime + 0.1f );
 		KillBeam();
 		return FALSE;
 	}
-	return BaseClass::OnTakeDamage_Alive( info );
+	//return BaseClass::OnTakeDamage_Alive(info);
 }
-#endif
 
 //-----------------------------------------------------------------------------
 // Purpose:
@@ -252,8 +249,8 @@ void CTripmineGrenade::Event_Killed( const CTakeDamageInfo &info )
 {
 	m_takedamage		= DAMAGE_NO;
 
-	SetThink( &CTripmineGrenade::DelayDeathThink );
-	SetNextThink( gpGlobals->curtime + 0.25 );
+	SetThink(DelayDeathThink);
+	SetNextThink(gpGlobals->curtime + 0.5);
 
 	EmitSound( "TripmineGrenade.StopSound" );
 }
@@ -266,9 +263,6 @@ void CTripmineGrenade::DelayDeathThink( void )
 	UTIL_TraceLine ( GetAbsOrigin() + m_vecDir * 8, GetAbsOrigin() - m_vecDir * 64,  MASK_SOLID, this, COLLISION_GROUP_NONE, & tr);
 	UTIL_ScreenShake( GetAbsOrigin(), 25.0, 150.0, 1.0, 750, SHAKE_START );
 
-	ExplosionCreate( GetAbsOrigin() + m_vecDir * 8, GetAbsAngles(), m_hOwner, GetDamage(), GetDamageRadius(), 
-		SF_ENVEXPLOSION_NOSPARKS | SF_ENVEXPLOSION_NODLIGHTS | SF_ENVEXPLOSION_NOSMOKE, 0.0f, this);
-
-	UTIL_Remove( this );
+	Explode(&tr, DMG_BLAST);
 }
 
