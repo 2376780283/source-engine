@@ -140,7 +140,7 @@ public:
 		}
 	}
 
-	bool C_WeaponStunStick::IsCarriedByLocalPlayer(void)
+	bool IsCarriedByLocalPlayer(void)
 	{
 		CBaseViewModel* vm = NULL;
 		CBasePlayer* pOwner = ToBasePlayer(GetOwner());
