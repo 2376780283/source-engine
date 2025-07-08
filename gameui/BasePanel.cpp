@@ -288,14 +288,6 @@ private:
 	const char *m_szUrl;
 };
 
-void AddUrlButton(vgui::Panel *parent, const char *imgName, const char *url )
-{
-	static int i = 0;
-	ImageButton *panel = new ImageButton( parent, imgName );
-	panel->SetUrl( url );
-	panel->SetBounds( 15+i*52, 10, 48, 48 );
-	i++;
-}
 
 //-----------------------------------------------------------------------------
 // Purpose: General purpose 1 of N menu
@@ -773,9 +765,9 @@ bool g_bIsCreatingNewGameMenuForPreFetching = false;
 //-----------------------------------------------------------------------------
 CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 {
-	//不需要缩放比例
-	//if( NeedProportional() )
-	//	SetProportional( true );
+	
+	if( NeedProportional() )
+		SetProportional( true );
 
 	g_pBasePanel = this;
 	m_bLevelLoading = false;
@@ -922,12 +914,6 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 			m_iGameID = CONTEXT_GAME_GAME_TEAM_FORTRESS;
 			m_bSinglePlayer = false;
 		}
-	}
-
-	if( IsAndroid() )
-	{
-		// add log wiew android log out 
-		// GamepadUI_log (" is Android module Default \n");
 	}
 }
 
@@ -1652,16 +1638,12 @@ CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 {
 	CGameMenu *menu = new CGameMenu(this, datafile->GetName());
 
-      if (!CommandLine()->FindParm( "-console" ))
-	   {
-           ConMsg( "GameStarting \n" ); // 元神 启动
-	   } else { //////////////////////////////////
-		   ConMsg( "GameStarting with console \n" ); // 元神启动 with console
+      if (CommandLine()->FindParm( "-console" ))	     		
            wchar_t *pString = g_pVGuiLocalize->Find( "#GameUI_Console" );
 	       if( pString )
-		      menu->AddMenuItem("Console", V_wcsupr(pString), "OpenConsole", this); // 没用的
+		      menu->AddMenuItem("Console", V_wcsupr(pString), "OpenConsole", this); 
            else
-		      menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); // snms
+		      menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); 
 	   }
 
 	bool bFoundServerBrowser = false;

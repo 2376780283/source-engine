@@ -503,7 +503,8 @@ public:
 
 	// proportional mode settings
 	virtual bool IsProportional() { return _flags.IsFlagSet( IS_PROPORTIONAL ); }
-	virtual void SetProportional(bool state);
+	virtual void SetProportional(bool state); //额 对吧 
+	
 
 	// input interest
 	virtual void SetMouseInputEnabled( bool state );
