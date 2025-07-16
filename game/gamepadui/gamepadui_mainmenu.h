@@ -8,6 +8,10 @@
 #include "gamepadui_button.h"
 #include "gamepadui_image.h"
 
+#ifndef ARRAYSIZE
+#define ARRAYSIZE(x) (sizeof(x)/sizeof(x[0]))
+#endif
+
 namespace GamepadUIMenuStates
 {
     enum GamepadUIMenuState
@@ -50,6 +54,7 @@ private:
 // void unCreateConsoleButton();
 void SetConsoleButtonVisibility(bool bVisible);
 
+static int CompareButtonsByPriority( GamepadUIButton * const *a, GamepadUIButton * const *b );
 
 private:
     float m_flOldUIButtonOffsetX;

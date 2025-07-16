@@ -1375,7 +1375,7 @@ void CHLClient::HudUpdate( bool bActive )
 	CRTime::UpdateRealTime();
 #endif
 
-#ifdef GAMEPADUI
+/*#ifdef GAMEPADUI
 	if (IsGamepadUI())
 	{
 		if (!enginevgui->IsGameUIVisible())
@@ -1383,7 +1383,7 @@ void CHLClient::HudUpdate( bool bActive )
 			engine->ExecuteClientCmd("gamepadui_resetfade");
 		}
 	}
-#endif // GAMEPADUI
+#endif // GAMEPADUI */
 
 	GetClientVoiceMgr()->Frame( frametime );
 

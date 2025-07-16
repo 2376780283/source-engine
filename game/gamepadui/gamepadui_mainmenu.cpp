@@ -19,6 +19,18 @@
 #define GAMEPADUI_MAINMENU_SCHEME GAMEPADUI_RESOURCE_FOLDER "schememainmenu.res"
 #define GAMEPADUI_MAINMENU_FILE GAMEPADUI_RESOURCE_FOLDER "mainmenu.res"
 
+// ────────────────────────────────────────────────
+//  比较函数：priority 越大，按钮排越前
+//  放在本文件顶部（或类外任何位置皆可）
+// ────────────────────────────────────────────────
+static int CompareButtonsByPriorityDesc( GamepadUIButton * const *a,
+                                         GamepadUIButton * const *b )
+{
+    int prA = (*a)->GetPriority();
+    int prB = (*b)->GetPriority();
+    if ( prA == prB ) return 0;
+    return ( prA > prB ) ? 1 : -1;      // 大 → 前  (降序)
+}
 GamepadUIMainMenu::GamepadUIMainMenu( vgui::Panel* pParent )
     : BaseClass( pParent, "MainMenu" )
 {
@@ -49,77 +61,77 @@ void GamepadUIMainMenu::UpdateGradients()
     // SetFooterButtons( FooterButtons::Select, FooterButtons::Select );
 }
 
+// ─────────────────────────────────────────────────────────────
+// GamepadUIMainMenu::LoadMenuButtons (FIXED)
+// ─────────────────────────────────────────────────────────────
+// ────────────────────────────────────────────────
+//  GamepadUIMainMenu::LoadMenuButtons  (Linux/Clang)
+// ────────────────────────────────────────────────
 void GamepadUIMainMenu::LoadMenuButtons()
 {
-    KeyValues* pDataFile = new KeyValues( "MainMenuScript" );
-    if ( pDataFile )
+    // 1) 清空旧按钮，防止重复
+    for ( int i = 0; i < ARRAYSIZE( m_Buttons ); ++i )
+        m_Buttons[i].PurgeAndDeleteElements();
+
+    // 2) 读 mainmenu.res
+    KeyValues *kvFile = new KeyValues( "MainMenuScript" );
+    if ( kvFile && kvFile->LoadFromFile( g_pFullFileSystem, GAMEPADUI_MAINMENU_FILE ) )
     {
-        if ( pDataFile->LoadFromFile( g_pFullFileSystem, GAMEPADUI_MAINMENU_FILE ) )
+        for ( KeyValues *kv = kvFile->GetFirstSubKey(); kv; kv = kv->GetNextKey() )
         {
-            for ( KeyValues* pData = pDataFile->GetFirstSubKey(); pData != NULL; pData = pData->GetNextKey() )
+            GamepadUIButton *btn = new GamepadUIButton(
+                this, this,
+                GAMEPADUI_MAINMENU_SCHEME,
+                kv->GetString( "command" ),
+                kv->GetString( "text", "Sample Text" ),
+                kv->GetString( "description", "" ) );
+
+            btn->SetName     ( kv->GetName() );
+            btn->SetPriority ( V_atoi( kv->GetString( "priority", "1" ) ) );
+            btn->SetVisible  ( true );
+
+            const char *fam = kv->GetString( "family", "all" );
+            if ( !V_stricmp( fam, "all" ) )
             {
-                GamepadUIButton* pButton = new GamepadUIButton(
-                    this, this,
-                    GAMEPADUI_MAINMENU_SCHEME,
-                    pData->GetString( "command" ),
-                    pData->GetString( "text", "Sample Text" ),
-                    pData->GetString( "description", "" ) );
-                pButton->SetName( pData->GetName() );
-                pButton->SetPriority( V_atoi( pData->GetString( "priority", "1" ) ) );
-                pButton->SetVisible( true );
-
-                /*
-                const char* pFamily = pData->GetString( "family", "all" );
-                if ( !V_strcmp( pFamily, "ingame" ) || !V_strcmp( pFamily, "all" ) )
-                    m_Buttons[ GamepadUIMenuStates::InGame ].AddToTail( pButton );
-                if ( !V_strcmp( pFamily, "mainmenu" ) || !V_strcmp( pFamily, "all" ) )
-                    m_Buttons[ GamepadUIMenuStates::MainMenu ].AddToTail( pButton );
-*/
-                   const char* pFamily = pData->GetString("family", "all");
-                   GamepadUI_Log("Loaded button '%s' (family: %s) into state %d \n ",
-                    pData->GetName(), pFamily, (V_strcmp(pFamily, "ingame") == 0) ? GamepadUIMenuStates::InGame : GamepadUIMenuStates::MainMenu);                  
-        if (V_strcmp(pFamily, "all") == 0)
-        {
-         // "all"家族按钮同时添加到两个菜单
-                m_Buttons[GamepadUIMenuStates::InGame].AddToTail(pButton);
-                m_Buttons[GamepadUIMenuStates::MainMenu].AddToTail(pButton);
-        }
-        else
-        {
-         // 非"all"按钮按实际家族分配
-        if (V_strcmp(pFamily, "ingame") == 0)
-                m_Buttons[GamepadUIMenuStates::InGame].AddToTail(pButton);
-        else if (V_strcmp(pFamily, "mainmenu") == 0)
-                m_Buttons[GamepadUIMenuStates::MainMenu].AddToTail(pButton);
-        } 
-                pButton->SetPriority( V_atoi( pData->GetString( "priority", "0" ) ) );
-                
+                m_Buttons[GamepadUIMenuStates::MainMenu].AddToTail( btn );
+                m_Buttons[GamepadUIMenuStates::InGame  ].AddToTail( btn );
             }
+            else if ( !V_stricmp( fam, "mainmenu" ) )
+                m_Buttons[GamepadUIMenuStates::MainMenu].AddToTail( btn );
+            else
+                m_Buttons[GamepadUIMenuStates::InGame].AddToTail( btn );
         }
- 
-        pDataFile->deleteThis();
-}
+        kvFile->deleteThis();
+    }
 
- 
-    // 判断是否显示控制台按钮 pwd ZZHlife
-    bool bShowConsoleButton = CommandLine()->FindParm("-console");
-    SetConsoleButtonVisibility(bShowConsoleButton);
+    // 3) 对两个列表分别排序
+    for ( int i = 0; i < ARRAYSIZE( m_Buttons ); ++i )
+        m_Buttons[i].Sort( CompareButtonsByPriorityDesc );
+
+    // 4) 其余逻辑保持
+    bool showConsole = ( CommandLine()->FindParm( "-console" ) != nullptr );
+    SetConsoleButtonVisibility( showConsole );
     UpdateButtonVisibility();
 }
-// fun 判断是否显示控制台按钮 pwd ZZHlife
-// 注意 无论是否显示控制台按钮，都会创建一个控制台按钮，只是设置可见性
-// 否则 会 有内存泄漏 导致崩溃 
-// add .
+
+
+// 🔧 新增静态函数（放在 .cpp 上面或类中静态声明）
+int GamepadUIMainMenu::CompareButtonsByPriority( GamepadUIButton * const *a, GamepadUIButton * const *b )
+{
+    int prA = (*a)->GetPriority();
+    int prB = (*b)->GetPriority();
+    return (prA == prB) ? 0 : (prA > prB ? 1 : -1); // 降序排列
+}
+
 void GamepadUIMainMenu::SetConsoleButtonVisibility(bool bVisible)
 {
     if (!m_pSwitchToOldUIButton)
     {
         m_pSwitchToOldUIButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd gamemenucommand openconsole","#GameUI_Console", "");
-        m_pSwitchToOldUIButton->SetPriority(0); // 优先级
+        m_pSwitchToOldUIButton->SetPriority(0);
     }
      m_pSwitchToOldUIButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res","cmd gamemenucommand openconsole","#GameUI_Console", "");
-     m_pSwitchToOldUIButton->SetVisible(bVisible); // 设置可见性
-     // 设置优先级
+     m_pSwitchToOldUIButton->SetVisible(bVisible); 
 }
 
 void GamepadUIMainMenu::ApplySchemeSettings( vgui::IScheme* pScheme )
@@ -143,6 +155,7 @@ void GamepadUIMainMenu::LayoutMainMenu()
     m_flOldUIButtonOffsetY = 20.0f; 
     int nY = GetCurrentButtonOffset();
     CUtlVector<GamepadUIButton*>& currentButtons = GetCurrentButtons();
+    currentButtons.Sort( CompareButtonsByPriorityDesc );
     for ( GamepadUIButton *pButton : currentButtons )
     {
         nY += pButton->GetTall();

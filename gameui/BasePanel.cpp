@@ -1638,7 +1638,7 @@ CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 {
 	CGameMenu *menu = new CGameMenu(this, datafile->GetName());
 
-      if (CommandLine()->FindParm( "-console" ))	     		
+      if (CommandLine()->FindParm( "-console" )){	     		
            wchar_t *pString = g_pVGuiLocalize->Find( "#GameUI_Console" );
 	       if( pString )
 		      menu->AddMenuItem("Console", V_wcsupr(pString), "OpenConsole", this); 
