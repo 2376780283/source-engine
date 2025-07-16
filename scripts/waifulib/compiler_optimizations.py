@@ -112,10 +112,10 @@ def options(opt):
 		help = 'build type: debug, release or none(custom flags)')
 
 	grp.add_option('--enable-lto', action = 'store_true', dest = 'LTO', default = False,
-		help = 'enable Link Time Optimization if possible [default: %default]')
+		help = 'enable Link Time Optimization if possible [default: False]')
 
 	grp.add_option('--enable-poly-opt', action = 'store_true', dest = 'POLLY', default = False,
-		help = 'enable polyhedral optimization if possible [default: %default]')
+		help = 'enable polyhedral optimization if possible [default: False]')
 
 def configure(conf):
 	conf.start_msg('Build type')
