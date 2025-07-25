@@ -2,7 +2,6 @@
 [![GitHub Actions Status](https://github.com/nillerusr/source-engine/actions/workflows/build.yml/badge.svg)](https://github.com/nillerusr/source-engine/actions/workflows/build.yml) [![GitHub Actions Status](https://github.com/nillerusr/source-engine/actions/workflows/tests.yml/badge.svg)](https://github.com/nillerusr/source-engine/actions/workflows/tests.yml)
 
  # ZZHfork
-- [Readme CN](https://github.com/2376780283/source-engine-mod-gamepadui/blob/default/README_CN.md):
 - Information from [wikipedia](https://wikipedia.org/wiki/Source_(game_engine)):
 
 Source is a 3D game engine developed by Valve.
@@ -31,19 +30,11 @@ This project is using waf buildsystem. If you have waf-related questions look ht
 - Rewrite materialsystem for OpenGL render
 - dxvk-native support
 - Elbrus port
-- Bink audio support( for video_bink )
 - fix gamepadui s bug
-- fix SetProportiona() s bug
 - change the Android api to 28 (android 9)
 - try to add lua module
 - add mapbase mod with source engine
-  
 
-  
-# WARNING
-- GAMEPADUI DOESNT WOEK WITH dod hl1mp hl1
-- Can work with hl2 and episodic portal
- 
 # How to Build?
 - [Building instructions(EN)](https://github.com/nillerusr/source-engine/wiki/Source-Engine-(EN))
 - [Building introduction(CN)](https://github.com/2376780283/source-engine-mod-gamepadui/wiki/Source‐Engine‐(CN))
