@@ -34,7 +34,8 @@ StatCard::StatCard(vgui::Panel *parent, const char *name) : BaseClass(parent, "C
 	m_pAvatar->SetShouldScaleImage(true);
 	m_pAvatar->SetShouldDrawFriendIcon(false);
 	m_pAvatar->SetSize(64,64);
-	
+	m_pAvatar->SetDefaultAvatar( scheme()->GetImage( CSTRIKE_DEFAULT_AVATAR, true ) );
+
 	m_pName= new Label(this, "Name", "Name");
 	m_pKillToDeathRatio = new Label(this, "KillToDeath", "KillToDeath");
 	m_pStars = new Label(this, "Stars", "Stars");
@@ -68,6 +69,9 @@ void StatCard::UpdateInfo()
 	float kills = personalLifetimeStats[CSSTAT_KILLS];
 	float deaths = personalLifetimeStats[CSSTAT_DEATHS];
 	wchar_t buf[64], numBuf[64];
+	
+	ConVarRef cl_name( "name" );
+	m_pName->SetText( cl_name.GetString() );
 
 	if (deaths > 0)
 	{
