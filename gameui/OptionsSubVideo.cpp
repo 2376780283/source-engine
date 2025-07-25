@@ -136,6 +136,7 @@ public:
 	CGammaDialog( vgui::VPANEL hParent ) : BaseClass( NULL, "OptionsSubVideoGammaDlg" )
 	{
 		// parent is ignored, since we want look like we're steal focus from the parent (we'll become modal below)
+		SetProportional(NeedProportional());
 		SetTitle("#GameUI_AdjustGamma_Title", true);
 		SetSize( 400, 260 );
 		SetDeleteSelfOnClose( true );
