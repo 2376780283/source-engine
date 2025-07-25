@@ -2136,7 +2136,7 @@ void CBasePanel::RunMenuCommand(const char *command)
 
     else if ( !Q_stricmp( command, "OpenCSAchievementsDialog" ) )
     {
-        if ( IsPC() )
+        /*if ( IsPC() )
         {
             if ( !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
             {
@@ -2146,7 +2146,8 @@ void CBasePanel::RunMenuCommand(const char *command)
             }
 
 			OnOpenCSAchievementsDialog();
-        }
+        }*/
+	OnOpenCSAchievementsDialog();
     }
     //=============================================================================
     // HPE_END
