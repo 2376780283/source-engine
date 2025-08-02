@@ -32,10 +32,9 @@ This project is using waf buildsystem. If you have waf-related questions look ht
 - Rewrite materialsystem for OpenGL render
 - dxvk-native support
 - Elbrus port
-- fix gamepadui s bug
-- change the Android api to 28 (android 9)
-- try to add lua module
-- add mapbase mod with source engine
+- support webview and pngSystem
+- support Workspace
+- support hl2 20yearsupdate shader
 
 # How to Build?
 - [Building instructions(EN)](https://github.com/nillerusr/source-engine/wiki/Source-Engine-(EN))
