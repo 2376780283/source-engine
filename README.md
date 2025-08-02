@@ -3,6 +3,7 @@
 
  # ZZHfork🌐
 - Information from [wikipedia](https://wikipedia.org/wiki/Source_(game_engine)):
+ # 感谢开发者 真纪会java ， ItzVladik ， ZZH ，nillerusr
 
 # ⛔禁止商业用途已及此仓库的任何分支⛔
 
