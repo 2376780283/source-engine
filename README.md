@@ -1,20 +1,7 @@
-# Source Engine
-[![GitHub Actions Status](https://github.com/nillerusr/source-engine/actions/workflows/build.yml/badge.svg)](https://github.com/nillerusr/source-engine/actions/workflows/build.yml) [![GitHub Actions Status](https://github.com/nillerusr/source-engine/actions/workflows/tests.yml/badge.svg)](https://github.com/nillerusr/source-engine/actions/workflows/tests.yml)
+# Warm this tree is support mapbase
+- thanks developer @ItzVladik ， zzhlife and gamepadui developer
 
- # ZZHfork
-- [Readme CN](https://github.com/2376780283/source-engine-mod-gamepadui/blob/default/README_CN.md):
-- Information from [wikipedia](https://wikipedia.org/wiki/Source_(game_engine)):
-
-Source is a 3D game engine developed by Valve.
-It debuted as the successor to GoldSrc with Half-Life: Source in June 2004,
-followed by Counter-Strike: Source and Half-Life 2 later that year.
-Source does not have a concise version numbering scheme; instead, it was released in incremental versions
-
-Source code is based on TF2 2018 leak. Don't use it for commercial purposes.
-
-This project is using waf buildsystem. If you have waf-related questions look https://waf.io/book
-
-# Features:
+## Features:
 - Modern toolchains support
 - Fixed many undefined behaviours
 - Touch support( even on windows/linux/osx )
@@ -27,7 +14,7 @@ This project is using waf buildsystem. If you have waf-related questions look ht
 - Fixed many bugs
 - add mapbase and gamepadui
 
-# Current tasks
+## Current tasks
 - Rewrite materialsystem for OpenGL render
 - dxvk-native support
 - Elbrus port
@@ -36,16 +23,3 @@ This project is using waf buildsystem. If you have waf-related questions look ht
 - fix SetProportiona() s bug
 - change the Android api to 28 (android 9)
 - try to add lua module
-
-  
-
-  
-# WARNING
-- GAMEPADUI DOESNT WOEK WITH dod hl1mp hl1
-- Can work with hl2 and episodic portal
- 
-# How to Build?
-- [Building instructions(EN)](https://github.com/nillerusr/source-engine/wiki/Source-Engine-(EN))
-- [Building introduction(CN)](https://github.com/2376780283/source-engine-mod-gamepadui/wiki/Source‐Engine‐(CN))
-
-  <img src="https://github.com/2376780283/source-engine-mod-gamepadui/blob/default/.github/workflows/bg_cs_s1final_84.jpg" width="500">
