@@ -27,7 +27,7 @@ This project is using waf buildsystem. If you have waf-related questions look ht
 - Removed useless/unnecessary dependencies
 - Achivement system working without steam
 - Fixed many bugs
-- support sersor at android devices
+- support sersor at android devices(cmd enable_sensor)
 
 # Current tasks
 - Rewrite materialsystem for OpenGL render
