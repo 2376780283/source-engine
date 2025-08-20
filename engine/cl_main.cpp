@@ -1183,6 +1183,7 @@ void CL_FullyConnected( void )
 	int id = cl_clanid.GetInt();
 	cl_clanid.SetValue( 0 );
 	cl_clanid.SetValue( id );
+	// free( clantag );
 
 	MemAlloc_CompactHeap();
 

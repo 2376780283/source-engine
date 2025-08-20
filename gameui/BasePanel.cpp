@@ -216,7 +216,7 @@ public:
 
 	virtual void Paint()
 	{
-		if( GameUI().IsInLevel() ) return;
+//		if( GameUI().IsInLevel() ) return;
 
 		int color = m_bSelected ? 120 : 160;
 
@@ -230,7 +230,7 @@ public:
 
 	virtual void OnMousePressed(MouseCode code)
 	{
-		if( GameUI().IsInLevel() ) return;
+//		if( GameUI().IsInLevel() ) return;
 
 		m_bSelected = true;
 		input()->SetMouseCapture(GetVPanel());
@@ -238,12 +238,18 @@ public:
 
 	virtual void OnMouseReleased(MouseCode code)
 	{
-		if( GameUI().IsInLevel() ) return;
+//		if( GameUI().IsInLevel() ) return;
 
 		m_bSelected = false;
-#ifdef ANDROID
-		if( m_szUrl ) SDL_OpenURL( m_szUrl );
-#endif
+//#ifdef ANDROID
+//  	if( m_szUrl ) SDL_OpenURL( m_szUrl );
+//#endif
+    vgui::MessageBox *pMessageBoxDeveloper =
+    new vgui::MessageBox("Hi there is Developer list",
+                         "Thanks to nillerusr\nER2/ItzVladik\nZZHのlife\nKonuriMaki",
+                         NULL);   // 不要用 this，当作独立窗口
+    pMessageBoxDeveloper->DoModal();
+				
 
 		input()->SetMouseCapture(NULL);
 	}
@@ -253,28 +259,44 @@ public:
 		m_szUrl = url;
 	}
 
-	virtual void OnScreenSizeChanged( int nOldWidth, int nOldHeight )
-	{
-		int nw, nh;
-		surface()->GetScreenSize(nw, nh);
-		int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
+    virtual void OnScreenSizeChanged(int nOldWidth, int nOldHeight)
+    {
+    int nw, nh;
+    surface()->GetScreenSize(nw, nh);
 
-		Panel::SetPos(nw-scheme()->GetProportionalScaledValue(m_iOldX)-scaled_w, m_iOldY);
-		Panel::SetSize(scaled_w, scheme()->GetProportionalScaledValue(m_iOldH));
-	}
+    int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
+    int scaled_h = scheme()->GetProportionalScaledValue(m_iOldH);
 
-	void SetBounds( int x, int y, int w, int h )
-	{
-		m_iOldX = x; m_iOldY = y;
-		m_iOldW = w; m_iOldH = h;
+    // 右下角对齐：用 m_iOldX/m_iOldY 作为边距
+    Panel::SetPos(
+        nw - scheme()->GetProportionalScaledValue(m_iOldX) - scaled_w,
+        nh - scheme()->GetProportionalScaledValue(m_iOldY) - scaled_h
+    );
+    Panel::SetSize(scaled_w, scaled_h);
+    
+    }
 
-		int nw, nh;
-		surface()->GetScreenSize(nw, nh);
-		int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
+void SetBounds(int x, int y, int w, int h)
+{
+    m_iOldX = x; // 右边距
+    m_iOldY = y; // 下边距
+    m_iOldW = w;
+    m_iOldH = h;
 
-		Panel::SetPos(nw-scheme()->GetProportionalScaledValue(m_iOldX)-scaled_w, m_iOldY);
-		Panel::SetSize(scaled_w, scheme()->GetProportionalScaledValue(m_iOldH));
-	}
+    int nw, nh;
+    surface()->GetScreenSize(nw, nh);
+
+    int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
+    int scaled_h = scheme()->GetProportionalScaledValue(m_iOldH);
+
+    // 锚定右下角
+    Panel::SetPos(
+        nw - scheme()->GetProportionalScaledValue(m_iOldX) - scaled_w,
+        nh - scheme()->GetProportionalScaledValue(m_iOldY) - scaled_h
+    );
+    Panel::SetSize(scaled_w, scaled_h);
+}
+
 
 private:
 	int m_iOldX, m_iOldY;
@@ -287,12 +309,20 @@ private:
 
 void AddUrlButton(vgui::Panel *parent, const char *imgName, const char *url )
 {
-	static int i = 0;
-	ImageButton *panel = new ImageButton( parent, imgName );
-	panel->SetUrl( url );
-	panel->SetBounds( 15+i*52, 10, 48, 48 );
-	i++;
+    static int i = 0;
+
+    ImageButton *panel = new ImageButton(parent, imgName);
+    panel->SetUrl(url);
+    int btnW = 28, btnH = 28;
+    int marginRight = 15;
+    int marginBottom = 10;
+    // 只记录边距，不直接算屏幕坐标
+    panel->SetBounds(marginRight + i * (btnW + 4), marginBottom, btnW, btnH);
+
+    i++;
 }
+
+
 
 //-----------------------------------------------------------------------------
 // Purpose: General purpose 1 of N menu
@@ -918,9 +948,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 	if( IsAndroid() )
 	{
 		AddUrlButton( this, "vgui/\x64\x69\x73\x63\x6f\x72\x64\x5f\x6c\x6f\x67\x6f", "\x68\x74\x74\x70\x73\x3a\x2f\x2f\x64\x69\x73\x63\x6f\x72\x64\x2e\x67\x67\x2f\x68\x5a\x52\x42\x37\x57\x4d\x67\x47\x77" );
-		AddUrlButton( this, "vgui/\x74\x77\x69\x74\x74\x65\x72\x5f\x6c\x6f\x67\x6f", "\x68\x74\x74\x70\x73\x3a\x2f\x2f\x74\x77\x69\x74\x74\x65\x72\x2e\x63\x6f\x6d\x2f\x6e\x69\x6c\x6c\x65\x72\x75\x73\x72" );
-		AddUrlButton( this, "vgui/\x74\x65\x6c\x65\x67\x72\x61\x6d\x5f\x6c\x6f\x67\x6f", "\x68\x74\x74\x70\x73\x3a\x2f\x2f\x74\x2e\x6d\x65\x2f\x6e\x69\x6c\x6c\x65\x72\x75\x73\x72\x5f\x73\x6f\x75\x72\x63\x65" );
-		AddUrlButton( this, "vgui/\x67\x69\x74\x68\x75\x62\x5f\x6c\x6f\x67\x6f", "\x68\x74\x74\x70\x73\x3a\x2f\x2f\x67\x69\x74\x68\x75\x62\x2e\x63\x6f\x6d\x2f\x6e\x69\x6c\x6c\x65\x72\x75\x73\x72\x2f\x73\x6f\x75\x72\x63\x65\x2d\x65\x6e\x67\x69\x6e\x65" );
+//		AddUrlButton( this, "vgui/\x74\x77\x69\x74\x74\x65\x72\x5f\x6c\x6f\x67\x6f", "\x68\x74\x74\x70\x73\x3a\x2f\x2f\x74\x77\x69\x74\x74\x65\x72\x2e\x63\x6f\x6d\x2f\x6e\x69\x6c\x6c\x65\x72\x75\x73\x72" );		
 	}
 }
 
@@ -1598,15 +1626,11 @@ void CBasePanel::UpdateGameMenus()
 //-----------------------------------------------------------------------------
 CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 {
-	CGameMenu *menu = new CGameMenu(this, datafile->GetName());
+    CGameMenu *menu = new CGameMenu(this, datafile->GetName());
 
-	wchar_t *pString = g_pVGuiLocalize->Find( "#GameUI_Console" );
-
-	if( pString )
-		menu->AddMenuItem("Console", V_wcsupr(pString), "OpenConsole", this);
-	else
-		menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this);
-
+      if (CommandLine()->FindParm( "-console" )){	     		
+		      menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); 
+	   }
 	bool bFoundServerBrowser = false;
 
 	for (KeyValues *dat = datafile->GetFirstSubKey(); dat != NULL; dat = dat->GetNextKey())

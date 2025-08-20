@@ -51,9 +51,11 @@ private:
     float GetCurrentLogoOffset();
 
     CUtlVector<GamepadUIButton*> m_Buttons[ GamepadUIMenuStates::Count ];
+    static int CompareButtonsByPriority( GamepadUIButton * const *a, GamepadUIButton * const *b );
 
 #ifdef GAMEPADUI_GAME_EZ2
     GamepadUIButton *m_pSwitchToOldUIButton;
+    GamepadUIButton *m_pConsoleButton;
 
     GAMEPADUI_PANEL_PROPERTY( float, m_flOldUIButtonOffsetX, "OldUIButton.OffsetX", "48", SchemeValueTypes::ProportionalFloat );
     GAMEPADUI_PANEL_PROPERTY( float, m_flOldUIButtonOffsetY, "OldUIButton.OffsetY", "32", SchemeValueTypes::ProportionalFloat );

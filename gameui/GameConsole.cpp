@@ -54,13 +54,11 @@ CGameConsole::~CGameConsole()
 void CGameConsole::Initialize()
 {
 #ifndef _XBOX
-	m_pConsole = vgui::SETUP_PANEL( new CGameConsoleDialog() ); // we add text before displaying this so set it up now!
-
-	// set the console to taking up most of the right-half of the screen
+	m_pConsole = vgui::SETUP_PANEL( new CGameConsoleDialog() ); 
 	int swide, stall;
 	vgui::surface()->GetScreenSize(swide, stall);
 	int offsetx = vgui::scheme()->GetProportionalScaledValue(16);
-	int offsety = vgui::scheme()->GetProportionalScaledValue(64);
+	int offsety = vgui::scheme()->GetProportionalScaledValue(16);
 
 	m_pConsole->SetBounds(
 		swide / 2 - offsetx,
