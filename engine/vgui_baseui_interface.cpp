@@ -613,7 +613,7 @@ void CEngineVGui::Init()
 		return;
 	}
 
-	if ( IsX360() || IsGamepadUI() )
+	if ( IsX360() || IsSteamDeck() )
 	{
 		CCommand ccommand;
 		if ( CL_ShouldLoadBackgroundLevel( ccommand ) )
@@ -698,7 +698,7 @@ void CEngineVGui::Init()
 	staticGameUIPanel = new CEnginePanel( staticPanel, "GameUI Panel" );
 
 	if(NeedProportional())
-	   staticGameUIPanel->SetProportional(true);
+		staticGameUIPanel->SetProportional(true);
 
 	staticGameUIPanel->SetBounds( 0, 0, videomode->GetModeUIWidth(), videomode->GetModeUIHeight() );
 	staticGameUIPanel->SetPaintBorderEnabled(false);
@@ -1273,17 +1273,11 @@ void CEngineVGui::OnLevelLoadingStarted()
 		}
 	}
 	
-	if ( IsX360() || !IsGamepadUI() )
+	if ( IsX360() || IsSteamDeck() )
 	{
 		// TCR requirement, always!!!
 		m_bShowProgressDialog = true;
 	}
-
-	// i dont want gamepadui menu while loading
-	//if (IsGamepadUI())
-	//{
-	//	m_bShowProgressDialog = false;
-	//}
 
 	// we've starting loading a level/connecting to a server
 	staticGameUIFuncs->OnLevelLoadingStarted( m_bShowProgressDialog );

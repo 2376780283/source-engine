@@ -14,8 +14,7 @@
 
 #define null 0L
 
-// shit!!! zzh不看代码乱写导致的  autoacaleui 同步 csmos
-#define NeedProportional() (CommandLine()->CheckParm("-autoscaleui")) //-gameuiproportionality
+#define NeedProportional() (IsAndroid() || CommandLine()->CheckParm("-gameuiproportionality"))
 
 #ifndef NULL
 #ifdef __cplusplus

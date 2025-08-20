@@ -56,6 +56,7 @@ projects={
 		'filesystem',
 		'game/client',
 		'game/server',
+		'game/gamepadui',
 		'gameui',
 		'inputsystem',
 		'ivp/havana',
@@ -94,7 +95,9 @@ projects={
 		'utils/vtex',
 		'unicode',
 		'video',
-        'game/gamepadui',
+		'vscript',
+		'raytrace',
+		'responserules/runtime'
 	],
 	'tests': [
 		'appframework',

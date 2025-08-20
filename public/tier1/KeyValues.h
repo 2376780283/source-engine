@@ -428,7 +428,7 @@ inline bool  KeyValues::IsEmpty( int keySymbol )
 	return dat ? dat->IsEmpty( ) : true;
 }
 
-bool IsGamepadUI();
+bool IsSteamDeck();
 
 bool EvaluateConditional( const char *str );
 

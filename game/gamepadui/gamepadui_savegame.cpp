@@ -79,12 +79,11 @@ private:
 
     CUtlVector<GamepadUISaveButton*> m_pSavePanels;
     CUtlVector<SaveGameDescription_t> m_Saves;
-	
+
     CUtlVector<GamepadUIButton*> m_pDeletePanels;
 
     GamepadUIScrollState m_ScrollState;
-
-	GamepadUIScrollBar *m_pScrollBar = NULL;
+    GamepadUIScrollBar *m_pScrollBar = NULL;
 
     bool m_bIsSave;
 
@@ -563,6 +562,15 @@ bool GamepadUISaveGamePanel::ParseSaveData( char const* pFileName, char const* p
 	{
 		return false;
 	}
+
+#ifdef GAMEPADUI_GAME_EZ2
+	char szEZ2Version[8];
+	char szPlatform[16];
+	int nMapVersion = 0;
+	bool bDeck = false;
+	bool bWilson = false;
+	SaveReadCustomMetadata( pFileName, szEZ2Version, sizeof(szEZ2Version), szPlatform, sizeof(szPlatform), nMapVersion, bDeck, bWilson );
+#endif
 
 	Q_strncpy( save.szMapName, szMapName, sizeof( save.szMapName ) );
 

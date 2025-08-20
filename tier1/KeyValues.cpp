@@ -30,7 +30,9 @@
 #include "utlqueue.h"
 #include "UtlSortVector.h"
 #include "convar.h"
-
+#ifdef MAPBASE
+#include "icommandline.h"
+#endif
 // memdbgon must be the last include file in a .cpp file!!!
 #include <tier0/memdbgon.h>
 
@@ -2180,7 +2182,7 @@ void KeyValues::RecursiveMergeKeyValues( KeyValues *baseKV )
 }
 
 //Gamepadui
-bool IsGamepadUI()
+bool IsSteamDeck()
 {
 	//we dont want to use shader editor AND gamepadui at the same time
 	if (CommandLine()->FindParm("-shaderedit"))
@@ -2220,7 +2222,7 @@ bool EvaluateConditional( const char *str )
 		bNot = true;
 
 	if ( Q_stristr( str, "$DECK" ) )
-		return IsGamepadUI() ^ bNot;
+		return IsSteamDeck() ^ bNot;
 
 	if ( Q_stristr( str, "$X360" ) )
 		return IsX360() ^ bNot;
@@ -2240,6 +2242,28 @@ bool EvaluateConditional( const char *str )
 	if ( Q_stristr( str, "$POSIX" ) )
 		return IsPosix() ^ bNot;
 
+#ifdef MAPBASE
+	// Custom conditional
+	switch( str[bNot ? 1 : 0] )
+	{
+		case '%':
+		{
+			// Look for a cvar
+			ConVarRef cvar( str + (bNot ? 2 : 1), true );
+			if (cvar.IsValid())
+			{
+				return cvar.GetBool() ^ bNot;
+			}
+		} break;
+
+		case '-':
+		{
+			// Look for a command line param
+			return (CommandLine()->CheckParm( bNot ? str+1 : str ) != 0) ^ bNot;
+		} break;
+	}
+#endif
+	
 	return false;
 }
 

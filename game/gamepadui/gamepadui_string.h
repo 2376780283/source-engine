@@ -94,20 +94,30 @@ public:
 
     void SetRawUTF8( const char* pszText )
     {
-        m_ManagedText.Purge();
-
-        if ( !pszText || !*pszText )
+	if ( !pszText || !*pszText )
             return;
 
-        wchar_t szUnicode[ 4096 ];
-		memset( szUnicode, 0, sizeof( wchar_t ) * 4096 );
-        
-		int nChars = V_UTF8ToUnicode( pszText, szUnicode, sizeof( szUnicode ) );
-        if ( nChars > 1 )
-            SetText( szUnicode, nChars - 1 );
+	m_ManagedText.Purge();
+
+	int len = V_UTF8ToUnicode(pszText, nullptr, 0);
+	if (len <= 0)
+		return;
+
+	wchar_t *unicode = (wchar_t*)malloc(len * sizeof(wchar_t));
+	if ( !unicode )
+		return;
+
+	int vlen = V_UTF8ToUnicode(pszText, unicode, len * sizeof(wchar_t));
+	if ( vlen > 0 )
+    	{
+		SetText(unicode, vlen / sizeof(wchar_t) - 1);
+	}
+
+	free(unicode);
     }
 private:
     CCopyableUtlVector< wchar_t > m_ManagedText;
 };
 
 #endif // GAMEPADUI_STRING_H
+

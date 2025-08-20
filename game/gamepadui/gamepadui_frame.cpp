@@ -1,10 +1,8 @@
-// 🐸 
-//shut up
+// 🐸
 #include "gamepadui_frame.h"
 #include "gamepadui_button.h"
 #include "gamepadui_interface.h"
 #include "gamepadui_basepanel.h"
-#include "gamepadui_mainmenu.h"
 
 #include "inputsystem/iinputsystem.h"
 #include "vgui/ISurface.h"
@@ -46,12 +44,11 @@ void GamepadUIFrame::ApplySchemeSettings( vgui::IScheme* pScheme )
     SetPaintBackgroundEnabled( false );
     SetPaintBorderEnabled( false );
     SetTitleBarVisible( false );
-
-	int nParentW, nParentH;
-	GetParent()->GetSize( nParentW, nParentH );
-	SetBounds( 0, 0, nParentW, nParentH );
+    SetProportional(true);
+    int nParentW, nParentH;
+    GetParent()->GetSize( nParentW, nParentH );
+    SetBounds( 0, 0, nParentW, nParentH  );
     UpdateSchemeProperties( this, pScheme );
-
     m_hTitleFont = pScheme->GetFont( "Title.Font", true );
     m_hGenericFont = pScheme->GetFont( "Generic.Text.Font", true );
 }

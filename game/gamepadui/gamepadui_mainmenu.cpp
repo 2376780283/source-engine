@@ -9,33 +9,22 @@
 #include "KeyValues.h"
 #include "filesystem.h"
 
-// #include "tier0/memdbgon.h"
-
-// command line
-#include "tier0/icommandline.h"
-
 #include "tier0/memdbgon.h"
 
 #define GAMEPADUI_MAINMENU_SCHEME GAMEPADUI_RESOURCE_FOLDER "schememainmenu.res"
 #define GAMEPADUI_MAINMENU_FILE GAMEPADUI_RESOURCE_FOLDER "mainmenu.res"
 
-// ────────────────────────────────────────────────
-//  比较函数：priority 越大，按钮排越前
-//  放在本文件顶部（或类外任何位置皆可）
-// ────────────────────────────────────────────────
-static int CompareButtonsByPriorityDesc( GamepadUIButton * const *a,
-                                         GamepadUIButton * const *b )
-{
-    int prA = (*a)->GetPriority();
-    int prB = (*b)->GetPriority();
-    if ( prA == prB ) return 0;
-    return ( prA > prB ) ? 1 : -1;      // 大 → 前  (降序)
-}
+#ifdef GAMEPADUI_GAME_EZ2
+ConVar gamepadui_show_ez2_version( "gamepadui_show_ez2_version", "1", FCVAR_NONE, "Show E:Z2 version in menu" );
+ConVar gamepadui_show_old_ui_button( "gamepadui_show_old_ui_button", "1", FCVAR_NONE, "Show button explaining how to switch to the old UI (Changes may not take effect until changing level)" );
+#endif
+
 GamepadUIMainMenu::GamepadUIMainMenu( vgui::Panel* pParent )
     : BaseClass( pParent, "MainMenu" )
 {
     vgui::HScheme hScheme = vgui::scheme()->LoadSchemeFromFileEx( GamepadUI::GetInstance().GetSizingVPanel(), GAMEPADUI_MAINMENU_SCHEME, "SchemeMainMenu" );
     SetScheme( hScheme );
+
     KeyValues* pModData = new KeyValues( "ModData" );
     if ( pModData )
     {
@@ -46,97 +35,81 @@ GamepadUIMainMenu::GamepadUIMainMenu( vgui::Panel* pParent )
         }
         pModData->deleteThis();
     }
+
     LoadMenuButtons();
-    // we don t need this funtions
-    // SetFooterButtons( FooterButtons::Select, FooterButtons::Select );
+
+    SetFooterButtons( FooterButtons::Select, FooterButtons::Select );
 }
 
 void GamepadUIMainMenu::UpdateGradients()
 {
     const float flTime = GamepadUI::GetInstance().GetTime();
     GamepadUI::GetInstance().GetGradientHelper()->ResetTargets( flTime );
+#ifdef GAMEPADUI_GAME_EZ2
+    // E:Z2 reduces the gradient so that the background map can be more easily seen
+    GamepadUI::GetInstance().GetGradientHelper()->SetTargetGradient( GradientSide::Left, { 1.0f, GamepadUI::GetInstance().IsInBackgroundLevel() ? 0.333f : 0.666f }, flTime );
+#else
     GamepadUI::GetInstance().GetGradientHelper()->SetTargetGradient( GradientSide::Left, { 1.0f, 0.666f }, flTime );
+#endif
 
     // In case a controller is added mid-game
-    // SetFooterButtons( FooterButtons::Select, FooterButtons::Select );
+    SetFooterButtons( FooterButtons::Select, FooterButtons::Select );
 }
 
-// ─────────────────────────────────────────────────────────────
-// GamepadUIMainMenu::LoadMenuButtons (FIXED)
-// ─────────────────────────────────────────────────────────────
-// ────────────────────────────────────────────────
-//  GamepadUIMainMenu::LoadMenuButtons  (Linux/Clang)
-// ────────────────────────────────────────────────
 void GamepadUIMainMenu::LoadMenuButtons()
 {
-    // 1) 清空旧按钮，防止重复
-    for ( int i = 0; i < ARRAYSIZE( m_Buttons ); ++i )
-        m_Buttons[i].PurgeAndDeleteElements();
-
-    // 2) 读 mainmenu.res
-    KeyValues *kvFile = new KeyValues( "MainMenuScript" );
-    if ( kvFile && kvFile->LoadFromFile( g_pFullFileSystem, GAMEPADUI_MAINMENU_FILE ) )
+    KeyValues* pDataFile = new KeyValues( "MainMenuScript" );
+    if ( pDataFile )
     {
-        for ( KeyValues *kv = kvFile->GetFirstSubKey(); kv; kv = kv->GetNextKey() )
+        if ( pDataFile->LoadFromFile( g_pFullFileSystem, GAMEPADUI_MAINMENU_FILE ) )
         {
-            GamepadUIButton *btn = new GamepadUIButton(
-                this, this,
-                GAMEPADUI_MAINMENU_SCHEME,
-                kv->GetString( "command" ),
-                kv->GetString( "text", "Sample Text" ),
-                kv->GetString( "description", "" ) );
-
-            btn->SetName     ( kv->GetName() );
-            btn->SetPriority ( V_atoi( kv->GetString( "priority", "1" ) ) );
-            btn->SetVisible  ( true );
-
-            const char *fam = kv->GetString( "family", "all" );
-            if ( !V_stricmp( fam, "all" ) )
+            for ( KeyValues* pData = pDataFile->GetFirstSubKey(); pData != NULL; pData = pData->GetNextKey() )
             {
-                m_Buttons[GamepadUIMenuStates::MainMenu].AddToTail( btn );
-                m_Buttons[GamepadUIMenuStates::InGame  ].AddToTail( btn );
+                if ( Q_stricmp( pData->GetName(), "WorkshopPublish" ) == 0 )
+                {
+                    continue;
+                }
+
+                GamepadUIButton* pButton = new GamepadUIButton(
+                    this, this,
+                    GAMEPADUI_MAINMENU_SCHEME,
+                    pData->GetString( "command" ),
+                    pData->GetString( "text", "Sample Text" ),
+                    pData->GetString( "description", "" ) );
+                pButton->SetName( pData->GetName() );
+                pButton->SetPriority( V_atoi( pData->GetString( "priority", "0" ) ) );
+                pButton->SetVisible( true );
+
+                const char* pFamily = pData->GetString( "family", "all" );
+                if ( !V_strcmp( pFamily, "ingame" ) || !V_strcmp( pFamily, "all" ) )
+                    m_Buttons[ GamepadUIMenuStates::InGame ].AddToTail( pButton );
+                if ( !V_strcmp( pFamily, "mainmenu" ) || !V_strcmp( pFamily, "all" ) )
+                    m_Buttons[ GamepadUIMenuStates::MainMenu ].AddToTail( pButton );
             }
-            else if ( !V_stricmp( fam, "mainmenu" ) )
-                m_Buttons[GamepadUIMenuStates::MainMenu].AddToTail( btn );
-            else
-                m_Buttons[GamepadUIMenuStates::InGame].AddToTail( btn );
         }
-        kvFile->deleteThis();
+
+        pDataFile->deleteThis();
     }
 
-    // 3) 对两个列表分别排序
-    for ( int i = 0; i < ARRAYSIZE( m_Buttons ); ++i )
-        m_Buttons[i].Sort( CompareButtonsByPriorityDesc );
-
-    // 4) 其余逻辑保持
-    bool showConsole = ( CommandLine()->FindParm( "-console" ) != nullptr );
-    SetConsoleButtonVisibility( showConsole );
-    UpdateButtonVisibility();
-}
-
-
-// 🔧 新增静态函数（放在 .cpp 上面或类中静态声明）
-int GamepadUIMainMenu::CompareButtonsByPriority( GamepadUIButton * const *a, GamepadUIButton * const *b )
-{
-    int prA = (*a)->GetPriority();
-    int prB = (*b)->GetPriority();
-    return (prA == prB) ? 0 : (prA > prB ? 1 : -1); // 降序排列
-}
-
-void GamepadUIMainMenu::SetConsoleButtonVisibility(bool bVisible)
-{
-    if (!m_pSwitchToOldUIButton)
+#ifdef GAMEPADUI_GAME_EZ2
     {
-        m_pSwitchToOldUIButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd gamemenucommand openconsole","#GameUI_Console", "");
-        m_pSwitchToOldUIButton->SetPriority(0);
+        m_pSwitchToOldUIButton = new GamepadUIButton(
+                        this, this,
+                        GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res",
+                        "cmd gamepadui_opengenerictextdialog #GameUI_SwitchToOldUI_Title #GameUI_SwitchToOldUI_Info 1",
+                        "#GameUI_GameMenu_SwitchToOldUI", "" );
+        m_pSwitchToOldUIButton->SetPriority( 0 );
+        m_pSwitchToOldUIButton->SetVisible( true );
     }
-     m_pSwitchToOldUIButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res","cmd gamemenucommand openconsole","#GameUI_Console", "");
-     m_pSwitchToOldUIButton->SetVisible(bVisible); 
+#endif
+
+    UpdateButtonVisibility();
 }
 
 void GamepadUIMainMenu::ApplySchemeSettings( vgui::IScheme* pScheme )
 {
     BaseClass::ApplySchemeSettings( pScheme );
+
     int nParentW, nParentH;
 	GetParent()->GetSize( nParentW, nParentH );
     SetBounds( 0, 0, nParentW, nParentH );
@@ -146,26 +119,34 @@ void GamepadUIMainMenu::ApplySchemeSettings( vgui::IScheme* pScheme )
         m_LogoImage.SetImage( pImage );
     m_hLogoFont = pScheme->GetFont( "Logo.Font", true );
 
+#ifdef GAMEPADUI_GAME_EZ2
+    m_hVersionFont = pScheme->GetFont( "Version.Font", true );
 
+    ConVarRef ez2_version( "ez2_version" );
+    m_strEZ2Version = ez2_version.GetString();
+#endif
 }
 
 void GamepadUIMainMenu::LayoutMainMenu()
 {
-    m_flOldUIButtonOffsetX = 20.0f; 
-    m_flOldUIButtonOffsetY = 20.0f; 
     int nY = GetCurrentButtonOffset();
     CUtlVector<GamepadUIButton*>& currentButtons = GetCurrentButtons();
-    currentButtons.Sort( CompareButtonsByPriorityDesc );
     for ( GamepadUIButton *pButton : currentButtons )
     {
         nY += pButton->GetTall();
         pButton->SetPos( m_flButtonsOffsetX, GetTall() - nY );
         nY += m_flButtonSpacing;
     }
-     int nParentW, nParentH;
-     GetParent()->GetSize( nParentW, nParentH );
-     m_pSwitchToOldUIButton->SetPos( m_flOldUIButtonOffsetX, nParentH - m_pSwitchToOldUIButton->m_flHeight - m_flOldUIButtonOffsetY );
-    
+
+#ifdef GAMEPADUI_GAME_EZ2
+    if ( m_pSwitchToOldUIButton && m_pSwitchToOldUIButton->IsVisible() )
+    {
+        int nParentW, nParentH;
+        GetParent()->GetSize( nParentW, nParentH );
+
+        m_pSwitchToOldUIButton->SetPos( m_flOldUIButtonOffsetX, nParentH - m_pSwitchToOldUIButton->m_flHeight - m_flOldUIButtonOffsetY );
+    }
+#endif
 }
 
 void GamepadUIMainMenu::PaintLogo()
@@ -204,10 +185,22 @@ void GamepadUIMainMenu::PaintLogo()
         {
             vgui::surface()->DrawSetTextPos( m_flLogoOffsetX, nLogoY );
             vgui::surface()->DrawPrintText( m_LogoText[ i ].String(), m_LogoText[ i ].Length() );
-
-            nLogoY -= nLogoH[ i ];
+	    nLogoY -= nLogoH[ i ];
         }
     }
+
+#ifdef GAMEPADUI_GAME_EZ2
+    if (gamepadui_show_ez2_version.GetBool() && !m_strEZ2Version.IsEmpty())
+    {
+        int nVersionW, nVersionH;
+        vgui::surface()->GetTextSize( m_hVersionFont, m_strEZ2Version.String(), nVersionW, nVersionH );
+
+        vgui::surface()->DrawSetTextColor( m_colVersionColor );
+        vgui::surface()->DrawSetTextFont( m_hVersionFont );
+        vgui::surface()->DrawSetTextPos( m_flLogoOffsetX + m_flVersionOffsetX + nLogoW[0], nLogoY + (nLogoH[0] * 2) - nVersionH);
+        vgui::surface()->DrawPrintText( m_strEZ2Version.String(), m_strEZ2Version.Length() );
+    }
+#endif
 }
 
 void GamepadUIMainMenu::OnThink()
@@ -289,6 +282,30 @@ void GamepadUIMainMenu::UpdateButtonVisibility()
 
     if ( !currentButtons.IsEmpty() )
         currentButtons[ currentButtons.Count() - 1 ]->NavigateTo();
+
+#ifdef GAMEPADUI_GAME_EZ2
+    if ( m_pSwitchToOldUIButton )
+    {
+#ifdef STEAM_INPUT
+        if ( (!GamepadUI::GetInstance().GetSteamInput() || !GamepadUI::GetInstance().GetSteamInput()->IsSteamRunningOnSteamDeck()) && gamepadui_show_old_ui_button.GetBool() )
+#else
+        if ( gamepadui_show_old_ui_button.GetBool() )
+#endif
+        {
+            m_pSwitchToOldUIButton->SetVisible( true );
+
+            if (!currentButtons.IsEmpty())
+            {
+                currentButtons[ 0 ]->SetNavDown( m_pSwitchToOldUIButton );
+                m_pSwitchToOldUIButton->SetNavUp( currentButtons[0] );
+            }
+        }
+        else
+        {
+            m_pSwitchToOldUIButton->SetVisible( false );
+        }
+    }
+#endif
 }
 
 void GamepadUIMainMenu::OnKeyCodeReleased( vgui::KeyCode code )

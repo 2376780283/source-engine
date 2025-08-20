@@ -1,5 +1,4 @@
 #!/bin/sh
-# just use for test dont use this .sh
 
 git submodule init && git submodule update
 sudo apt-get update

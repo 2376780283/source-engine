@@ -24,7 +24,7 @@ void GamepadUIScrollBar::OnThink()
     if (!m_pScrollState)
         return;
 
-    if (m_nMouseOffset != -1)
+    if (m_nMouseOffset != -1 )
     {
         int nMouseX, nMouseY;
         vgui::input()->GetCursorPos( nMouseX, nMouseY );

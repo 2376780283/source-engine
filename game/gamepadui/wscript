@@ -3,80 +3,82 @@
 
 from waflib import Utils
 import os
-import vpc_parser
 
 top = '.'
 PROJECT_NAME = 'gamepadui'
 
 def options(opt):
+	# stub
 	return
 
-games = {
-	'hl2': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
-	'hl2mp': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
-	'hl1': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
-	'episodic': ['gamepadui_base.vpc', 'gamepadui_episodic.vpc'],
-	'portal': ['gamepadui_base.vpc', 'gamepadui_portal.vpc'],
-	'hl1mp': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'], 
-	'cstrike': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
-	'dod': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc']
-}
-
 def configure(conf):
+	conf.env.append_unique('DEFINES',[
+			'GAMEPADUI_DLL',
+			'GAMEPADUI_GAME_HL2',
+			'GAMEPADUI_GAME_EPISODIC',
+			'GAMEPADUI_GAME_EZ',
+			'GAMEPADUI_GAME_EZ2',
+			'GAMEPADUI_ENABLE_BONUSMAPS',
+			'VERSION_SAFE_STEAM_API_INTERFACES',
+			'MAPBASE',
+	])
+
 	game = conf.options.GAMES
 	conf.env.GAMES = game
 
-	conf.env.append_unique('DEFINES', ['DISABLE_STEAM=1'])
-
-	if game not in games.keys():
-		conf.fatal("Couldn't find game: ", game)
-
 def build(bld):
-	game = vpc_parser.parse_vpcs( bld.env, games[bld.env.GAMES], '../..' )
+	source = [
+		'../../public/vgui_controls/vgui_controls.cpp',
+		'../../common/language.cpp',
+		'../../common/img_png_loader.cpp',
+		'gamepadui_achievements.cpp',
+		'gamepadui_basepanel.cpp',
+		'gamepadui_button.cpp',
+		'gamepadui_frame.cpp',
+		'gamepadui_genericconfirmation.cpp',
+		'gamepadui_genericframes.cpp',
+		'gamepadui_interface.cpp',
+		'gamepadui_mainmenu.cpp',
+		'gamepadui_newgame.cpp',
+		'gamepadui_savegame.cpp',
+		'gamepadui_options.cpp',
+		'gamepadui_scrollbar.cpp',
+		'gamepadui_util.cpp',
+		'gamepadui_bonusmaps.cpp',
+	]
 
 	includes = [
 		'.',
-		'game_controls',
-		'../../common',
 		'../../public',
 		'../../public/tier0',
 		'../../public/tier1',
-		'../../vgui2/vgui_controls',
-		'../shared',
-        '../game/gamepadui'
-	]
+	] + bld.env.INCLUDES_SDL2
+
+	defines = []
 
 	libs = [
 		'tier0',
-		'particles',
-		'dmxloader',
 		'vgui_controls',
 		'matsys_controls',
 		'tier1',
 		'tier2',
 		'tier3',
-		'mathlib',
 		'vstdlib',
 		'choreoobjects',
 		'steam_api',
 		'bitmap',
+		'mathlib',
 		'vtf',
-		'RT',
-		'ZLIB',
 		'SDL2',
+		'PNG',
 	]
 
 	install_path = bld.env.PREFIX
 	if bld.env.DEST_OS != 'android':
 		install_path += '/'+bld.env.GAMES+'/bin'
 
-	#source = [ 'in_touch.cpp' ]
-	if bld.env.DEST_OS == 'win32':
-		libs += ['USER32']
-
-	source = game["sources"] + ['../../public/tier0/memoverride.cpp']
-	includes += game["includes"]
-	defines = game["defines"]
+	if bld.env.DEST_OS == 'android':
+		libs += ['ANDROID_SUPPORT']
 
 	bld.shlib(
 		source   = source,

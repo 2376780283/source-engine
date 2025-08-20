@@ -81,8 +81,8 @@ void GamepadUI::Initialize( CreateInterfaceFn factory )
 
     m_pAnimationController = new vgui::AnimationController( m_pBasePanel );
     m_pAnimationController->SetProportional( false );
-    
-    GetMainMenu()->Activate(); // idk why gamepadui cant work before console
+
+    GetMainMenu()->Activate();
 }
 
 void GamepadUI::Shutdown()
@@ -174,7 +174,7 @@ bool GamepadUI::IsInMultiplayer() const
 {
     return IsInLevel() && m_pEngineClient->GetMaxClients() > 1;
 }
- // 判断 是否 在 level 中
+
 bool GamepadUI::IsGamepadUIVisible() const
 {
     return !IsInLevel() || IsInBackgroundLevel();

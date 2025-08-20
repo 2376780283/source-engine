@@ -59,7 +59,6 @@ void GetMostCommonQueryPorts( CUtlVector<uint16> &ports )
 //-----------------------------------------------------------------------------
 CServerBrowserDialog::CServerBrowserDialog(vgui::Panel *parent) : Frame(parent, "CServerBrowserDialog")
 {
-
 	SetProportional( NeedProportional() );
 	s_InternetDlg = this;
 
