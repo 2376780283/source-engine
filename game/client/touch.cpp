@@ -337,11 +337,12 @@ void CTouchControls::ResetToDefaults()
 		AddButton( "flashlight", "vgui/touch/flash_light_filled", "impulse 100", 0.920000, 0.000000, 1.000000, 0.142222, color );
 		AddButton( "invnext", "vgui/touch/next_weap", "invnext", 0.000000, 0.533333, 0.120000, 0.746667, color );
 		AddButton( "invprev", "vgui/touch/prev_weap", "invprev", 0.000000, 0.071111, 0.120000, 0.284444, color );
-		AddButton( "edit", "vgui/touch/settings", "touch_enableedit", 0.420000, 0.000000, 0.500000, 0.151486, color );
-		AddButton( "menu", "vgui/touch/menu", "gameui_activate", 0.000000, 0.00000, 0.080000, 0.142222, color );
-		AddButton( "sendsquad" "vgui/touch/squad" "impulse 50" 0.560000 0.044444 0.620000 0.177778 , color) ;
-        AddButton( "kick" "vgui/touch/kick" "+attack3" 0.660000 0.311111 0.760000 0.533333 ,color) ;
-        AddButton( "detonate" "vgui/touch/slam" "impulse 36" 0.660000 0.533333 0.760000 0.755556 ,color) ;
+		AddButton( "edit", "vgui/touch/settings", "touch_enableedit", 0.420000, 0.000000, 0.500000, 0.151486 , color);
+		AddButton( "menu", "vgui/touch/menu", "gameui_activate", 0.000000, 0.00000, 0.080000, 0.142222 , color);   
+AddButton("sendsquad", "vgui/touch/squad", "impulse 50", 0.560000, 0.044444, 0.620000, 0.177778, color);
+AddButton("kick", "vgui/touch/kick", "+attack3", 0.660000, 0.311111, 0.760000, 0.533333, color);
+AddButton("detonate", "vgui/touch/slam", "impulse 36", 0.660000, 0.533333, 0.760000, 0.755556, color);
+
 	}
 	else
 	{
@@ -402,9 +403,9 @@ void CTouchControls::Init()
 	AddButton( "invprev", "vgui/touch/prev_weap", "invprev", 0.000000, 0.071111, 0.120000, 0.284444, color );
 	AddButton( "edit", "vgui/touch/settings", "touch_enableedit", 0.420000, 0.000000, 0.500000, 0.151486, color );
 	AddButton( "menu", "vgui/touch/menu", "gameui_activate", 0.000000, 0.00000, 0.080000, 0.142222, color );
-	AddButton( "sendsquad" "vgui/touch/squad" "impulse 50" 0.560000 0.044444 0.620000 0.177778 , color) ;
-    AddButton( "kick" "vgui/touch/kick" "+attack3" 0.660000 0.311111 0.760000 0.533333 ,color) ;
-    AddButton( "detonate" "vgui/touch/slam" "impulse 36" 0.660000 0.533333 0.760000 0.755556 ,color) ;
+AddButton("sendsquad", "vgui/touch/squad", "impulse 50", 0.560000, 0.044444, 0.620000, 0.177778, color);
+AddButton("kick", "vgui/touch/kick", "+attack3", 0.660000, 0.311111, 0.760000, 0.533333, color);
+AddButton("detonate", "vgui/touch/slam", "impulse 36", 0.660000, 0.533333, 0.760000, 0.755556, color);
 
 	char buf[256];
 

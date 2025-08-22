@@ -17,6 +17,8 @@
 #include "vgui_controls/MessageDialog.h"
 #include "KeyValues.h"
 #include "utlvector.h"
+#include "WorkshopManagerPanel.h"  // 先把你写的类声明进来
+
 #include "tier1/CommandBuffer.h"
 
 #include "ixboxsystem.h"
@@ -226,6 +228,7 @@ public:
 	void OnOpenChangeGameDialog();
 	void OnOpenPlayerListDialog();
 	void OnOpenBenchmarkDialog();
+	void ShowWorkshopManager();
 	void OnOpenOptionsDialog();
 	void OnOpenOptionsDialog_Xbox();
 	void OnOpenLoadCommentaryDialog();
@@ -287,6 +290,8 @@ public:
 	int  GetMenuAlpha( void );
 
 	void SetMainMenuOverride( vgui::VPANEL panel );
+
+    WorkshopManagerPanel *m_pWorkshopPanel;
 
 
 
@@ -382,6 +387,7 @@ private:
 	vgui::DHANDLE<vgui::Frame> m_hBenchmarkDialog;
 	vgui::DHANDLE<vgui::Frame> m_hLoadCommentaryDialog;
 	vgui::DHANDLE<vgui::Frame> m_hAchievementsDialog;
+    vgui::DHANDLE<vgui::Frame> m_hWorkshopDialog;
 
 	// Xbox 360
 	vgui::DHANDLE<vgui::Frame> m_hMatchmakingBasePanel;

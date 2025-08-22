@@ -81,8 +81,8 @@ void GamepadUI::Initialize( CreateInterfaceFn factory )
 
     m_pAnimationController = new vgui::AnimationController( m_pBasePanel );
     m_pAnimationController->SetProportional( false );
-
-    GetMainMenu()->Activate();
+    
+    GetMainMenu()->Activate();       
 }
 
 void GamepadUI::Shutdown()

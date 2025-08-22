@@ -57,6 +57,7 @@ using namespace vgui;
 #include "CreateMultiplayerGameDialog.h"
 #include "ChangeGameDialog.h"
 #include "BackgroundMenuButton.h"
+
 #include "PlayerListDialog.h"
 #include "BenchmarkDialog.h"
 #include "LoadCommentaryDialog.h"
@@ -207,73 +208,43 @@ class ImageButton : public vgui::Panel
 public:
 	ImageButton(Panel *parent, const char *imageName) : Panel(parent)
 	{
-		m_szUrl = NULL;
-
 		m_textureID = vgui::surface()->CreateNewTextureID();
 		vgui::surface()->DrawSetTextureFile( m_textureID, imageName, true, false);
 		m_bSelected = false;
 	}
 
 	virtual void Paint()
-	{
-//		if( GameUI().IsInLevel() ) return;
-
+	{   
+	//    if( IsSteamDeck() ) return;    
 		int color = m_bSelected ? 120 : 160;
-
-		vgui::surface()->DrawSetColor(color, color, color, 100);
-		vgui::surface()->DrawFilledRect( 0, 0, GetWide(), GetTall() );
+	//	vgui::surface()->DrawSetColor(color, color, color, 100);
+	//	vgui::surface()->DrawFilledRect( 0, 0, GetWide(), GetTall() );
 		vgui::surface()->DrawSetTexture( m_textureID );
-
 		vgui::surface()->DrawSetColor( 255, 255, 255, 255 );
 		vgui::surface()->DrawTexturedRect( 0, 0, GetWide(), GetTall() );
 	}
 
 	virtual void OnMousePressed(MouseCode code)
 	{
-//		if( GameUI().IsInLevel() ) return;
-
 		m_bSelected = true;
 		input()->SetMouseCapture(GetVPanel());
 	}
 
 	virtual void OnMouseReleased(MouseCode code)
 	{
-//		if( GameUI().IsInLevel() ) return;
-
 		m_bSelected = false;
-//#ifdef ANDROID
-//  	if( m_szUrl ) SDL_OpenURL( m_szUrl );
-//#endif
-    vgui::MessageBox *pMessageBoxDeveloper =
-    new vgui::MessageBox("Hi there is Developer list",
-                         "Thanks to nillerusr\nER2/ItzVladik\nZZHのlife\nKonuriMaki",
-                         NULL);   // 不要用 this，当作独立窗口
-    pMessageBoxDeveloper->DoModal();
-				
-
+        vgui::MessageBox *pMessageBoxDeveloper =  new vgui::MessageBox("Hi there is Developer list", "Thanks to nillerusr\nER2/ItzVladik\nZZHのlife\nKonuriMaki", NULL);   
+        pMessageBoxDeveloper->DoModal();			
 		input()->SetMouseCapture(NULL);
 	}
-
-	void SetUrl( const char *url )
-	{
-		m_szUrl = url;
-	}
-
     virtual void OnScreenSizeChanged(int nOldWidth, int nOldHeight)
     {
     int nw, nh;
     surface()->GetScreenSize(nw, nh);
-
     int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
     int scaled_h = scheme()->GetProportionalScaledValue(m_iOldH);
-
-    // 右下角对齐：用 m_iOldX/m_iOldY 作为边距
-    Panel::SetPos(
-        nw - scheme()->GetProportionalScaledValue(m_iOldX) - scaled_w,
-        nh - scheme()->GetProportionalScaledValue(m_iOldY) - scaled_h
-    );
-    Panel::SetSize(scaled_w, scaled_h);
-    
+    Panel::SetPos(nw - scheme()->GetProportionalScaledValue(m_iOldX) - scaled_w, nh - scheme()->GetProportionalScaledValue(m_iOldY) - scaled_h );
+       Panel::SetSize(scaled_w, scaled_h);    
     }
 
 void SetBounds(int x, int y, int w, int h)
@@ -282,18 +253,11 @@ void SetBounds(int x, int y, int w, int h)
     m_iOldY = y; // 下边距
     m_iOldW = w;
     m_iOldH = h;
-
     int nw, nh;
     surface()->GetScreenSize(nw, nh);
-
     int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
     int scaled_h = scheme()->GetProportionalScaledValue(m_iOldH);
-
-    // 锚定右下角
-    Panel::SetPos(
-        nw - scheme()->GetProportionalScaledValue(m_iOldX) - scaled_w,
-        nh - scheme()->GetProportionalScaledValue(m_iOldY) - scaled_h
-    );
+    Panel::SetPos( nw - scheme()->GetProportionalScaledValue(m_iOldX) - scaled_w, nh - scheme()->GetProportionalScaledValue(m_iOldY) - scaled_h );
     Panel::SetSize(scaled_w, scaled_h);
 }
 
@@ -301,24 +265,17 @@ void SetBounds(int x, int y, int w, int h)
 private:
 	int m_iOldX, m_iOldY;
 	int m_iOldW, m_iOldH;
-
 	bool m_bSelected;
 	int m_textureID;
-	const char *m_szUrl;
 };
-
-void AddUrlButton(vgui::Panel *parent, const char *imgName, const char *url )
+void AddNvgButton(vgui::Panel *parent, const char *imgName /*, const char *url*/ )
 {
     static int i = 0;
-
-    ImageButton *panel = new ImageButton(parent, imgName);
-    panel->SetUrl(url);
-    int btnW = 28, btnH = 28;
+    ImageButton *panel = new ImageButton(parent, imgName);    
+    int btnW = 60, btnH = 30;
     int marginRight = 15;
     int marginBottom = 10;
-    // 只记录边距，不直接算屏幕坐标
     panel->SetBounds(marginRight + i * (btnW + 4), marginBottom, btnW, btnH);
-
     i++;
 }
 
@@ -947,8 +904,9 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 
 	if( IsAndroid() )
 	{
-		AddUrlButton( this, "vgui/\x64\x69\x73\x63\x6f\x72\x64\x5f\x6c\x6f\x67\x6f", "\x68\x74\x74\x70\x73\x3a\x2f\x2f\x64\x69\x73\x63\x6f\x72\x64\x2e\x67\x67\x2f\x68\x5a\x52\x42\x37\x57\x4d\x67\x47\x77" );
-//		AddUrlButton( this, "vgui/\x74\x77\x69\x74\x74\x65\x72\x5f\x6c\x6f\x67\x6f", "\x68\x74\x74\x70\x73\x3a\x2f\x2f\x74\x77\x69\x74\x74\x65\x72\x2e\x63\x6f\x6d\x2f\x6e\x69\x6c\x6c\x65\x72\x75\x73\x72" );		
+		AddNvgButton( this, "vgui/logos/info_logo_alis");
+		AddNvgButton( this, "vgui/logos/info_logo_zzh");
+		AddNvgButton( this, "vgui/logos/info_logo_er");
 	}
 }
 
@@ -1027,6 +985,7 @@ static const char *g_rgValidCommands[] =
 	"OpenCreateMultiplayerGameDialog",
 	"OpenChangeGameDialog",
 	"OpenLoadCommentaryDialog",
+	"OpenWorkshopPanel",
 	"Quit",
 	"QuitNoConfirm",
 	"ResumeGame",
@@ -2148,6 +2107,10 @@ void CBasePanel::RunMenuCommand(const char *command)
 	{
 		OnOpenLoadCommentaryDialog();	
 	}
+	else if ( !Q_stricmp( command, "OpenWorkshopPanel" ) )
+	{
+		ShowWorkshopManager();
+	}
 	else if ( !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) )
 	{
 		OpenLoadSingleplayerCommentaryDialog();	
@@ -2434,6 +2397,7 @@ bool CBasePanel::IsPromptableCommand( const char *command )
 		 !Q_stricmp( command, "OpenOptionsDialog" ) ||
 		 !Q_stricmp( command, "OpenControllerDialog" ) ||
 		 !Q_stricmp( command, "OpenLoadCommentaryDialog" ) ||
+	     !Q_stricmp( command, "OpenWorkshopPanel" ) ||
          !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) ||
          !Q_stricmp( command, "OpenAchievementsDialog" ) ||
 
@@ -3492,6 +3456,16 @@ void CBasePanel::OnOpenMatchmakingBasePanel()
 	m_hMatchmakingBasePanel->SetVisible( true );
 
 	m_hMatchmakingBasePanel->Activate();
+}
+
+
+
+void CBasePanel::ShowWorkshopManager()
+{
+
+		m_hWorkshopDialog = new WorkshopManagerPanel(this);
+		PositionDialog( m_hWorkshopDialog );
+     	m_hWorkshopDialog->Activate();
 }
 
 //-----------------------------------------------------------------------------

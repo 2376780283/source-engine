@@ -9,10 +9,11 @@
 #else
 #include <sys/time.h>
 #endif
-
 #include "icommandline.h"
 #include "filesystem.h"
 #include "gamepadui_interface.h"
+#include "VGuiMatSurface/IMatSystemSurface.h"
+
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -21,6 +22,9 @@ ConVar gamepadui_background_music_duck( "gamepadui_background_music_duck", "0.35
 ConVar gamepadui_sizing_panel_width( "gamepadui_sizing_panel_width", "1280", FCVAR_ARCHIVE );
 ConVar gamepadui_sizing_panel_height( "gamepadui_sizing_panel_height", "800", FCVAR_ARCHIVE );
 
+//---------------------
+//   menu func
+//---------------------
 GamepadUIBasePanel::GamepadUIBasePanel( vgui::VPANEL parent ) : BaseClass( NULL, "GamepadUIBasePanel" )
 {
     SetParent( parent );
@@ -33,8 +37,9 @@ GamepadUIBasePanel::GamepadUIBasePanel( vgui::VPANEL parent ) : BaseClass( NULL,
 
     m_pMainMenu = new GamepadUIMainMenu( this );
     OnMenuStateChanged();
+    
+    
 }
-
 void GamepadUIBasePanel::ApplySchemeSettings( vgui::IScheme* pScheme )
 {
     BaseClass::ApplySchemeSettings( pScheme );
