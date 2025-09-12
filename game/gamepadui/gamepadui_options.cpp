@@ -93,8 +93,7 @@ public:
     void OnKeyBound( const char *pKey );
 
     void OnKeyCodePressed( vgui::KeyCode code );
-    
-    void OnCursorEntered();
+   
 
     MESSAGE_FUNC_HANDLE( OnGamepadUIButtonNavigatedTo, "OnGamepadUIButtonNavigatedTo", button );
 

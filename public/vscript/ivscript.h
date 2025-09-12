@@ -1,4 +1,4 @@
-//========== Copyright © 2008, Valve Corporation, All rights reserved. ========
+//========== Copyright ï¿½ 2008, Valve Corporation, All rights reserved. ========
 //
 // Purpose: VScript
 //
@@ -393,6 +393,7 @@ enum SVFlags_t
 
 #pragma warning(push)
 #pragma warning(disable:4800)
+#pragma clang optimize off
 struct ScriptVariant_t
 {
 	ScriptVariant_t() :						m_flags( 0 ), m_type( FIELD_VOID )		{ m_pVector = 0; }
@@ -615,7 +616,7 @@ struct ScriptEnumDesc_t
 #endif
 
 #pragma warning(pop)
-
+#pragma clang optimize on
 
 
 //-----------------------------------------------------------------------------

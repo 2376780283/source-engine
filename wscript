@@ -70,7 +70,8 @@ projects={
 #		'materialsystem/shaderapiempty',
 		'materialsystem/shaderapidx9',
 		'materialsystem/shaderlib',
-		'materialsystem/stdshaders',
+		'materialsystem/stdshaders', 
+		'materialsystem/clientstdshaders',	 #this is normal
 		'mathlib',
 		'particles',
 		'scenefilecache',

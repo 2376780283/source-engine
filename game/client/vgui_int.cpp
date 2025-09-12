@@ -211,7 +211,7 @@ void VGui_CreateGlobalPanels( void )
 	// Debugging or related tool
 	fps->Create( toolParent );
 	touch_panel->Create( toolParent );
-
+	
 #if defined( TRACK_BLOCKING_IO )
 	iopanel->Create( gameDLLPanel );
 #endif
@@ -246,7 +246,7 @@ void VGui_Shutdown()
 	messagechars->Destroy();
 	loadingdisc->Destroy();
 	internalCenterPrint->Destroy();
-
+	
 	if ( g_pClientMode )
 	{
 		g_pClientMode->VGui_Shutdown();

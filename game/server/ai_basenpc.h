@@ -2716,6 +2716,10 @@ inline bool	CAI_BaseNPC::HaveSequenceForActivity( Activity activity )
 #if STUDIO_SEQUENCE_ACTIVITY_LOOKUPS_ARE_SLOW
 	return ( (GetModelPtr()) ? (SelectWeightedSequence( activity ) != ACTIVITY_NOT_AVAILABLE) : false ); 
 #else
+
+	if ( activity == ACT_INVALID )
+		return false;
+	
 	return ( (GetModelPtr()) ? GetModelPtr()->HaveSequenceForActivity(activity) : false ); 
 #endif
 }

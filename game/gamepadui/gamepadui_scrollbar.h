@@ -23,6 +23,7 @@ public:
     void ApplySchemeSettings( vgui::IScheme *pScheme ) OVERRIDE;
     void OnThink() OVERRIDE;
 
+    void OnCursorMoved( int x, int y ) OVERRIDE;
     void InitScrollBar( GamepadUIScrollState *pScrollState, int nX, int nY );
     void UpdateScrollBounds( float flMin, float flMax, float flRegionSize, float flScrollSize );
 
@@ -33,6 +34,8 @@ public:
     void OnKeyCodeReleased( vgui::KeyCode code ) OVERRIDE;
 
 private:
+    int m_iPos[2] = {0, 0};
+
     int m_nStartX = 0;
     int m_nStartY = 0;
 

@@ -406,6 +406,7 @@ private:
 	int							m_iRenderTargetImageID;
 	int							m_iLoadingImageID;
 	int							m_iProductImageID;
+	int							m_iLoadingSpinnerImageID; float m_fLoadingSpinnerFrame;
 	bool						m_bLevelLoading;
 	bool						m_bEverActivated;
 	bool						m_bCopyFrameBuffer;

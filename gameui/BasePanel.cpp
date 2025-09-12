@@ -796,8 +796,10 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 
 	m_iRenderTargetImageID = -1;
 	m_iBackgroundImageID = -1;
-	m_iProductImageID = -1;
+	m_iProductImageID = -1;	
 	m_iLoadingImageID = -1;
+	m_iLoadingSpinnerImageID = -1;
+	m_fLoadingSpinnerFrame = 0;
 
 	if ( GameUI().IsConsoleUI() )
 	{
@@ -819,9 +821,13 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 		x360_audio_english.SetValue( XboxLaunch()->GetForceEnglish() );
 #endif
 	}
-
-	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton", ModInfo().GetGameTitle() ) );
-	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton2", ModInfo().GetGameTitle2() ) );
+//	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton", ModInfo().GetGameTitle() ) );
+//	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton2", ModInfo().GetGameTitle2() ) );
+    if ( !IsSteamDeck() )
+    {
+		m_pGameMenuButtons.AddToTail(CreateMenuButton(this, "GameMenuButton", ModInfo().GetGameTitle()));
+		m_pGameMenuButtons.AddToTail(CreateMenuButton(this, "GameMenuButton2", ModInfo().GetGameTitle2()));
+	}
 #ifdef CS_BETA
 	if ( !ModInfo().NoCrosshair() ) // hack to not show the BETA for HL2 or HL1Port
 	{
@@ -964,6 +970,11 @@ CBasePanel::~CBasePanel()
 		{
 			vgui::surface()->DestroyTextureID( m_iLoadingImageID );
 			m_iLoadingImageID = -1;
+		}
+		if (m_iLoadingSpinnerImageID != -1 )
+		{
+			vgui::surface()->DestroyTextureID(m_iLoadingSpinnerImageID);
+			m_iLoadingSpinnerImageID = -1;
 		}
 	}
 }
@@ -1462,7 +1473,30 @@ void CBasePanel::DrawBackgroundImage()
 		surface()->DrawSetTexture(m_iLoadingImageID);
 		int twide, ttall;
 		surface()->DrawGetTextureSize(m_iLoadingImageID, twide, ttall);
-		surface()->DrawTexturedRect(wide - twide, tall - ttall, wide, tall);
+//		surface()->DrawTexturedRect(wide - twide, tall - ttall, wide, tall);
+		if (IsSteamDeck())
+		{
+			surface()->DrawTexturedRect(wide - ((twide / 512.f) * twide) - 30, 30, wide - 30, (ttall / 512.f) * ttall + 30);
+			
+			static unsigned int	nFrameCache = 0;
+			surface()->DrawGetTextureSize(m_iLoadingSpinnerImageID, twide, ttall); //now use twide and ttall for spinner
+			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));
+			surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha }));
+			surface()->DrawSetTextureFrame(m_iLoadingSpinnerImageID, ((int)m_fLoadingSpinnerFrame) % surface()->GetTextureNumFrames(m_iLoadingSpinnerImageID), &nFrameCache);
+			surface()->DrawSetTexture(m_iLoadingSpinnerImageID);
+
+			surface()->DrawTexturedRect(wide - ((twide / 512.f)* twide) - 30, 30, wide - 30, (ttall / 512.f) * ttall + 30);
+
+			static float SpinnerTimeDelta = 0;
+			static float SpinnerTime = 0;
+			SpinnerTimeDelta = engine->Time() - SpinnerTime;
+			m_fLoadingSpinnerFrame += SpinnerTimeDelta * 100;
+			SpinnerTime = engine->Time();
+		}
+		else
+		{
+			surface()->DrawTexturedRect(wide - twide, tall - ttall, wide, tall);
+		}
 	}
 
 	// update the menu alpha
@@ -1908,7 +1942,17 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 			if ( IsSteamDeck() )
 				loading = "gamepadui/game_logo";
 			m_iLoadingImageID = surface()->CreateNewTextureID();
+			
 			surface()->DrawSetTextureFile( m_iLoadingImageID, loading, false, false );
+		}
+	}
+	if (IsSteamDeck())
+	{
+		if (m_iLoadingSpinnerImageID == -1)
+		{
+		const char* loadingCircle = "gamepadui/spinner";
+	    m_iLoadingSpinnerImageID = surface()->CreateNewTextureID();
+		surface()->DrawSetTextureFile(m_iLoadingSpinnerImageID, loadingCircle, true, false);
 		}
 	}
 }

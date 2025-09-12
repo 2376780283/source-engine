@@ -94,7 +94,7 @@ def build(bld):
 		'OptionsSubVideo.cpp',
 		'OptionsSubVoice.cpp',
 		'WorkshopManagerPanel.cpp',
-		'../public/tier0/memoverride.cpp',
+		'../public/tier0/memoverride.cpp',	
 	]
 
 	if bld.env.DEST_OS == 'win32':
