@@ -234,7 +234,8 @@ public:
 	{
 		m_bSelected = false;
         vgui::MessageBox *pMessageBoxDeveloper =  new vgui::MessageBox("Hi there is Developer list", "Thanks to nillerusr\nER2/ItzVladik\nZZHのlife\nKonuriMaki", NULL);   
-        pMessageBoxDeveloper->DoModal();			
+        pMessageBoxDeveloper->DoModal();	
+
 		input()->SetMouseCapture(NULL);
 	}
     virtual void OnScreenSizeChanged(int nOldWidth, int nOldHeight)
@@ -266,7 +267,7 @@ private:
 	int m_iOldX, m_iOldY;
 	int m_iOldW, m_iOldH;
 	bool m_bSelected;
-	int m_textureID;
+	int m_textureID;	
 };
 void AddNvgButton(vgui::Panel *parent, const char *imgName /*, const char *url*/ )
 {
