@@ -24,7 +24,7 @@ public:
     void SetCurrentFrame( GamepadUIFrame *pFrame );
 
     void OnMenuStateChanged();
-
+    void OnImageButtonClicked();
     void ActivateBackgroundEffects();
     bool IsBackgroundMusicPlaying();
     bool StartBackgroundMusic( float flVolume );

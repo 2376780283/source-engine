@@ -203,6 +203,7 @@ public:
 	float forward, side, movecount;
 	float yaw, pitch;
 	rgba_t gridcolor;
+    void ResetLookDamping();
 
 private:
 	bool initialized = false;
@@ -243,6 +244,14 @@ private:
 	bool m_bCutScene;
 	float m_flHideTouch;
 	int m_AlphaDiff;
+	
+    // 阻尼效果相关变量
+    float m_flLookDamping;
+    float m_flLookDampingPower;
+    float m_flLookInertia;
+    float m_flRemainingYaw;
+    float m_flRemainingPitch;
+    float m_flLastFrameTime;
 };
 
 extern CTouchControls gTouch;

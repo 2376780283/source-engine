@@ -2,6 +2,7 @@
 #include "gamepadui_basepanel.h"
 #include "gamepadui_interface.h"
 
+
 #include "vgui/ILocalize.h"
 #include "vgui/ISurface.h"
 #include "vgui/IVGui.h"
@@ -134,6 +135,7 @@ void GamepadUIMainMenu::LoadMenuButtons() {
 #endif
 
   UpdateButtonVisibility();
+  
 }
 
 // 🔧 新增静态函数（放在 .cpp 上面或类中静态声明）

@@ -46,6 +46,15 @@ ConVar touch_grid_count( "touch_grid_count", "50", FCVAR_ARCHIVE, "touch grid co
 ConVar touch_grid_enable( "touch_grid_enable", "1", FCVAR_ARCHIVE, "enable touch grid" );
 ConVar touch_precise_amount( "touch_precise_amount", "0.5", FCVAR_ARCHIVE, "sensitivity multiplier for precise-look" );
 
+// 阻尼效果 staff
+// 在初始化时设置更合理的默认值
+ConVar touch_look_damping( "touch_look_damping", "0.1", FCVAR_ARCHIVE, "look damping factor (0.0 - 0.95)" );
+ConVar touch_look_damping_power( "touch_look_damping_power", "1.1", FCVAR_ARCHIVE, "look damping power curve (1.0 - 2.0)" );
+ConVar touch_look_inertia( "touch_look_inertia", "0.2", FCVAR_ARCHIVE, "look inertia amount (0.1 - 1.0)" );
+//touch_look_damping "0.1"
+//touch_look_damping_power "1.0"
+//touch_look_inertia "0.2"
+
 ConVar touch_button_info( "touch_button_info", "0", FCVAR_ARCHIVE );
 
 #define boundmax( num, high ) ( (num) < (high) ? (num) : (high) )
@@ -289,25 +298,75 @@ void CTouchControls::GetTouchAccumulators( float *side, float *forward, float *y
 	this->pitch = 0.f;
 }
 
-void CTouchControls::GetTouchDelta( float yaw, float pitch, float *dx, float *dy )
+void CTouchControls::GetTouchDelta( float rawYaw, float rawPitch, float *dx, float *dy )
 {
-	// Apply filtering?
-	if( touch_filter.GetBool() )
-	{
-		// Average over last two samples
-		*dx = ( yaw + m_flPreviousYaw ) * 0.5f;
-		*dy = ( pitch + m_flPreviousPitch ) * 0.5f;
-	}
-	else
-	{
-		*dx = yaw;
-		*dy = pitch;
-	}
+    // 获取当前帧时间
+    float flCurrentTime = gpGlobals->curtime;
+    float flFrameTime = flCurrentTime - m_flLastFrameTime;
+    m_flLastFrameTime = flCurrentTime;
+    
+    // 确保帧时间合理
+    if( flFrameTime <= 0.0f || flFrameTime > 0.1f )
+        flFrameTime = 0.016f;
+    
+    // 应用更平滑的阻尼计算
+    float damping = touch_look_damping.GetFloat();
+    float dampingPower = touch_look_damping_power.GetFloat();
+    float inertia = touch_look_inertia.GetFloat();
+    
+    // 改进的阻尼计算 - 使用更平滑的曲线
+    float dampedYaw = rawYaw * (1.0f - damping);
+    float dampedPitch = rawPitch * (1.0f - damping);
+    
+    // 可选：应用幂曲线，但更温和
+    if (dampingPower != 1.0f) {
+        dampedYaw = copysignf(powf(fabsf(dampedYaw), dampingPower), dampedYaw);
+        dampedPitch = copysignf(powf(fabsf(dampedPitch), dampingPower), dampedPitch);
+    }
+    
+    // 累积输入
+    m_flRemainingYaw += dampedYaw;
+    m_flRemainingPitch += dampedPitch;
+    
+    // 基于帧时间应用惯性
+    float frameYaw = m_flRemainingYaw * inertia * (flFrameTime / 0.016f);
+    float framePitch = m_flRemainingPitch * inertia * (flFrameTime / 0.016f);
+    
+    // 更新剩余量
+    m_flRemainingYaw -= frameYaw;
+    m_flRemainingPitch -= framePitch;
+    
+    // 应用过滤（如果启用）
+    if( touch_filter.GetBool() )
+    {
+        // 使用加权平均而不是简单平均
+        *dx = (frameYaw * 0.7f + m_flPreviousYaw * 0.3f);
+        *dy = (framePitch * 0.7f + m_flPreviousPitch * 0.3f);
+    }
+    else
+    {
+        *dx = frameYaw;
+        *dy = framePitch;
+    }
 
-	// Latch previous
-	m_flPreviousYaw = yaw;
-	m_flPreviousPitch = pitch;
+    // 保存上一帧的值用于过滤
+    m_flPreviousYaw = *dx;
+    m_flPreviousPitch = *dy;
 }
+
+
+void CTouchControls::ResetLookDamping()
+{
+    // 不完全重置，保留部分动量以实现更平滑的过渡
+    m_flRemainingYaw *= 0.2f;
+    m_flRemainingPitch *= 0.2f;
+    m_flPreviousYaw = 0.0f;
+    m_flPreviousPitch = 0.0f;
+}
+
+
+
+
 
 void CTouchControls::ResetToDefaults()
 {
@@ -339,9 +398,9 @@ void CTouchControls::ResetToDefaults()
 		AddButton( "invprev", "vgui/touch/prev_weap", "invprev", 0.000000, 0.071111, 0.120000, 0.284444, color );
 		AddButton( "edit", "vgui/touch/settings", "touch_enableedit", 0.420000, 0.000000, 0.500000, 0.151486 , color);
 		AddButton( "menu", "vgui/touch/menu", "gameui_activate", 0.000000, 0.00000, 0.080000, 0.142222 , color);   
-AddButton("sendsquad", "vgui/touch/squad", "impulse 50", 0.560000, 0.044444, 0.620000, 0.177778, color);
-AddButton("kick", "vgui/touch/kick", "+attack3", 0.660000, 0.311111, 0.760000, 0.533333, color);
-AddButton("detonate", "vgui/touch/slam", "impulse 36", 0.660000, 0.533333, 0.760000, 0.755556, color);
+        AddButton("sendsquad", "vgui/touch/squad", "impulse 50", 0.560000, 0.044444, 0.620000, 0.177778, color);
+        AddButton("kick", "vgui/touch/kick", "+attack3", 0.660000, 0.311111, 0.760000, 0.533333, color);
+        AddButton("detonate", "vgui/touch/slam", "impulse 36", 0.660000, 0.533333, 0.760000, 0.755556, color);
 
 	}
 	else
@@ -378,6 +437,14 @@ void CTouchControls::Init()
 	m_flPreviousYaw = m_flPreviousPitch = 0.f;
 	gridcolor = rgba_t(255, 0, 0, 30);
 
+    // 初始化阻尼相关变量
+    m_flLookDamping = 0.2f;
+    m_flLookDampingPower = 1.5f;
+    m_flLookInertia = 0.7f;
+    m_flRemainingYaw = 0.0f;
+    m_flRemainingPitch = 0.0f;
+    m_flLastFrameTime = gpGlobals->curtime;
+   
 	m_bCutScene = false;
 	showtexture = hidetexture = resettexture = closetexture = joytexture = 0;
 	configchanged = false;
@@ -403,9 +470,9 @@ void CTouchControls::Init()
 	AddButton( "invprev", "vgui/touch/prev_weap", "invprev", 0.000000, 0.071111, 0.120000, 0.284444, color );
 	AddButton( "edit", "vgui/touch/settings", "touch_enableedit", 0.420000, 0.000000, 0.500000, 0.151486, color );
 	AddButton( "menu", "vgui/touch/menu", "gameui_activate", 0.000000, 0.00000, 0.080000, 0.142222, color );
-AddButton("sendsquad", "vgui/touch/squad", "impulse 50", 0.560000, 0.044444, 0.620000, 0.177778, color);
-AddButton("kick", "vgui/touch/kick", "+attack3", 0.660000, 0.311111, 0.760000, 0.533333, color);
-AddButton("detonate", "vgui/touch/slam", "impulse 36", 0.660000, 0.533333, 0.760000, 0.755556, color);
+    AddButton("sendsquad", "vgui/touch/squad", "impulse 50", 0.560000, 0.044444, 0.620000, 0.177778, color);
+    AddButton("kick", "vgui/touch/kick", "+attack3", 0.660000, 0.311111, 0.760000, 0.533333, color);
+    AddButton("detonate", "vgui/touch/slam", "impulse 36", 0.660000, 0.533333, 0.760000, 0.755556, color);
 
 	char buf[256];
 
@@ -1087,37 +1154,40 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 			}
 		}
 	}
-	else if( ev->type == IE_FingerUp )
-	{
-		for( it = btns.begin(); it != btns.end(); it++ )
-		{
-			CTouchButton *btn = *it;
+    else if( ev->type == IE_FingerUp )
+    {
+        for( it = btns.begin(); it != btns.end(); it++ )
+        {
+            CTouchButton *btn = *it;
 
-			if( btn->flags & TOUCH_FL_HIDE )
-				continue;
+            if( btn->flags & TOUCH_FL_HIDE )
+                continue;
 
-			if( btn->finger == ev->fingerid )
-			{
-				btn->finger = -1;
+            if( btn->finger == ev->fingerid )
+            {
+                btn->finger = -1;
 
-				if( btn->type == touch_move )
-				{
-					forward = side = 0;
-					move_finger = -1;
-				}
-				else if( btn->type == touch_look )
-					look_finger = -1;
-				else if( btn->command[0] == '+' )
-				{
-					char cmd[256];
-
-					snprintf( cmd, sizeof cmd, "%s", btn->command );
-					cmd[0] = '-';
-					engine->ClientCmd_Unrestricted( cmd );
-				}
-			}
-		}
-	}
+                if( btn->type == touch_move )
+                {
+                    forward = side = 0;
+                    move_finger = -1;
+                }
+                else if( btn->type == touch_look )
+                {
+                    look_finger = -1;
+                    // 重置阻尼状态
+                    ResetLookDamping();
+                }
+                else if( btn->command[0] == '+' )
+                {
+                    char cmd[256];
+                    snprintf( cmd, sizeof cmd, "%s", btn->command );
+                    cmd[0] = '-';
+                    engine->ClientCmd_Unrestricted( cmd );
+                }
+            }
+        }
+    }
 }
 
 void CTouchControls::EnableTouchEdit(bool enable)
@@ -1205,7 +1275,12 @@ void CTouchControls::WriteConfig()
 		//filesystem->FPrintf( f, "touch_setclientonly 0\n" );
 		filesystem->FPrintf( f, "\n// touch buttons\n" );
 		filesystem->FPrintf( f, "touch_removeall\n" );
-
+		// 阻尼    
+        filesystem->FPrintf( f, "\n// look damping settings\n" );
+        filesystem->FPrintf( f, "touch_look_damping \"%f\"\n", touch_look_damping.GetFloat() );
+        filesystem->FPrintf( f, "touch_look_damping_power \"%f\"\n", touch_look_damping_power.GetFloat() );
+        filesystem->FPrintf( f, "touch_look_inertia \"%f\"\n", touch_look_inertia.GetFloat() );
+    
 		CUtlLinkedList<CTouchButton*>::iterator it;
 		for( it = btns.begin(); it != btns.end(); it++ )
 		{
