@@ -29,6 +29,9 @@ extern IMatSystemSurface *g_pMatSystemSurface;
 #define TOUCH_DEFAULT "0"
 #endif
 
+// ConVar touch_sensitivity("touch_sensitivity", "1.0", FCVAR_ARCHIVE, "Touch base sensitivity");
+ConVar touch_damping("touch_damping", "0.3", FCVAR_ARCHIVE, "Touch damping factor (0 = none, 1 = max)");
+
 extern ConVar sensitivity;
 
 #define TOUCH_DEFAULT_CFG "touch_default.cfg"
@@ -1310,4 +1313,17 @@ void CTouchControls::WriteConfig()
 		filesystem->RenameFile(newconfigfile, configfile);
 	}
 	else DevMsg( "Couldn't write %s.\n", configfile );
+}
+
+
+
+static float ApplyTouchDamping(float rawInput, float prevValue) {
+    float damping = touch_damping.GetFloat();
+    if (damping <= 0.0f) return rawInput; // no damping
+
+    float velocity = fabs(rawInput - prevValue);
+    // Adaptive damping: small moves = strong damping, large moves = weak damping
+    float adaptiveAlpha = clamp(0.1f + velocity * (1.0f - damping), 0.1f, 1.0f);
+
+    return prevValue + adaptiveAlpha * (rawInput - prevValue);
 }
