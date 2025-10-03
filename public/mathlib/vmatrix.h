@@ -1808,7 +1808,7 @@ inline void MatrixBuildScale( VMatrix &dst, const Vector& scale )
 }
 
 // nillerusr: optimize this bruh later
-/*inline void MatrixBuildPerspective( VMatrix &dst, float fovX, float fovY, float zNear, float zFar )
+inline void MatrixBuildPerspective( VMatrix &dst, float fovX, float fovY, float zNear, float zFar )
 {
 	// FIXME: collapse all of this into one matrix after we figure out what all should be in here.
 	float width = 2 * zNear * tan( fovX * ( M_PI/180.0f ) * 0.5f );
@@ -1841,24 +1841,7 @@ inline void MatrixBuildScale( VMatrix &dst, const Vector& scale )
 	scaleHalf[1][1] = 0.5f;
 	MatrixMultiply( scaleHalf, dst, dst );
 }
-*/ 
-// 新版矩阵算法
-inline void MatrixBuildPerspective( VMatrix &dst, float fovX, float fovY, float zNear, float zFar )
-{ 
-    float width = tan( fovX * ( M_PI/180.0f ) * 0.5f );
-    float height = tan( fovY * ( M_PI/180.0f ) * 0.5f );
-    float a = 1.0f / width;
-    float b = 1.0f / height;
-    float c = -zFar / ( zNear - zFar );
-    float d = zNear * zFar / ( zNear - zFar );
-    // Immediately construct the final matrix,
-    dst.Init(
-    -0.5f * a, 0.0f,      0.5f, 0.0f,
-    0.0f,    -0.5f * b,  0.5f, 0.0f,
-    0.0f,     0.0f,      c,    d,
-    0.0f,     0.0f,      1.0f, 0.0f
-    );
-}
+
 static inline void CalculateAABBForNormalizedFrustum_Helper( float x, float y, float z, const VMatrix &volumeToWorld, Vector &mins, Vector &maxs )
 {
 	Vector volumeSpacePos( x, y, z );

@@ -36,8 +36,6 @@ CProceduralTexturePanel::~CProceduralTexturePanel()
 	
 //-----------------------------------------------------------------------------
 // initialization, shutdown
-// ZZH： 修复颜色显示问题：确保在 OpenGL 渲染下，程序化纹理的颜色正确显示。
-// Marik：增强跨平台兼容性：解决了不同图形 API（如 OpenGL 和 DirectX）之间的差异，提高了代码的跨平台兼容性。
 //-----------------------------------------------------------------------------
 bool CProceduralTexturePanel::Init( int nWidth, int nHeight, bool bAllocateImageBuffer )
 {
@@ -55,14 +53,8 @@ bool CProceduralTexturePanel::Init( int nWidth, int nHeight, bool bAllocateImage
 	char pTemp[512];
 	Q_snprintf( pTemp, 512, "__%s", GetName() );
 
-	ITexture *pTex = MaterialSystem()->CreateProceduralTexture( pTemp, TEXTURE_GROUP_VGUI,		
-//			m_nWidth, m_nHeight, IMAGE_FORMAT_BGRX8888, 
-			m_nWidth, m_nHeight,
-#ifdef DX_TO_GL_ABSTRACTION
-			IMAGE_FORMAT_RGBA8888,
-#else
-			IMAGE_FORMAT_BGRX8888,
-#endif 					
+	ITexture *pTex = MaterialSystem()->CreateProceduralTexture( pTemp, TEXTURE_GROUP_VGUI,
+			m_nWidth, m_nHeight, IMAGE_FORMAT_BGRX8888, 
 			TEXTUREFLAGS_CLAMPS | TEXTUREFLAGS_CLAMPT | TEXTUREFLAGS_NOMIP | 
 			TEXTUREFLAGS_NOLOD | TEXTUREFLAGS_PROCEDURAL | TEXTUREFLAGS_SINGLECOPY );
 	pTex->SetTextureRegenerator( this );
