@@ -125,8 +125,8 @@ void GamepadUIMainMenu::LoadMenuButtons() {
           GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res",
           "cmd gamemenucommand openconsole", "#GameUI_Console", "");
       m_pConsoleButton->SetPriority(0);
-      
-    if (CommandLine()->FindParm("-console")) {
+    // 使用 CommandLine()->CheckParm ！！！     
+    if (CommandLine()->CheckParm("-console")) {
        m_pConsoleButton->SetVisible(true);
     }else{
        m_pConsoleButton->SetVisible(false);
@@ -182,13 +182,9 @@ void GamepadUIMainMenu::LayoutMainMenu() {
     int nParentW, nParentH;
     GetParent()->GetSize(nParentW, nParentH);
 
-    // 第一个按钮
     m_pSwitchToOldUIButton->SetPos(
         m_flOldUIButtonOffsetX,
         nParentH - m_pSwitchToOldUIButton->m_flHeight - m_flOldUIButtonOffsetY);
-
-    // 第二个按钮，往上挪动一个按钮高度 + 间距
-
       int spacing = 7; // 两个按钮之间的间隔
       m_pConsoleButton->SetPos(m_flOldUIButtonOffsetX,
                                nParentH - m_pSwitchToOldUIButton->m_flHeight -

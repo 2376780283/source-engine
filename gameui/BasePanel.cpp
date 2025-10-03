@@ -1621,8 +1621,8 @@ void CBasePanel::UpdateGameMenus()
 CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 {
     CGameMenu *menu = new CGameMenu(this, datafile->GetName());
-
-      if (CommandLine()->FindParm( "-console" )){	     		
+      // 不要使用 CommandLine()->FindParm ！！！
+      if (CommandLine()->CheckParm( "-console" )){	     		
 		      menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); 
 	   }
 	bool bFoundServerBrowser = false;
