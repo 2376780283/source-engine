@@ -109,19 +109,51 @@ void CDbgLogger::Init(const char *logfile)
 	file = fopen(logfile, "w+");
 	if( file )
 	{
-#ifdef GIT_COMMIT_HASH
-		fprintf(file, ">>> Engine(arch:%s commit:" GIT_COMMIT_HASH ") started at %s\n", GetProcessorArchName(), szTime);
-#else
-		fprintf(file, ">>> Engine(arch:%s) started at %s\n", GetProcessorArchName(), szTime);
-#endif
+//#ifdef GIT_COMMIT_HASH
+//	fprintf(file, 
+//	        ">>> Engine\n"
+//	        "    arch   : %s\n"
+//	        "    commit : " GIT_COMMIT_HASH "\n"
+//	        "    started: %s\n",
+//	        GetProcessorArchName(), szTime);
+//#else
+	fprintf(file, 
+	        ">>> Engine\n"
+	        "    arch   : %s\n"
+	        "    started: %s\n",
+	        GetProcessorArchName(), szTime);
+//#endif
 
 #ifdef GNUC
-		fprintf(file, "Compiler version: %s\n", __VERSION__);
+	fprintf(file, 
+	        ">>> Compiler\n"
+	        "     version : %s\n"
+	         "------------------------------------------------------ \n",
+	        __VERSION__);
 #endif
-		fprintf(file, "Compiler CFLAGS: %s\n", WAF_CFLAGS);
-		fprintf(file, "Compiler LDFLAGS: %s\n", WAF_LDFLAGS);
-		fflush(file);
 
+	fprintf(file, 
+	        ">>> Compiler\n"
+	        "     CFLAGS  : %s\n"
+	        "     LDFLAGS : %s\n"
+	        "------------------------------------------------------ \n",
+	         WAF_CFLAGS, WAF_LDFLAGS);
+	         
+	fprintf(file, 
+	        ">>> Git\n"
+	        "     commit  : " GIT_COMMIT_HASH "\n"
+            "------------------------------------------------------ \n"
+            );
+	        
+    fprintf(file,
+            ">>> Opt\n"
+            "       Version : 1.18.0\n"
+            "       Build   : ZZH life\n"
+            "------------------------------------------------------ \n"
+            "\n >>> Starting Game (Menu) \n "
+            );
+	fflush(file);
+		
 		for( int i = 0; i < iMsg; i++ )
 		{
 			Write(pMsgs[i]);
