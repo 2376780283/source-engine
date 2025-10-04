@@ -1070,10 +1070,10 @@ COptionsSubVideo::COptionsSubVideo(vgui::Panel *parent) : PropertyPage(parent, N
 		break;
 	}
 #else
-	int iNormalItemID = m_pAspectRatio->AddItem( "lemonparty.org", NULL );
+	int iNormalItemID = m_pAspectRatio->AddItem( "Auto(default)", NULL );
 	m_pAspectRatio->ActivateItem( iNormalItemID );
 
-	m_pGammaButton->SetEnabled(false);
+//	m_pGammaButton->SetEnabled(false);
 #endif
 
 	char pszVRModeName[2][64];
@@ -1407,11 +1407,11 @@ void COptionsSubVideo::OnResetData()
 #endif
 
 	// reset gamma control
-#ifdef ANDROID
+/*#ifdef ANDROID
 	m_pGammaButton->SetEnabled( false );
-#else
+#else*/
 	m_pGammaButton->SetEnabled( !config.Windowed() );
-#endif
+//#endif
 
 	m_pHDContent->SetSelected( BUseHDContent() );
 
@@ -1611,12 +1611,12 @@ void COptionsSubVideo::PerformLayout()
 
 	if ( m_pGammaButton )
 	{
-#ifdef ANDROID
-		m_pGammaButton->SetEnabled( false );
-#else
+//#ifdef ANDROID
+//		m_pGammaButton->SetEnabled( false );
+//#else
 		const MaterialSystem_Config_t &config = materials->GetCurrentConfigForVideoCard();
 		m_pGammaButton->SetEnabled( !config.Windowed() );
-#endif
+//#endif
 	}
 }
 

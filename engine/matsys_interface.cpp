@@ -118,7 +118,7 @@ ConVar  mat_levelflush( "mat_levelflush", "1" );
 ConVar  mat_fastspecular( "mat_fastspecular", "1", 0, "Enable/Disable specularity for visual testing.  Will not reload materials and will not affect perf." );
 ConVar  mat_fullbright( "mat_fullbright","0", FCVAR_CHEAT );
 
-static ConVar mat_monitorgamma( "mat_monitorgamma", "2.2", FCVAR_ARCHIVE, "monitor gamma (typically 2.2 for CRT and 1.7 for LCD)", true, 1.6f, true, 2.6f  );
+static ConVar mat_monitorgamma( "mat_monitorgamma", "2.6", FCVAR_ARCHIVE, "monitor gamma (typically 2.2 for CRT and 1.7 for LCD)", true, 1.6f, true, 2.6f  );
 static ConVar mat_monitorgamma_tv_range_min( "mat_monitorgamma_tv_range_min", "16" );
 static ConVar mat_monitorgamma_tv_range_max( "mat_monitorgamma_tv_range_max", "255" );
 // TV's generally have a 2.5 gamma, so we need to convert our 2.2 frame buffer into a 2.5 frame buffer for display on a TV
@@ -249,19 +249,19 @@ static const char *s_pRegistryConVars[] =
 };
 
 #if defined( OSX )
-	#define MOD_VIDEO_CONFIG_SETTINGS "videoconfig_mac.cfg"
+	#define MOD_VIDEO_CONFIG_SETTINGS "cfg/videoconfig_mac.cfg"
 	#define USE_VIDEOCONFIG_FILE 1
 #elif defined( ANDROID )
-	#define MOD_VIDEO_CONFIG_SETTINGS "videoconfig_android.cfg"
+	#define MOD_VIDEO_CONFIG_SETTINGS "cfg/videoconfig_android.cfg"
 	#define USE_VIDEOCONFIG_FILE 1
 #elif defined( POSIX )
-	#define MOD_VIDEO_CONFIG_SETTINGS "videoconfig_linux.cfg"
+	#define MOD_VIDEO_CONFIG_SETTINGS "cfg/videoconfig_linux.cfg"
 	#define USE_VIDEOCONFIG_FILE 1
 #elif defined( DX_TO_GL_ABSTRACTION )
-	#define MOD_VIDEO_CONFIG_SETTINGS "videoconfig_gl.cfg"
+	#define MOD_VIDEO_CONFIG_SETTINGS "cfg/videoconfig_gl.cfg"
 	#define USE_VIDEOCONFIG_FILE 1
 #else
-	#define MOD_VIDEO_CONFIG_SETTINGS "videoconfig.cfg"
+	#define MOD_VIDEO_CONFIG_SETTINGS "cfg/videoconfig.cfg"
 	#define USE_VIDEOCONFIG_FILE 0
 #endif
 
@@ -278,7 +278,7 @@ static int ReadVideoConfigInt( const char *pName, int nDefault )
 	
 	// Try to make a keyvalues from the cfg file
 	KeyValues *pVideoConfig = new KeyValues( "videoconfig" );
-	bool bFileExists = pVideoConfig->LoadFromFile( g_pFullFileSystem, MOD_VIDEO_CONFIG_SETTINGS, "MOD" );
+	bool bFileExists = pVideoConfig->LoadFromFile( g_pFullFileSystem , MOD_VIDEO_CONFIG_SETTINGS, "MOD" );
 	
 	// We probably didn't have one on disk yet, just bail.  It'll get created soon.
 	if ( !bFileExists )
@@ -299,7 +299,7 @@ static void ReadVideoConfigInt( const char *pName, int *pEntry )
 	
 	// Try to make a keyvalues from the cfg file
 	KeyValues *pVideoConfig = new KeyValues( "videoconfig" );
-	bool bFileExists = pVideoConfig->LoadFromFile( g_pFullFileSystem, MOD_VIDEO_CONFIG_SETTINGS, "MOD" );
+	bool bFileExists = pVideoConfig->LoadFromFile( g_pFullFileSystem , MOD_VIDEO_CONFIG_SETTINGS, "MOD" );
 	
 	// We probably didn't have one on disk yet, just bail.  It'll get created soon.
 	if ( !bFileExists )
@@ -327,7 +327,7 @@ static const char *ReadVideoConfigString( const char *pName, const char *pDefaul
 	
 	// Try to make a keyvalues from the cfg file
 	KeyValues *pVideoConfig = new KeyValues( "videoconfig" );
-	bool bFileExists = pVideoConfig->LoadFromFile( g_pFullFileSystem, MOD_VIDEO_CONFIG_SETTINGS, "MOD" );
+	bool bFileExists = pVideoConfig->LoadFromFile( g_pFullFileSystem , MOD_VIDEO_CONFIG_SETTINGS, "MOD" );
 	
 	// We probably didn't have one on disk yet, just bail.  It'll get created soon.
 	if ( !bFileExists )
@@ -351,11 +351,11 @@ static void WriteVideoConfigInt( const char *pName, int nEntry )
 	
 	// Try to make a keyvalues from the cfg file
 	KeyValues *pVideoConfig = new KeyValues( "videoconfig" );
-	pVideoConfig->LoadFromFile( g_pFullFileSystem, MOD_VIDEO_CONFIG_SETTINGS, "MOD" );
+	pVideoConfig->LoadFromFile( g_pFullFileSystem , MOD_VIDEO_CONFIG_SETTINGS, "MOD" );
 	
 	pVideoConfig->SetInt( pName, nEntry );
 	
-	pVideoConfig->SaveToFile( g_pFullFileSystem, MOD_VIDEO_CONFIG_SETTINGS, "MOD", false, false, true );
+	pVideoConfig->SaveToFile( g_pFullFileSystem , MOD_VIDEO_CONFIG_SETTINGS, "MOD", false, false, true );
 	pVideoConfig->deleteThis();
 #else
 	registry->WriteInt( pName, nEntry );
@@ -370,11 +370,11 @@ static void WriteVideoConfigString( const char *pName, const char *pString )
 
 	// Try to make a keyvalues from the cfg file
 	KeyValues *pVideoConfig = new KeyValues( "videoconfig" );
-	pVideoConfig->LoadFromFile( g_pFullFileSystem, MOD_VIDEO_CONFIG_SETTINGS, "MOD" );
+	pVideoConfig->LoadFromFile( g_pFullFileSystem , MOD_VIDEO_CONFIG_SETTINGS, "MOD" );
 	
 	pVideoConfig->SetString( pName, pString );
 	
-	pVideoConfig->SaveToFile( g_pFullFileSystem, MOD_VIDEO_CONFIG_SETTINGS, "MOD", false, false, true );
+	pVideoConfig->SaveToFile( g_pFullFileSystem , MOD_VIDEO_CONFIG_SETTINGS, "MOD", false, false, true );
 	pVideoConfig->deleteThis();
 #else
 	registry->WriteString( pName, pString );

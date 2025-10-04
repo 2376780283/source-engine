@@ -2365,9 +2365,9 @@ bool CL_ShouldLoadBackgroundLevel( const CCommand &args )
 	if (CommandLine()->CheckParm("-forcestartupmenu"))
 		return true;
 
-	// don't load the map in developer or console mode
+	// don't load the map in developer
 	if ( developer.GetInt() || 
-		CommandLine()->CheckParm("-console") || 
+		// CommandLine()->CheckParm("-console") || 
 		CommandLine()->CheckParm("-dev") ||
 		CommandLine()->CheckParm("-nobackgroundlevel") )
 		return false;
