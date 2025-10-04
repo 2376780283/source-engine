@@ -155,7 +155,7 @@ struct ResourceLocker
 		Host_AllowQueuedMaterialSystem( m_QMS );
 		g_pFileSystem->AsyncResume();
 
-		// ??? What?  Why?
+		// ??? What?  Why? 可能涉及服务器纯净模式（sv_pure）相关的材质缓存清理
 		//// Need to purge cached materials due to a sv_pure change.
 		//g_pMaterialSystem->UncacheAllMaterials();
 	}

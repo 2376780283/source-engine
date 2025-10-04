@@ -300,8 +300,10 @@ int V_stricmp( const char *str1, const char *str2 )
 
 int V_strnicmp( const char *str1, const char *str2, int n )
 {
-	const unsigned char *s1 = (const unsigned char*)str1;
-	const unsigned char *s2 = (const unsigned char*)str2;
+//	const unsigned char *s1 = (const unsigned char*)str1;
+//	const unsigned char *s2 = (const unsigned char*)str2;
+    auto *s1 = (const unsigned char*) str1;
+	auto *s2 = (const unsigned char*) str2;
 	for ( ; n > 0 && *s1; --n, ++s1, ++s2 )
 	{
 		if ( *s1 != *s2 )
