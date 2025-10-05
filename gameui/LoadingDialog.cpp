@@ -41,11 +41,11 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 	// Use console style
 	m_bConsoleStyle = GameUI().IsConsoleUI();
 
-	if ( !m_bConsoleStyle )
-	{
-		SetSize( 416, 100 );
-		SetTitle( "#GameUI_Loading", true );
-	}
+    if (!m_bConsoleStyle) {
+        SetSize(416, 100);
+        SetTitle("#GameUI_Loading", true);    
+    }
+
 
 	// center the loading dialog, unless we have another dialog to show in the background
 	m_bCenter = !GameUI().HasLoadingBackgroundDialog();
@@ -53,10 +53,19 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 	m_bShowingSecondaryProgress = false;
 	m_flSecondaryProgress = 0.0f;
 	m_flLastSecondaryProgressUpdateTime = 0.0f;
-	m_flSecondaryProgressStartTime = 0.0f;
-
-	m_pProgress = new ProgressBar( this, "Progress" );
-	m_pProgress2 = new ProgressBar( this, "Progress2" );
+	m_flSecondaryProgressStartTime = 0.0f;	
+    if ( IsSteamDeck() || CommandLine()->FindParm( "-gamepadui" ))
+    {
+        m_pProgress = new ContinuousProgressBar(this, "Progress");
+        m_pProgress2 = new ContinuousProgressBar(this, "Progress2");
+        m_pProgress->SetTall(48);       
+        m_pProgress->SetDrawBackground(false); // 禁用背景绘制
+        // 设置进度条颜色为红色 暂时没用
+        // m_pProgress->SetFgColor(Color(255, 0, 0, 240));        
+    }else{
+	    m_pProgress = new ProgressBar( this, "Progress" );
+   	    m_pProgress2 = new ProgressBar( this, "Progress2" );    
+    }       
 	m_pInfoLabel = new Label( this, "InfoLabel", "" );
 	m_pCancelButton = new Button( this, "CancelButton", "#GameUI_Cancel" );
 	m_pTimeRemainingLabel = new Label( this, "TimeRemainingLabel", "" );
@@ -79,7 +88,7 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 
 	if ( m_bConsoleStyle )
 	{
-		m_bCenter = false;
+		m_bCenter = true;
 		m_pProgress->SetVisible( false );
 		m_pProgress2->SetVisible( false );
 		m_pInfoLabel->SetVisible( false );
@@ -94,10 +103,25 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 	}
 	else
 	{
-		m_pInfoLabel->SetBounds(20, 32, 392, 24);
+	    // 单人 加载进度条
+//		m_bCenter = false;
+    if ( IsSteamDeck() || CommandLine()->FindParm( "-gamepadui" ))
+    {
+        int zzh_screenWide, zzh_screenTall;
+  　 　 surface()->GetScreenSize(zzh_screenWide, zzh_screenTall);     
+        SetSize(zzh_screenWide, zzh_screenTall);
+		SetMinimumSize( zzh_screenWide , zzh_screenTall );
+		SetTitleBarVisible( false );
+		// 在构造函数或Open方法中添加
+        SetPaintBackgroundEnabled(false); // 禁用背景绘制
+        SetBgColor(Color(0, 0, 0, 0));    // 设置背景为透明
+      }else{
+        m_pInfoLabel->SetBounds(20, 32, 392, 24);
 		m_pProgress->SetBounds(20, 64, 300, 24); 
 		m_pCancelButton->SetBounds(330, 64, 72, 24);
-		m_pProgress2->SetVisible(false);
+		m_pProgress2->SetVisible(false); 
+      }
+		m_flProgressFraction = 0;
 	}
 
 	SetupControlSettings( false );
@@ -137,9 +161,12 @@ void CLoadingDialog::PaintBackground()
 
 		m_pLoadingBackground->SetFgColor( color );
 		m_pLoadingBackground->SetBgColor( color );
-
-		m_pLoadingBackground->SetPaintBackgroundEnabled( true );
-	}
+		
+        if ( IsSteamDeck() || CommandLine()->FindParm( "-gamepadui" ))
+	    	m_pLoadingBackground->SetPaintBackgroundEnabled( false );
+	    else
+	        m_pLoadingBackground->SetPaintBackgroundEnabled( false );	
+	} 
 	
 	if ( ModInfo().IsSinglePlayerOnly() )
 	{
@@ -188,29 +215,60 @@ void CLoadingDialog::SetupControlSettings( bool bForceShowProgressText )
 //-----------------------------------------------------------------------------
 // Purpose: Activates the loading screen, initializing and making it visible
 //-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+// Purpose: Activates the loading screen, initializing and making it visible
+//-----------------------------------------------------------------------------
 void CLoadingDialog::Open()
 {
-	if ( !m_bConsoleStyle )
-	{
-		SetTitle( "#GameUI_Loading", true );
-	}
+    // 设置标题（仅非控制台风格）
+    if (!m_bConsoleStyle)
+    {
+        SetTitle("#GameUI_Loading", true);
+    }
 
-	HideOtherDialogs( true );
-	BaseClass::Activate();
+    // 隐藏其他对话框并激活当前对话框
+    HideOtherDialogs(true);
+    BaseClass::Activate();
 
-	if ( !m_bConsoleStyle )
-	{
-		m_pProgress->SetVisible( true );
-		if ( !ModInfo().IsSinglePlayerOnly() )
-		{
-			m_pInfoLabel->SetVisible( true );
-		}
-		m_pInfoLabel->SetText("");
-		
-		m_pCancelButton->SetText("#GameUI_Cancel");
-		m_pCancelButton->SetCommand("Cancel");
-	}
+    // 仅处理非控制台风格的UI元素
+    if (!m_bConsoleStyle)
+    {
+        // 确保进度条可见
+        m_pProgress->SetVisible(true);
+        
+        // 多人在线游戏显示信息标签，单机游戏隐藏
+        bool showInfoLabel = !ModInfo().IsSinglePlayerOnly();
+        m_pInfoLabel->SetVisible(showInfoLabel);
+        
+        // 清空信息标签文本
+        m_pInfoLabel->SetText("");
+        
+        // 设置取消按钮
+        m_pCancelButton->SetText("#GameUI_Cancel");
+        m_pCancelButton->SetCommand("Cancel");
+    }
+    
+    // 添加GamepadUI/SteamDeck模式的特殊处理
+    if (IsSteamDeck() || CommandLine()->FindParm("-gamepadui"))
+    {
+        // 确保进度条可见并设置适当样式
+        m_pProgress->SetVisible(true);
+        m_pProgress2->SetVisible(false); // 隐藏次要进度条
+        
+        // 隐藏不必要的UI元素
+        SetPaintBackgroundEnabled(false); // 禁用背景绘制
+        SetBgColor(Color(0, 0, 0, 0));    // 设置背景为透明
+        m_pInfoLabel->SetVisible(false);
+        m_pCancelButton->SetVisible(false);
+        m_pTimeRemainingLabel->SetVisible(false);
+        
+        // 设置全屏进度条样式
+        int screenWidth, screenHeight;
+        surface()->GetScreenSize(screenWidth, screenHeight);
+        m_pProgress->SetBounds(0, screenHeight - 48, screenWidth, 48);
+    }
 }
+
 
 
 //-----------------------------------------------------------------------------
@@ -499,10 +557,8 @@ void CLoadingDialog::PerformLayout()
 		y -= m_iAdditionalIndentY;
 
 		SetPos( x, y );
-	}
-	
-	BaseClass::PerformLayout();
-	
+	}	
+	BaseClass::PerformLayout();		
 	vgui::ipanel()->MoveToFront( GetVPanel() );
 }
 

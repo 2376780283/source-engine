@@ -66,10 +66,12 @@ int ProgressBar::GetDrawnSegmentCount()
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: So ? 💀
+// ZZH : for gamepadui
 //-----------------------------------------------------------------------------
 void ProgressBar::PaintBackground()
 {
+    if (!m_bDrawBackground) return; 
 	int wide, tall;
 	GetSize(wide, tall);
 
@@ -195,10 +197,14 @@ float ProgressBar::GetProgress()
 void ProgressBar::ApplySchemeSettings(IScheme *pScheme)
 {
 	Panel::ApplySchemeSettings(pScheme);
-
-	SetFgColor(GetSchemeColor("ProgressBar.FgColor", pScheme));
-	SetBgColor(GetSchemeColor("ProgressBar.BgColor", pScheme));
-	SetBorder(pScheme->GetBorder("ButtonDepressedBorder"));
+    if (!m_bDrawBackground){ 
+    	SetPaintBorderEnabled(false); // 不绘制默认边框
+        SetPaintBackgroundEnabled(false);
+    }else{   
+	    SetFgColor(GetSchemeColor("ProgressBar.FgColor", pScheme));
+	    SetBgColor(GetSchemeColor("ProgressBar.BgColor", pScheme));
+ 	    SetBorder(pScheme->GetBorder("ButtonDepressedBorder"));
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -395,7 +401,15 @@ ContinuousProgressBar::ContinuousProgressBar(Panel *parent, const char *panelNam
 {
 	_prevProgress = -1.f;
 	m_colorGain = Color( 100, 255, 100, 255 );
+	//Color(255, 46, 0, 240)
 	m_colorLoss = Color( 200, 45, 45, 255 );
+    if (!m_bDrawBackground){
+       SetPaintBackgroundEnabled(false);
+       SetBgColor(Color(0, 0, 0, 0));
+       SetFgColor(Color(255, 46, 0, 240));   
+       // rgb(255, 46, 0, 240)
+    }
+
 }
 
 //-----------------------------------------------------------------------------
@@ -420,6 +434,7 @@ void ContinuousProgressBar::Paint()
 	GetSize(wide, tall);
 
 	surface()->DrawSetColor( GetFgColor() );
+    surface()->DrawSetColor( Color(255, 46, 0, 240) );
 
 	bool bUsePrev = _prevProgress >= 0.f;
 	bool bGain = _progress > _prevProgress;
@@ -434,7 +449,7 @@ void ContinuousProgressBar::Paint()
 				surface()->DrawFilledRect( x, y, x + (int)( wide * _prevProgress ), y + tall );
 
 				// Delta
-				surface()->DrawSetColor( m_colorGain );
+				surface()->DrawSetColor(/* m_colorGain*/Color(255, 46, 0, 240) );
 				surface()->DrawFilledRect( x + (int)( wide * _prevProgress ), y, x + (int)( wide * _progress ), y + tall );
 				break;
 			}
@@ -445,7 +460,7 @@ void ContinuousProgressBar::Paint()
 				surface()->DrawFilledRect( x + (int)( wide * _progress ), y, x + (int)( wide * _prevProgress ), y + tall );
 			}
 		}
-		surface()->DrawSetColor( GetFgColor() );
+		surface()->DrawSetColor(/* m_colorGain*/Color(255, 46, 0, 240) );
 		surface()->DrawFilledRect( x, y, x + (int)( wide * _progress ), y + tall );
 		break;
 
