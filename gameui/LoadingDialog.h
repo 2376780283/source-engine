@@ -56,6 +56,9 @@ private:
 	vgui::Label			*m_pTimeRemainingLabel;
 	vgui::Button		*m_pCancelButton;
 	vgui::Panel			*m_pLoadingBackground;
+	vgui::Label          *m_pCustomText;  
+	vgui::Label          *m_pMapNameLabel;
+	vgui::Label          *m_mapicon;
 
 	bool	m_bShowingSecondaryProgress;
 	float	m_flSecondaryProgress;

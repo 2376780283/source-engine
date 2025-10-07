@@ -1301,6 +1301,14 @@ void CBasePanel::SetBackgroundRenderState(EBackgroundState state)
 			m_bRenderingBackgroundTransition = true;
 			m_flTransitionStartTime = frametime;
 			m_flTransitionEndTime = frametime + 3.0f;
+			if ( IsSteamDeck() )
+			{
+				m_flTransitionEndTime = frametime + 2.0f;
+			}
+			else
+			{
+				m_flTransitionEndTime = frametime + 4.0f;
+			}
 		}
 	}
 	else if ( state == BACKGROUND_LOADING )
@@ -1482,7 +1490,13 @@ void CBasePanel::DrawBackgroundImage()
 			static unsigned int	nFrameCache = 0;
 			surface()->DrawGetTextureSize(m_iLoadingSpinnerImageID, twide, ttall); //now use twide and ttall for spinner
 			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));
-			surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha }));
+			
+//#ifdef GAMEPADUI_GAME_EZ2
+			surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 255 ,46, 0, alpha })); //设置spinner颜色 红
+//#else	
+//            surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha })); //设置spinner颜色	
+//#endif   
+         	
 			surface()->DrawSetTextureFrame(m_iLoadingSpinnerImageID, ((int)m_fLoadingSpinnerFrame) % surface()->GetTextureNumFrames(m_iLoadingSpinnerImageID), &nFrameCache);
 			surface()->DrawSetTexture(m_iLoadingSpinnerImageID);
 
@@ -1939,21 +1953,29 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 		// load the loading icon
 		if ( m_iLoadingImageID == -1 )
 		{
-			const char* loading = "console/startup_loading";
-			if ( IsSteamDeck() )
-				loading = "gamepadui/game_logo";
-			m_iLoadingImageID = surface()->CreateNewTextureID();
+            if (IsSteamDeck())
+			{
+				const char* loading = "gamepadui/game_logo.vtf";
+				m_iLoadingImageID = surface()->CreateNewTextureID();
+				surface()->DrawSetTextureFile(m_iLoadingImageID, loading, true, false);
 			
-			surface()->DrawSetTextureFile( m_iLoadingImageID, loading, false, false );
+			}
+			else
+			{
+				const char* loading = "console/startup_loading";
+				m_iLoadingImageID = surface()->CreateNewTextureID();
+				surface()->DrawSetTextureFile(m_iLoadingImageID, loading, false, false);
+			}
 		}
 	}
+	// 加载 loading spinner
 	if (IsSteamDeck())
 	{
 		if (m_iLoadingSpinnerImageID == -1)
 		{
-		const char* loadingCircle = "gamepadui/spinner";
-	    m_iLoadingSpinnerImageID = surface()->CreateNewTextureID();
-		surface()->DrawSetTextureFile(m_iLoadingSpinnerImageID, loadingCircle, true, false);
+	   	 const char* loadingCircle = "gamepadui/spinner";
+	     m_iLoadingSpinnerImageID = surface()->CreateNewTextureID();
+		 surface()->DrawSetTextureFile(m_iLoadingSpinnerImageID, loadingCircle, true, false);
 		}
 	}
 }
