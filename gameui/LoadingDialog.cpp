@@ -49,10 +49,10 @@ class ImagePanelPNG : public vgui::Panel {
     DECLARE_CLASS_SIMPLE(ImagePanelPNG, vgui::Panel);
 
    public:
-      enum DisplayMode {
-        DISPLAY_CENTER,      // 居中保持比例
-        DISPLAY_STRETCH,     // 拉伸填充
-        DISPLAY_COVER        // 覆盖填充（保持比例但可能裁剪）
+    enum DisplayMode {
+        DISPLAY_CENTER,   // 居中保持比例
+        DISPLAY_STRETCH,  // 拉伸填充
+        DISPLAY_COVER     // 覆盖填充（保持比例但可能裁剪）
     };
 
     ImagePanelPNG(vgui::Panel *parent, const char *name, const char *pngPath, DisplayMode mode = DISPLAY_CENTER)
@@ -114,12 +114,12 @@ class ImagePanelPNG : public vgui::Panel {
                     }
                 }
                 break;
-                
+
             case DISPLAY_STRETCH:
                 // 拉伸填充（不保持比例）
                 // 使用默认值：x=0, y=0, drawW=panelW, drawH=panelH
                 break;
-                
+
             case DISPLAY_COVER:
                 // 覆盖填充（保持比例但可能裁剪）
                 {
@@ -228,7 +228,7 @@ CLoadingDialog::CLoadingDialog(vgui::Panel *parent) : Frame(parent, "LoadingDial
         m_pProgress2 = new ProgressBar(this, "Progress2");
     }
     m_pInfoLabel = new Label(this, "InfoLabel", "");
-         
+
     m_pCancelButton = new Button(this, "CancelButton", "#GameUI_Cancel");
     m_pTimeRemainingLabel = new Label(this, "TimeRemainingLabel", "");
     m_pCancelButton->SetCommand("Cancel");
@@ -313,9 +313,8 @@ void CLoadingDialog::PaintBackground() {
 
         if (IsSteamDeck())
             m_pLoadingBackground->SetPaintBackgroundEnabled(false);
-        else 
+        else
             m_pLoadingBackground->SetPaintBackgroundEnabled(true);
-           
     }
 
     if (ModInfo().IsSinglePlayerOnly()) {
@@ -399,13 +398,13 @@ void CLoadingDialog::Open() {
         const int labelY = screenHeight - 48 - labelHeight - paddingBottom;
 
         m_pInfoLabel->SetBounds(paddingLeft + 40, labelY, screenWidth - paddingLeft * 2, labelHeight);
-        m_pInfoLabel->SetFgColor(Color(38, 35, 38, 230));       
+        m_pInfoLabel->SetFgColor(Color(38, 35, 38, 230));
         HFont hBoldFont = vgui::scheme()->GetIScheme(GetScheme())->GetFont("Default", true);
         m_pInfoLabel->SetFont(hBoldFont);
         m_pInfoLabel->SetContentAlignment(vgui::Label::a_west);
-        m_pInfoLabel->SetWrap(false); 
-        ImagePanelPNG *info_icon = new ImagePanelPNG(this, "info_icon", "vgui/pixel_z_info.png", ImagePanelPNG::DISPLAY_STRETCH );
-        info_icon->SetBounds(20, labelY - 2, labelHeight - 2, labelHeight - 2);         
+        m_pInfoLabel->SetWrap(false);
+        ImagePanelPNG *info_icon = new ImagePanelPNG(this, "info_icon", "vgui/pixel_z_info.png", ImagePanelPNG::DISPLAY_STRETCH);
+        info_icon->SetBounds(20, labelY - 2, labelHeight - 2, labelHeight - 2);
     }
 }
 //-----------------------------------------------------------------------------

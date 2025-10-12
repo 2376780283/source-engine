@@ -372,20 +372,31 @@ void GamepadUINewGamePanel::OnThink()
     LayoutChapterButtons();
 }
 
-void GamepadUINewGamePanel::ApplySchemeSettings( vgui::IScheme* pScheme )
+void GamepadUINewGamePanel::ApplySchemeSettings(vgui::IScheme* pScheme)
 {
-    BaseClass::ApplySchemeSettings( pScheme );
+    BaseClass::ApplySchemeSettings(pScheme);
 
-    float flX, flY;
-    if (GamepadUI::GetInstance().GetScreenRatio( flX, flY ))
-    {
-        m_ChapterOffsetX *= (flX*flX);
-        m_ChapterOffsetX *= (flY*flY);
-    }
+    float flX = 1.0f, flY = 1.0f;
+    GamepadUI::GetInstance().GetScreenRatio(flX, flY);
+
+    // 按比例缩放偏移和间距
+    m_ChapterOffsetX *= flX;
+    m_ChapterOffsetY *= flY;
+    m_ChapterSpacing *= flX;
 
     if (m_pChapterButtons.Count() > 0)
     {
-        m_pScrollBar->InitScrollBar( &m_ScrollState, m_ChapterOffsetX, m_ChapterOffsetY + m_pChapterButtons[0]->GetTall() + m_ChapterSpacing );
+        int buttonTall = m_pChapterButtons[0]->GetTall();
+        int nParentW, nParentH;
+        GetParent()->GetSize(nParentW, nParentH);
+
+        // 计算按钮垂直居中
+        int yPos = (nParentH - buttonTall) / 2;
+
+        // 计算滚动条纵向位置（按钮下方，留一点间距）
+        int scrollBarY = yPos + buttonTall + 8; // 8 可调整间距
+
+        m_pScrollBar->InitScrollBar(&m_ScrollState, m_ChapterOffsetX, scrollBarY);
     }
 }
 
@@ -425,36 +436,51 @@ void GamepadUINewGamePanel::OnGamepadUIButtonNavigatedTo( vgui::VPANEL button )
 void GamepadUINewGamePanel::LayoutChapterButtons()
 {
     int nParentW, nParentH;
-	GetParent()->GetSize( nParentW, nParentH );
+    GetParent()->GetSize(nParentW, nParentH);
 
+    int buttonTall = m_pChapterButtons.Count() > 0 ? m_pChapterButtons[0]->GetTall() : 0;
+    int yPos = (nParentH - buttonTall) / 2; // 居中按钮
+
+    // 计算滚动范围
     float flScrollClamp = m_ChapterOffsetX;
-    for ( int i = 0; i < m_pChapterButtons.Count(); i++ )
+    for (int i = 0; i < m_pChapterButtons.Count(); i++)
     {
-        int nSize = ( m_pChapterButtons[0]->GetWide() + m_ChapterSpacing );
-
-        if ( i < m_pChapterButtons.Count() - 2 )
-            flScrollClamp += nSize;
+        int size = m_pChapterButtons[0]->GetWide() + m_ChapterSpacing;
+        if (i < m_pChapterButtons.Count() - 2)
+            flScrollClamp += size;
     }
 
-    m_ScrollState.UpdateScrollBounds( 0.0f, flScrollClamp );
+    m_ScrollState.UpdateScrollBounds(0.0f, flScrollClamp);
 
     if (m_pChapterButtons.Count() > 0)
     {
-        m_pScrollBar->UpdateScrollBounds( 0.0f, flScrollClamp,
-            ( m_pChapterButtons[0]->GetWide() + m_ChapterSpacing ) * 2.0f, nParentW - (m_ChapterOffsetX*2.0f) );
+        m_pScrollBar->UpdateScrollBounds(
+            0.0f,
+            flScrollClamp,
+            (m_pChapterButtons[0]->GetWide() + m_ChapterSpacing) * 2.0f,
+            nParentW - (m_ChapterOffsetX * 2.0f)
+        );
     }
 
-    for ( int i = 0; i < m_pChapterButtons.Count(); i++ )
+    // 布局按钮
+    for (int i = 0; i < m_pChapterButtons.Count(); i++)
     {
-        int size = ( m_pChapterButtons[0]->GetWide() + m_ChapterSpacing );
-
-        m_pChapterButtons[i]->SetPos( m_ChapterOffsetX + i * size - m_ScrollState.GetScrollProgress(), m_ChapterOffsetY );
-        m_pChapterButtons[i]->SetVisible( true );
+        int size = m_pChapterButtons[0]->GetWide() + m_ChapterSpacing;
+        m_pChapterButtons[i]->SetPos(
+            m_ChapterOffsetX + i * size - m_ScrollState.GetScrollProgress(),
+            yPos
+        );
+        m_pChapterButtons[i]->SetVisible(true);
     }
 
-    m_ScrollState.UpdateScrolling( 2.0f, GamepadUI::GetInstance().GetTime() );
-}
+    // 滚动条纵向对齐按钮
+    if (m_pScrollBar)
+    {
+        m_pScrollBar->SetPos(m_pScrollBar->GetXPos(), yPos + buttonTall + 8);
+    }
 
+    m_ScrollState.UpdateScrolling(2.0f, GamepadUI::GetInstance().GetTime());
+}
 void GamepadUINewGamePanel::OnCommand( char const* pCommand )
 {
     if ( !V_strcmp( pCommand, "action_back" ) )

@@ -15,9 +15,11 @@
 #include "vgui_controls/PHandle.h"
 #include "vgui_controls/MenuItem.h"
 #include "vgui_controls/MessageDialog.h"
+#include "WorkshopManagerPanel.h" 
+
 #include "KeyValues.h"
 #include "utlvector.h"
-#include "WorkshopManagerPanel.h"  // 先把你写的类声明进来
+
 
 #include "tier1/CommandBuffer.h"
 
@@ -289,12 +291,9 @@ public:
 
 	int  GetMenuAlpha( void );
 
-	void SetMainMenuOverride( vgui::VPANEL panel );
-
+	void SetMainMenuOverride( vgui::VPANEL panel );   
     WorkshopManagerPanel *m_pWorkshopPanel;
-
-
-
+    
 protected:
 	virtual void PaintBackground();
 	virtual void ApplySchemeSettings(vgui::IScheme *pScheme);
@@ -389,6 +388,7 @@ private:
 	vgui::DHANDLE<vgui::Frame> m_hAchievementsDialog;
     vgui::DHANDLE<vgui::Frame> m_hWorkshopDialog;
 
+
 	// Xbox 360
 	vgui::DHANDLE<vgui::Frame> m_hMatchmakingBasePanel;
 	vgui::DHANDLE<vgui::Frame> m_hControllerDialog;
@@ -455,6 +455,7 @@ private:
 	// fading to game
 	MESSAGE_FUNC_CHARPTR( RunEngineCommand, "RunEngineCommand", command );
 	MESSAGE_FUNC( FinishDialogClose, "FinishDialogClose" );
+    
 
 public:
 	MESSAGE_FUNC_CHARPTR( RunMenuCommand, "RunMenuCommand", command );

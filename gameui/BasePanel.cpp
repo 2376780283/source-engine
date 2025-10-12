@@ -56,7 +56,10 @@ using namespace vgui;
 #include "OptionsDialog.h"
 #include "CreateMultiplayerGameDialog.h"
 #include "ChangeGameDialog.h"
+#include "WorkshopManagerPanel.h" 
+
 #include "BackgroundMenuButton.h"
+#include "BasePanel.h"
 
 #include "PlayerListDialog.h"
 #include "BenchmarkDialog.h"
@@ -72,6 +75,9 @@ using namespace vgui;
 #include "matchmaking/achievementsdialog.h"
 #include "iachievementmgr.h"
 #include "UtlSortVector.h"
+
+#include "../thirdparty/stb/stb_image.h"
+#include "../thirdparty/stb/stb_image_resize.h"
 
 #include "game/client/IGameClientExports.h"
 
@@ -203,7 +209,7 @@ void CGameMenuItem::SetRightAlignedText(bool state)
 	m_bRightAligned = state;
 }
 
-class ImageButton : public vgui::Panel
+/* class ImageButton : public vgui::Panel
 {
 public:
 	ImageButton(Panel *parent, const char *imageName) : Panel(parent)
@@ -214,11 +220,8 @@ public:
 	}
 
 	virtual void Paint()
-	{   
-	//    if( IsSteamDeck() ) return;    
+	{    
 		int color = m_bSelected ? 120 : 160;
-	//	vgui::surface()->DrawSetColor(color, color, color, 100);
-	//	vgui::surface()->DrawFilledRect( 0, 0, GetWide(), GetTall() );
 		vgui::surface()->DrawSetTexture( m_textureID );
 		vgui::surface()->DrawSetColor( 255, 255, 255, 255 );
 		vgui::surface()->DrawTexturedRect( 0, 0, GetWide(), GetTall() );
@@ -233,9 +236,7 @@ public:
 	virtual void OnMouseReleased(MouseCode code)
 	{
 		m_bSelected = false;
-        vgui::MessageBox *pMessageBoxDeveloper =  new vgui::MessageBox("Hi there is Developer list", "Thanks to nillerusr\nER2/ItzVladik\nZZHのlife\nKonuriMaki", NULL);   
-        pMessageBoxDeveloper->DoModal();	
-
+        
 		input()->SetMouseCapture(NULL);
 	}
     virtual void OnScreenSizeChanged(int nOldWidth, int nOldHeight)
@@ -250,8 +251,8 @@ public:
 
 void SetBounds(int x, int y, int w, int h)
 {
-    m_iOldX = x; // 右边距
-    m_iOldY = y; // 下边距
+    m_iOldX = x; 
+    m_iOldY = y; 
     m_iOldW = w;
     m_iOldH = h;
     int nw, nh;
@@ -269,7 +270,7 @@ private:
 	bool m_bSelected;
 	int m_textureID;	
 };
-void AddNvgButton(vgui::Panel *parent, const char *imgName /*, const char *url*/ )
+void AddNvgButton(vgui::Panel *parent, const char *imgName , const char *url)
 {
     static int i = 0;
     ImageButton *panel = new ImageButton(parent, imgName);    
@@ -278,7 +279,7 @@ void AddNvgButton(vgui::Panel *parent, const char *imgName /*, const char *url*/
     int marginBottom = 10;
     panel->SetBounds(marginRight + i * (btnW + 4), marginBottom, btnW, btnH);
     i++;
-}
+}*/
 
 
 
@@ -909,12 +910,12 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 		}
 	}
 
-	if( IsAndroid() )
+/*	if( IsAndroid() )
 	{
 		AddNvgButton( this, "vgui/logos/info_logo_alis");
 		AddNvgButton( this, "vgui/logos/info_logo_zzh");
 		AddNvgButton( this, "vgui/logos/info_logo_er");
-	}
+	} */
 }
 
 //-----------------------------------------------------------------------------
@@ -997,7 +998,7 @@ static const char *g_rgValidCommands[] =
 	"OpenCreateMultiplayerGameDialog",
 	"OpenChangeGameDialog",
 	"OpenLoadCommentaryDialog",
-	"OpenWorkshopPanel",
+	"workshop_publish",
 	"Quit",
 	"QuitNoConfirm",
 	"ResumeGame",
@@ -1078,8 +1079,8 @@ void CBasePanel::PaintBackground()
 {
 	if ( !GameUI().IsInLevel() || g_hLoadingDialog.Get() || m_ExitingFrameCount )
 	{
-		// not in the game or loading dialog active or exiting, draw the ui background
-		DrawBackgroundImage();
+		// not in the game or loading dialog active or exiting, draw the ui background		
+		DrawBackgroundImage();        
 	}
 	else if ( IsX360() )
 	{
@@ -1635,7 +1636,7 @@ void CBasePanel::UpdateGameMenus()
 CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 {
     CGameMenu *menu = new CGameMenu(this, datafile->GetName());
-      // 不要使用 CommandLine()->FindParm ！！！
+      // dont use CommandLine()->FindParm ！！！
       if (CommandLine()->CheckParm( "-console" )){	     		
 		      menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); 
 	   }
@@ -1912,7 +1913,7 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 	surface()->GetScreenSize( screenWide, screenTall );
 	float aspectRatio = (float)screenWide/(float)screenTall;
 	bool bIsWidescreen = aspectRatio >= 1.5999f;
-
+		
 	// work out which background image to use
 	if ( IsPC() || !IsX360() )
 	{
@@ -2174,7 +2175,7 @@ void CBasePanel::RunMenuCommand(const char *command)
 	{
 		OnOpenLoadCommentaryDialog();	
 	}
-	else if ( !Q_stricmp( command, "OpenWorkshopPanel" ) )
+	else if ( !Q_stricmp( command, "workshop_publish" ) )
 	{
 		ShowWorkshopManager();
 	}
@@ -2464,7 +2465,7 @@ bool CBasePanel::IsPromptableCommand( const char *command )
 		 !Q_stricmp( command, "OpenOptionsDialog" ) ||
 		 !Q_stricmp( command, "OpenControllerDialog" ) ||
 		 !Q_stricmp( command, "OpenLoadCommentaryDialog" ) ||
-	     !Q_stricmp( command, "OpenWorkshopPanel" ) ||
+	     !Q_stricmp( command, "workshop_publish" ) ||
          !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) ||
          !Q_stricmp( command, "OpenAchievementsDialog" ) ||
 
@@ -3530,10 +3531,24 @@ void CBasePanel::OnOpenMatchmakingBasePanel()
 void CBasePanel::ShowWorkshopManager()
 {
 
-		m_hWorkshopDialog = new WorkshopManagerPanel(this);
+    if ( !m_hWorkshopDialog.Get() )
+	{
+	   m_hWorkshopDialog = new WorkshopManagerPanel(this);  // 正确创建实例
 		PositionDialog( m_hWorkshopDialog );
-     	m_hWorkshopDialog->Activate();
+		m_hWorkshopDialog->MoveToCenterOfScreen(); 
+	}
+     m_hWorkshopDialog->Activate();     
 }
+
+void CC_ShowWorkshopManager(const CCommand &args)
+{
+    if (g_pBasePanel)
+    {
+        g_pBasePanel->ShowWorkshopManager();
+    }
+}
+
+static ConCommand workshop_manager("workshop_publish", CC_ShowWorkshopManager, "Open Workshop Manager dialog", FCVAR_NONE);
 
 //-----------------------------------------------------------------------------
 // Purpose: Helper function for this common operation
