@@ -20,15 +20,16 @@ import os
 import sys
 
 ANDROID_NDK_ENVVARS = ['ANDROID_NDK_HOME', 'ANDROID_NDK']
-ANDROID_NDK_SUPPORTED = [10, 16, 19, 20]
+# add r28 support
+ANDROID_NDK_SUPPORTED = [10, 16, 19, 20, 28]
 ANDROID_NDK_HARDFP_MAX = 11 # latest version that supports hardfp
 ANDROID_NDK_GCC_MAX = 17 # latest NDK that ships with GCC
 ANDROID_NDK_UNIFIED_SYSROOT_MIN = 15
 ANDROID_NDK_SYSROOT_FLAG_MAX = 19 # latest NDK that need --sysroot flag
-ANDROID_NDK_API_MIN = { 10: 3, 16: 16, 19: 16, 20: 16 } # minimal API level ndk revision supports
+ANDROID_NDK_API_MIN = { 10: 3, 16: 16, 19: 16, 20: 16, 28: 16 } # minimal API level ndk revision supports
 ANDROID_64BIT_API_MIN = 21 # minimal API level that supports 64-bit targets
 
-# This class does support ONLY r10e and r19c/r20 NDK
+# This class does support r10e, r19c/r20 and r28 NDK
 class Android:
 	ctx            = None # waf context
 	arch           = None
@@ -53,9 +54,7 @@ class Android:
 			ctx.fatal('Set %s environment variable pointing to the root of Android NDK!' %
 				' or '.join(ANDROID_NDK_ENVVARS))
 
-		# TODO: this were added at some point of NDK development
-		# but I don't know at which version
-		# r10e don't have it
+		# read source.properties when available to detect revision
 		source_prop = os.path.join(self.ndk_home, 'source.properties')
 		if os.path.exists(source_prop):
 			with open(source_prop) as ndk_props_file:
@@ -64,11 +63,17 @@ class Android:
 					trimed_tokens = [token.strip() for token in tokens]
 
 					if 'Pkg.Revision' in trimed_tokens:
-						self.ndk_rev = int(trimed_tokens[1].split('.')[0])
+						# take major revision
+						try:
+							self.ndk_rev = int(trimed_tokens[1].split('.')[0])
+						except Exception:
+							# fallback if parsing fails
+							self.ndk_rev = ANDROID_NDK_SUPPORTED[-1]
 
 			if self.ndk_rev not in ANDROID_NDK_SUPPORTED:
 				ctx.fatal('Unknown NDK revision: %d' % (self.ndk_rev))
 		else:
+			# legacy behavior: assume oldest supported if no source.properties
 			self.ndk_rev = ANDROID_NDK_SUPPORTED[0]
 
 		if 'clang' in self.toolchain or self.ndk_rev > ANDROID_NDK_GCC_MAX:
@@ -85,9 +90,12 @@ class Android:
 			self.api = ANDROID_NDK_API_MIN[self.ndk_rev]
 			Logs.warn('API level automatically was set to %d due to NDK support' % self.api)
 
-		if self.is_arm64() or self.is_amd64() and self.api < ANDROID_64BIT_API_MIN:
+		if (self.is_arm64() or self.is_amd64()) and self.api < ANDROID_64BIT_API_MIN:
 			self.api = ANDROID_64BIT_API_MIN
 			Logs.warn('API level for 64-bit target automatically was set to %d' % self.api)
+			
+		if 'clang' in self.toolchain or self.ndk_rev > ANDROID_NDK_GCC_MAX:
+			self.clang = True
 
 	def is_host(self):
 		'''
@@ -212,9 +220,9 @@ class Android:
 		return os.path.join(self.gen_binutils_path(), 'strip')
 
 	def system_stl(self):
-		# TODO: proper STL support
+		# return libc++ include for modern NDKs; keep android support include too
 		return [
-			#os.path.abspath(os.path.join(self.ndk_home, 'sources', 'cxx-stl', 'system', 'include')),
+			os.path.abspath(os.path.join(self.ndk_home, 'sources', 'cxx-stl', 'llvm-libc++', 'include')),
 			os.path.abspath(os.path.join(self.ndk_home, 'sources', 'android', 'support', 'include'))
 		]
 
@@ -246,6 +254,7 @@ class Android:
 					'-isystem', '%s/usr/include/' % (self.sysroot())
 				]
 
+		# add system stl includes and android support include
 		cflags += ['-I%s'%i for i in self.system_stl()]+['-DANDROID', '-D__ANDROID__']
 
 		if cxx and not self.is_clang() and self.toolchain not in ['4.8','4.9']:
@@ -283,9 +292,9 @@ class Android:
 	# they go before object list
 	def linkflags(self):
 		linkflags = []
-		if self.is_host():
+		if not self.is_host():
 			linkflags += ['--gcc-toolchain=%s' % self.gen_gcc_toolchain_path()]
-
+			linkflags += ['-resource-dir=%s/lib/clang/18' % self.gen_gcc_toolchain_path()]
 		if self.ndk_rev <= ANDROID_NDK_SYSROOT_FLAG_MAX:
 			linkflags += ['--sysroot=%s' % (self.sysroot())]
 		elif self.is_host():
@@ -302,8 +311,9 @@ class Android:
 		if not self.is_clang():
 			ldflags += ['-lgcc']
 
+		# prefer libc++ for clang-based toolchains
 		if self.is_clang() or self.is_host():
-			ldflags += ['-stdlib=libstdc++']
+			ldflags += ['-stdlib=libc++']
 		if self.is_arm():
 			if self.arch == 'armeabi-v7a':
 				ldflags += ['-march=armv7-a']
@@ -316,10 +326,14 @@ class Android:
 			else:
 				ldflags += ['-march=armv5te']
 		elif self.is_arm64():
-			ldflags += ['-L' + (os.path.join(self.ndk_home, 'toolchains', 'aarch64-linux-android-4.9', 'prebuilt', self.gen_host_toolchain(), 'lib', 'gcc', 'aarch64-linux-android', '4.9.x'))]
-			ldflags += ['-L' + (os.path.join(self.ndk_home, 'platforms', 'android-%d' % (self.api), 'arch-arm64', 'usr', 'lib'))]
-			ldflags += ['-B' + (os.path.join(self.ndk_home, 'platforms', 'android-%d' % (self.api), 'arch-arm64', 'usr', 'lib'))]
+			# older GCC-based NDKs required extra lib paths; for clang/llvm toolchain these are handled by sysroot
+			if not self.is_clang():
+#				ldflags += ['-L' + (os.path.join(self.ndk_home, 'toolchains', 'aarch64-linux-android-4.9', 'prebuilt', self.gen_host_toolchain(), 'lib', 'gcc', 'aarch64-linux-android', '4.9.x'))]
+#				ldflags += ['-L' + (os.path.join(self.ndk_home, 'platforms', 'android-%d' % (self.api), 'arch-arm64', 'usr', 'lib'))]
+#				ldflags += ['-B' + (os.path.join(self.ndk_home, 'platforms', 'android-%d' % (self.api), 'arch-arm64', 'usr', 'lib'))]
+				pass
 		return ldflags
+
 
 def options(opt):
 	android = opt.add_option_group('Android options')
@@ -349,12 +363,16 @@ def configure(conf):
 		conf.env.CXXFLAGS += android.cflags(True)
 		conf.env.LINKFLAGS += android.linkflags()
 		conf.env.LDFLAGS += android.ldflags()
+		# use libc++ for modern ndks (r19+ / r28)
 		conf.env.INCLUDES += [
-			os.path.abspath(os.path.join(android.ndk_home, 'sources', 'cxx-stl', 'gnu-libstdc++', '4.9', 'include')),
-			os.path.abspath(os.path.join(android.ndk_home, 'sources', 'cxx-stl', 'gnu-libstdc++', '4.9', 'libs', stlarch, 'include'))
+			os.path.abspath(os.path.join(android.ndk_home, 'sources', 'cxx-stl', 'llvm-libc++', 'include')),
+			os.path.abspath(os.path.join(android.ndk_home, 'sources', 'cxx-stl', 'llvm-libc++', 'libs', stlarch, 'include')) if os.path.isdir(os.path.join(android.ndk_home, 'sources', 'cxx-stl', 'llvm-libc++', 'libs', stlarch)) else '',
+			os.path.abspath(os.path.join(android.ndk_home, 'sources', 'android', 'support', 'include'))
 		]
-		conf.env.STLIBPATH += [os.path.abspath(os.path.join(android.ndk_home, 'sources','cxx-stl','gnu-libstdc++','4.9','libs',stlarch))]
-		conf.env.LDFLAGS += ['-lgnustl_static']
+		# library search path for libc++
+		conf.env.STLIBPATH += [os.path.abspath(os.path.join(android.ndk_home, 'sources','cxx-stl','llvm-libc++','libs',stlarch))]
+		# link static libc++ by default for cross-builds
+		conf.env.LDFLAGS += ['-lc++_static']
 
 		conf.env.HAVE_M = True
 		if android.is_hardfp():
@@ -382,10 +400,7 @@ def post_compiler_cxx_configure(conf):
 	conf.msg('Target CPU', conf.env.DEST_CPU)
 	conf.msg('Target binfmt', conf.env.DEST_BINFMT)
 
-	if conf.options.ANDROID_OPTS:
-		if conf.android.ndk_rev == 19:
-			conf.env.CXXFLAGS_cxxshlib += ['-static-libstdc++']
-			conf.env.LDFLAGS_cxxshlib += ['-static-libstdc++']
+	# No special-casing required for r28: modern toolchain uses libc++ by default when clang is used
 	return
 
 def post_compiler_c_configure(conf):
@@ -427,3 +442,5 @@ def apply_android_soname(self):
 	libname = node.name
 	v = self.env.SONAME_ST % libname
 	self.env.append_value('LINKFLAGS', v.split())
+
+
