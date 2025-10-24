@@ -161,7 +161,7 @@ class Android:
 		# With host toolchain we don't care about OS
 		# so just download NDK for Linux x86_64
 		if self.is_host():
-			return 'linux-x86_64'
+			return 'linux-arm64'
 
 		if sys.platform.startswith('win32') or sys.platform.startswith('cygwin'):
 			osname = 'windows'

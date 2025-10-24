@@ -574,16 +574,6 @@ class GamepadUIWheelyWheel : public GamepadUIConvarButton {
         m_DangerousOptionsText.AddToTail(GamepadUIString(pszText));
     }
     
-    void FireActionSignal()
-    {
-        BaseClass::FireActionSignal();
-
-        if ( m_Options.Count() )
-            m_nSelectedItem = ( m_nSelectedItem + 1 ) % m_Options.Count();
-        if ( m_bInstantApply )
-            UpdateConVar();
-    }
-
     void UpdateConVar() OVERRIDE {
         if (IsDirty()) {
             if (m_bSignOnly)
