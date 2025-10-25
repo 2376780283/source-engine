@@ -59,7 +59,12 @@ void CGameConsole::Initialize()
 	vgui::surface()->GetScreenSize(swide, stall);
 	int offsetx = vgui::scheme()->GetProportionalScaledValue(16);
 	int offsety = vgui::scheme()->GetProportionalScaledValue(16);
-	m_pConsole->SetBounds( swide / 2 - offsetx, offsety, swide / 2 );
+	m_pConsole->SetBounds(
+		swide / 2 - offsetx,
+		offsety,
+		swide / 2,
+		(IsAndroid() ? 0.5f : 1.f )*(stall - (offsety * 2)));
+		
 	m_bInitialized = true;
 #endif
 }
