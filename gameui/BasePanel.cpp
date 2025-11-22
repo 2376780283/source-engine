@@ -915,7 +915,9 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 
 //	if( IsAndroid() )
 //	{
-	AddNvgButton( this, "vgui/logos/info_logo_zzh");
+    if (!CommandLine()->CheckParm( "-showdevicon" )){	     		
+		   AddNvgButton( this, "vgui/workshop_panel");
+    }	
 //	} 
 }
 

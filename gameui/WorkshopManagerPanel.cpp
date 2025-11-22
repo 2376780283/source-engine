@@ -395,10 +395,10 @@ class DevPage : public vgui::PropertyPage {
         // 填入开发者列表
         const char *devNames[] = {
             "nillerusr",
-            "ER2",
+            "er2",
             "ItzVladik",
-            "ZZHlife_PixelZ", 
-            "KonuriMaki_MaikJava"};
+            "zzh", 
+            "maik"};
 
         for (int i = 0; i < ARRAYSIZE(devNames); i++) {
             KeyValues *kv = new KeyValues("item");

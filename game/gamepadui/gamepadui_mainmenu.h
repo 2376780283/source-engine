@@ -48,10 +48,9 @@ public:
 
 // console button for episodic games by ZZHlife
 private:
-     GamepadUIButton* m_pSwitchToOldUIButton;
-// fun for episodic games console button
-// void CreateConsoleButton();
-// void unCreateConsoleButton();
+//     GamepadUIButton* m_pSwitchToOldUIButton;
+     GamepadUIButton *m_pConsoleButton;
+
 void SetConsoleButtonVisibility(bool bVisible);
 
 static int CompareButtonsByPriority( GamepadUIButton * const *a, GamepadUIButton * const *b );

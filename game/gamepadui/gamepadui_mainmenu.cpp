@@ -125,13 +125,13 @@ int GamepadUIMainMenu::CompareButtonsByPriority( GamepadUIButton * const *a, Gam
 
 void GamepadUIMainMenu::SetConsoleButtonVisibility(bool bVisible)
 {
-    if (!m_pSwitchToOldUIButton)
+    if (!m_pConsoleButton)
     {
-        m_pSwitchToOldUIButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd gamemenucommand openconsole","#GameUI_Console", "");
-        m_pSwitchToOldUIButton->SetPriority(0);
+        m_pConsoleButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd gamemenucommand openconsole","#GameUI_Console", "");
+        m_pConsoleButton->SetPriority(0);
     }
-     m_pSwitchToOldUIButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res","cmd gamemenucommand openconsole","#GameUI_Console", "");
-     m_pSwitchToOldUIButton->SetVisible(bVisible); 
+     m_pConsoleButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res","cmd gamemenucommand openconsole","#GameUI_Console", "");
+     m_pConsoleButton->SetVisible(bVisible); 
 }
 
 void GamepadUIMainMenu::ApplySchemeSettings( vgui::IScheme* pScheme )
@@ -164,7 +164,7 @@ void GamepadUIMainMenu::LayoutMainMenu()
     }
      int nParentW, nParentH;
      GetParent()->GetSize( nParentW, nParentH );
-     m_pSwitchToOldUIButton->SetPos( m_flOldUIButtonOffsetX, nParentH - m_pSwitchToOldUIButton->m_flHeight - m_flOldUIButtonOffsetY );
+     m_pConsoleButton->SetPos( m_flOldUIButtonOffsetX, nParentH - m_pConsoleButton->m_flHeight - m_flOldUIButtonOffsetY );
     
 }
 

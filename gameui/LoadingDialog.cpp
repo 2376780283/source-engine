@@ -54,9 +54,30 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 	m_flSecondaryProgress = 0.0f;
 	m_flLastSecondaryProgressUpdateTime = 0.0f;
 	m_flSecondaryProgressStartTime = 0.0f;
-
-	m_pProgress = new ProgressBar( this, "Progress" );
-	m_pProgress2 = new ProgressBar( this, "Progress2" );
+	if (IsGamepadUI()) {
+        m_pProgress = new ContinuousProgressBar(this, "Progress");
+        m_pProgress2 = new ContinuousProgressBar(this, "Progress2");
+        m_pProgress->SetTall(48);
+        m_pProgress->SetDrawBackground(false);
+        
+    ContinuousProgressBar* cProgress = dynamic_cast<ContinuousProgressBar*>(m_pProgress);
+    
+#ifdef PORTAL         
+          if (cProgress) {
+             cProgress->SetGainColor(Color(49, 185, 224, 255)); 
+             cProgress->SetLossColor(Color(49, 185, 200, 255)); // 蓝色
+          }
+#else         
+          if (cProgress) {
+             cProgress->SetGainColor(Color(201, 100, 0, 255)); 
+             cProgress->SetLossColor(Color(201, 80, 0, 255)); //橙色
+          }
+#endif          
+    } else {
+        m_pProgress = new ProgressBar(this, "Progress");
+        m_pProgress2 = new ProgressBar(this, "Progress2");
+        m_pProgress->SetDrawBackground(true);
+    }
 	m_pInfoLabel = new Label( this, "InfoLabel", "" );
 	m_pCancelButton = new Button( this, "CancelButton", "#GameUI_Cancel" );
 	m_pTimeRemainingLabel = new Label( this, "TimeRemainingLabel", "" );
@@ -91,13 +112,26 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 		SetTitleBarVisible( false );
 
 		m_flProgressFraction = 0;
-	}
-	else
-	{
-		m_pInfoLabel->SetBounds(20, 32, 392, 24);
-		m_pProgress->SetBounds(20, 64, 300, 24); 
-		m_pCancelButton->SetBounds(330, 64, 72, 24);
-		m_pProgress2->SetVisible(false);
+	} else {
+	    if (IsGamepadUI()) {
+            // 设置窗口
+            int zzh_screenWide, zzh_screenTall;
+            surface()->GetScreenSize(zzh_screenWide, zzh_screenTall);
+            SetSize(zzh_screenWide, zzh_screenTall);
+            SetMinimumSize(zzh_screenWide, zzh_screenTall);
+            SetPaintBackgroundEnabled(false);  // 禁用背景绘制
+            SetBgColor(Color(0, 0, 0, 0));     // 设置背景为透明
+            SetTitleBarVisible(false);
+            SetPaintBorderEnabled(false); // 不绘制默认边框
+            m_pCancelButton->SetVisible(false);
+        } else {
+            m_pInfoLabel->SetBounds(20, 32, 392, 24);
+            m_pProgress->SetBounds(20, 64, 300, 24);
+            m_pCancelButton->SetBounds(330, 64, 72, 24);
+            m_pProgress2->SetVisible(false);
+            SetPaintBorderEnabled(true);
+            SetPaintBackgroundEnabled(true); 
+        }
 	}
 
 	SetupControlSettings( false );
@@ -210,6 +244,22 @@ void CLoadingDialog::Open()
 		m_pCancelButton->SetText("#GameUI_Cancel");
 		m_pCancelButton->SetCommand("Cancel");
 	}
+	if (IsGamepadUI()) {
+
+        m_pProgress->SetVisible(true);
+        m_pProgress2->SetVisible(false);
+        SetPaintBackgroundEnabled(false);
+        SetBgColor(Color(0, 0, 0, 0));
+//        m_pInfoLabel->SetVisible(true);
+        m_pCancelButton->SetVisible(false);
+        m_pTimeRemainingLabel->SetVisible(false);
+
+        int screenWidth, screenHeight;
+        surface()->GetScreenSize(screenWidth, screenHeight);      
+        // === 进度条 ===       
+        m_pProgress->SetBounds(0, screenHeight - 48, screenWidth, 48);
+        SetCloseButtonVisible(false);
+    }
 }
 
 

@@ -79,13 +79,17 @@ struct event_s
 
 struct CTouchTexture
 {
-	IVTFTexture *vtf;
+    IVTFTexture *vtf;
 
-	float X0, Y0, X1, Y1; // position in atlas texture
-	int height, width;
-	int textureID;
-	bool isInAtlas;
-	char szName[1024];
+    float X0, Y0, X1, Y1;
+    int height, width;
+    int textureID;
+    bool isInAtlas;
+    char szName[1024];
+
+    unsigned char *rawData = nullptr;
+    int channels = 0;
+    bool isStbImage = false;
 };
 
 class CTouchButton

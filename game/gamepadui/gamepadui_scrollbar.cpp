@@ -24,10 +24,13 @@ void GamepadUIScrollBar::OnThink()
     if (!m_pScrollState)
         return;
 
-    if (m_nMouseOffset != -1)
+    if (m_nMouseOffset != -1 )
     {
         int nMouseX, nMouseY;
-        vgui::input()->GetCursorPos( nMouseX, nMouseY );
+        //vgui::input()->GetCursorPos( nMouseX, nMouseY );
+
+        nMouseX = m_iPos[0];
+        nMouseY = m_iPos[1];
 
         if (m_bHorizontal)
         {
@@ -111,9 +114,20 @@ void GamepadUIScrollBar::OnMousePressed( vgui::MouseCode code )
     GetPos( nX, nY );
 
     int nMouseX, nMouseY;
-    vgui::input()->GetCursorPos( nMouseX, nMouseY );
+    //vgui::input()->GetCursorPos( nMouseX, nMouseY );
+    
+    nMouseX = m_iPos[0];
+    nMouseY = m_iPos[1];
 
     m_nMouseOffset = (m_bHorizontal ? nMouseX - nX : nMouseY - nY);
+}
+
+void GamepadUIScrollBar::OnCursorMoved( int x, int y )
+{
+        BaseClass::OnCursorMoved( x, y );
+
+        m_iPos[0] = x;
+        m_iPos[1] = y;
 }
 
 void GamepadUIScrollBar::OnMouseReleased( vgui::MouseCode code )
