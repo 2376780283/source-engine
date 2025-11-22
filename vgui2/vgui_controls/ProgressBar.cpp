@@ -200,6 +200,8 @@ void ProgressBar::ApplySchemeSettings(IScheme *pScheme)
     	SetFgColor(GetSchemeColor("ProgressBar.FgColor", pScheme));
 	    SetBgColor(GetSchemeColor("ProgressBar.BgColor", pScheme));
  	    SetBorder(pScheme->GetBorder("ButtonDepressedBorder"));
+ 	    SetPaintBorderEnabled(true); 
+        SetPaintBackgroundEnabled(true);
     }else{   	    
 	    SetPaintBorderEnabled(false); // 不绘制默认边框
         SetPaintBackgroundEnabled(false);
@@ -401,12 +403,12 @@ ContinuousProgressBar::ContinuousProgressBar(Panel *parent, const char *panelNam
 	_prevProgress = -1.f;
 	
 //#ifdef GAMEPADUI_GAME_EZ2
-    m_colorGain = Color( 255, 46, 0, 240 );
-	m_colorLoss = Color( 255, 49, 0, 240 );
+//    m_colorGain = Color( 255, 46, 0, 240 );
+//	m_colorLoss = Color( 255, 49, 0, 240 );
 //#else	
-//	m_colorGain = Color( 100, 255, 100, 255 );
-//	m_colorLoss = Color( 200, 45, 45, 255 );
-// #endif
+//	m_colorGain = Color( 201, 100, 0, 255 );
+//	m_colorLoss = Color( 201, 90, 0, 255 );
+//#endif
 	
     if (!m_bDrawBackground){
        SetPaintBackgroundEnabled(false);
@@ -425,6 +427,24 @@ void ContinuousProgressBar::SetPrevProgress( float progress )
 
 	_prevProgress = ( progress == -1.f ) ? progress : clamp( progress, 0.f, 1.f );
 	Repaint();
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 设置增加条颜色
+//-----------------------------------------------------------------------------
+void ContinuousProgressBar::SetGainColor(const Color& color)
+{
+    m_colorGain = color;
+    Repaint(); // 更新显示
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 设置减少条颜色
+//-----------------------------------------------------------------------------
+void ContinuousProgressBar::SetLossColor(const Color& color)
+{
+    m_colorLoss = color;
+    Repaint(); // 更新显示
 }
 
 //-----------------------------------------------------------------------------

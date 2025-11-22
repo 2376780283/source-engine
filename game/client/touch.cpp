@@ -14,7 +14,16 @@
 #include "viewrender.h"
 
 #define STB_RECT_PACK_IMPLEMENTATION
-#include "stb_rect_pack.h"
+#include "../../thirdparty/stb/stb_rect_pack.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "../../thirdparty/stb/stb_image.h"
+
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include "../../thirdparty/stb/stb_image_resize.h"
+
+
+
 
 extern ConVar cl_sidespeed;
 extern ConVar cl_forwardspeed;
@@ -28,9 +37,6 @@ extern IMatSystemSurface *g_pMatSystemSurface;
 #else
 #define TOUCH_DEFAULT "0"
 #endif
-
-// ConVar touch_sensitivity("touch_sensitivity", "1.0", FCVAR_ARCHIVE, "Touch base sensitivity");
-ConVar touch_damping("touch_damping", "0.3", FCVAR_ARCHIVE, "Touch damping factor (0 = none, 1 = max)");
 
 extern ConVar sensitivity;
 
@@ -48,15 +54,6 @@ ConVar touch_config_file( "touch_config_file", "touch.cfg", FCVAR_ARCHIVE, "curr
 ConVar touch_grid_count( "touch_grid_count", "50", FCVAR_ARCHIVE, "touch grid count" );
 ConVar touch_grid_enable( "touch_grid_enable", "1", FCVAR_ARCHIVE, "enable touch grid" );
 ConVar touch_precise_amount( "touch_precise_amount", "0.5", FCVAR_ARCHIVE, "sensitivity multiplier for precise-look" );
-
-// 阻尼效果 staff
-// 在初始化时设置更合理的默认值
-ConVar touch_look_damping( "touch_look_damping", "0.1", FCVAR_ARCHIVE, "look damping factor (0.0 - 0.95)" );
-ConVar touch_look_damping_power( "touch_look_damping_power", "1.1", FCVAR_ARCHIVE, "look damping power curve (1.0 - 2.0)" );
-ConVar touch_look_inertia( "touch_look_inertia", "0.2", FCVAR_ARCHIVE, "look inertia amount (0.1 - 1.0)" );
-//touch_look_damping "0.1"
-//touch_look_damping_power "1.0"
-//touch_look_inertia "0.2"
 
 ConVar touch_button_info( "touch_button_info", "0", FCVAR_ARCHIVE );
 
@@ -301,81 +298,31 @@ void CTouchControls::GetTouchAccumulators( float *side, float *forward, float *y
 	this->pitch = 0.f;
 }
 
-void CTouchControls::GetTouchDelta( float rawYaw, float rawPitch, float *dx, float *dy )
+void CTouchControls::GetTouchDelta( float yaw, float pitch, float *dx, float *dy )
 {
-    // 获取当前帧时间
-    float flCurrentTime = gpGlobals->curtime;
-    float flFrameTime = flCurrentTime - m_flLastFrameTime;
-    m_flLastFrameTime = flCurrentTime;
-    
-    // 确保帧时间合理
-    if( flFrameTime <= 0.0f || flFrameTime > 0.1f )
-        flFrameTime = 0.016f;
-    
-    // 应用更平滑的阻尼计算
-    float damping = touch_look_damping.GetFloat();
-    float dampingPower = touch_look_damping_power.GetFloat();
-    float inertia = touch_look_inertia.GetFloat();
-    
-    // 改进的阻尼计算 - 使用更平滑的曲线
-    float dampedYaw = rawYaw * (1.0f - damping);
-    float dampedPitch = rawPitch * (1.0f - damping);
-    
-    // 可选：应用幂曲线，但更温和
-    if (dampingPower != 1.0f) {
-        dampedYaw = copysignf(powf(fabsf(dampedYaw), dampingPower), dampedYaw);
-        dampedPitch = copysignf(powf(fabsf(dampedPitch), dampingPower), dampedPitch);
-    }
-    
-    // 累积输入
-    m_flRemainingYaw += dampedYaw;
-    m_flRemainingPitch += dampedPitch;
-    
-    // 基于帧时间应用惯性
-    float frameYaw = m_flRemainingYaw * inertia * (flFrameTime / 0.016f);
-    float framePitch = m_flRemainingPitch * inertia * (flFrameTime / 0.016f);
-    
-    // 更新剩余量
-    m_flRemainingYaw -= frameYaw;
-    m_flRemainingPitch -= framePitch;
-    
-    // 应用过滤（如果启用）
-    if( touch_filter.GetBool() )
-    {
-        // 使用加权平均而不是简单平均
-        *dx = (frameYaw * 0.7f + m_flPreviousYaw * 0.3f);
-        *dy = (framePitch * 0.7f + m_flPreviousPitch * 0.3f);
-    }
-    else
-    {
-        *dx = frameYaw;
-        *dy = framePitch;
-    }
+	// Apply filtering?
+	if( touch_filter.GetBool() )
+	{
+		// Average over last two samples
+		*dx = ( yaw + m_flPreviousYaw ) * 0.5f;
+		*dy = ( pitch + m_flPreviousPitch ) * 0.5f;
+	}
+	else
+	{
+		*dx = yaw;
+		*dy = pitch;
+	}
 
-    // 保存上一帧的值用于过滤
-    m_flPreviousYaw = *dx;
-    m_flPreviousPitch = *dy;
+	// Latch previous
+	m_flPreviousYaw = yaw;
+	m_flPreviousPitch = pitch;
 }
-
-
-void CTouchControls::ResetLookDamping()
-{
-    // 不完全重置，保留部分动量以实现更平滑的过渡
-    m_flRemainingYaw *= 0.2f;
-    m_flRemainingPitch *= 0.2f;
-    m_flPreviousYaw = 0.0f;
-    m_flPreviousPitch = 0.0f;
-}
-
-
-
-
 
 void CTouchControls::ResetToDefaults()
 {
 	rgba_t color(255, 255, 255, 155);
 	char buf[MAX_PATH];
-	gridcolor = rgba_t(255, 0, 0, 30);
+	gridcolor = rgba_t(223, 244, 224, 50);
 
 	RemoveButtons();
 
@@ -399,12 +346,8 @@ void CTouchControls::ResetToDefaults()
 		AddButton( "flashlight", "vgui/touch/flash_light_filled", "impulse 100", 0.920000, 0.000000, 1.000000, 0.142222, color );
 		AddButton( "invnext", "vgui/touch/next_weap", "invnext", 0.000000, 0.533333, 0.120000, 0.746667, color );
 		AddButton( "invprev", "vgui/touch/prev_weap", "invprev", 0.000000, 0.071111, 0.120000, 0.284444, color );
-		AddButton( "edit", "vgui/touch/settings", "touch_enableedit", 0.420000, 0.000000, 0.500000, 0.151486 , color);
-		AddButton( "menu", "vgui/touch/menu", "gameui_activate", 0.000000, 0.00000, 0.080000, 0.142222 , color);   
-        AddButton("sendsquad", "vgui/touch/squad", "impulse 50", 0.560000, 0.044444, 0.620000, 0.177778, color);
-        AddButton("kick", "vgui/touch/kick", "+attack3", 0.660000, 0.311111, 0.760000, 0.533333, color);
-        AddButton("detonate", "vgui/touch/slam", "impulse 36", 0.660000, 0.533333, 0.760000, 0.755556, color);
-
+		AddButton( "edit", "vgui/touch/settings", "touch_enableedit", 0.420000, 0.000000, 0.500000, 0.151486, color );
+		AddButton( "menu", "vgui/touch/menu", "gameui_activate", 0.000000, 0.00000, 0.080000, 0.142222, color );
 	}
 	else
 	{
@@ -438,16 +381,8 @@ void CTouchControls::Init()
 	mouse_events = 0;
 	move_start_x = move_start_y = 0.0f;
 	m_flPreviousYaw = m_flPreviousPitch = 0.f;
-	gridcolor = rgba_t(255, 0, 0, 30);
+	gridcolor = rgba_t(223, 244, 224, 50);
 
-    // 初始化阻尼相关变量
-    m_flLookDamping = 0.2f;
-    m_flLookDampingPower = 1.5f;
-    m_flLookInertia = 0.7f;
-    m_flRemainingYaw = 0.0f;
-    m_flRemainingPitch = 0.0f;
-    m_flLastFrameTime = gpGlobals->curtime;
-   
 	m_bCutScene = false;
 	showtexture = hidetexture = resettexture = closetexture = joytexture = 0;
 	configchanged = false;
@@ -473,9 +408,6 @@ void CTouchControls::Init()
 	AddButton( "invprev", "vgui/touch/prev_weap", "invprev", 0.000000, 0.071111, 0.120000, 0.284444, color );
 	AddButton( "edit", "vgui/touch/settings", "touch_enableedit", 0.420000, 0.000000, 0.500000, 0.151486, color );
 	AddButton( "menu", "vgui/touch/menu", "gameui_activate", 0.000000, 0.00000, 0.080000, 0.142222, color );
-    AddButton("sendsquad", "vgui/touch/squad", "impulse 50", 0.560000, 0.044444, 0.620000, 0.177778, color);
-    AddButton("kick", "vgui/touch/kick", "+attack3", 0.660000, 0.311111, 0.760000, 0.533333, color);
-    AddButton("detonate", "vgui/touch/slam", "impulse 36", 0.660000, 0.533333, 0.760000, 0.755556, color);
 
 	char buf[256];
 
@@ -503,10 +435,20 @@ void CTouchControls::Init()
 }
 
 void CTouchControls::LevelInit()
+
+
 {
+
+
 	m_bCutScene = false;
+
+
 	m_AlphaDiff = 0;
+
+
 	m_flHideTouch = 0;
+
+
 }
 
 int nextPowerOfTwo(int x)
@@ -527,7 +469,7 @@ void CTouchControls::CreateAtlasTexture()
 	int atlasSize = 0;
 
 	stbrp_rect *rects = (stbrp_rect*)malloc(textureList.Count()*sizeof(stbrp_rect));
-	memset(rects, 0, sizeof(stbrp_node)*textureList.Count());
+	memset(rects, 0, sizeof(stbrp_rect)*textureList.Count());
 
 	if( touchTextureID )
 		vgui::surface()->DeleteTextureByID( touchTextureID );
@@ -539,63 +481,135 @@ void CTouchControls::CreateAtlasTexture()
 		CTouchTexture *t = textureList[i];
 		Q_snprintf(fullFileName, MAX_PATH, "materials/%s.vtf", t->szName);
 
-		FileHandle_t fp;
-		fp = ::filesystem->Open( fullFileName, "rb" );
-		if( !fp )
+		FileHandle_t fp = ::filesystem->Open( fullFileName, "rb" );
+		if( fp )
+		{
+			::filesystem->Seek( fp, 0, FILESYSTEM_SEEK_TAIL );
+			int srcVTFLength = ::filesystem->Tell( fp );
+			::filesystem->Seek( fp, 0, FILESYSTEM_SEEK_HEAD );
+
+			CUtlBuffer buf;
+			buf.EnsureCapacity( srcVTFLength );
+			int bytesRead = ::filesystem->Read( buf.Base(), srcVTFLength, fp );
+			::filesystem->Close( fp );
+
+			buf.SeekGet( CUtlBuffer::SEEK_HEAD, 0 );
+			buf.SeekPut( CUtlBuffer::SEEK_HEAD, bytesRead );
+
+			t->vtf = CreateVTFTexture();
+			if ( t->vtf->Unserialize(buf) )
+			{
+				if( t->vtf->Format() != IMAGE_FORMAT_RGBA8888 && t->vtf->Format() != IMAGE_FORMAT_BGRA8888 )
+				{
+					t->textureID = vgui::surface()->CreateNewTextureID();
+					vgui::surface()->DrawSetTextureFile( t->textureID, t->szName, true, false);
+					DestroyVTFTexture(t->vtf);
+					t->vtf = nullptr;
+					t->isInAtlas = false;
+					continue;
+				}
+				if( t->vtf->Height() != t->vtf->Width() || (t->vtf->Height() & (t->vtf->Height() - 1)) != 0 )
+				{
+					Error("%s texture is wrong! Don't use npot textures for touch.", t->szName);
+				}
+
+				t->height = t->vtf->Height();
+				t->width = t->vtf->Width();
+				t->isInAtlas = true;
+
+				atlasSize += t->width * t->height;
+				rectCount++;
+				continue;
+			}
+			else
+			{
+				DestroyVTFTexture(t->vtf);
+				t->vtf = nullptr;
+				t->isInAtlas = false;
+			}
+		}
+
+		char baseTextureName[MAX_PATH];
+		Q_strncpy(baseTextureName, t->szName, sizeof(baseTextureName));
+		char *dot = Q_strrchr(baseTextureName, '.');
+		if (dot) *dot = '\0';
+
+		const char *exts[] = { ".png", ".jpg" /*, ".jpeg", ".tga", ".bmp", ".pcx"*/ };
+		bool gotImage = false;
+		for( size_t e = 0; e < sizeof(exts)/sizeof(exts[0]); e++ )
+		{
+			Q_snprintf(fullFileName, MAX_PATH, "materials/%s%s", baseTextureName, exts[e]);
+			FileHandle_t fp2 = ::filesystem->Open( fullFileName, "rb" );
+			if( !fp2 ) continue;
+
+			::filesystem->Seek( fp2, 0, FILESYSTEM_SEEK_TAIL );
+			int fileLen = ::filesystem->Tell( fp2 );
+			::filesystem->Seek( fp2, 0, FILESYSTEM_SEEK_HEAD );
+
+			CUtlBuffer buf;
+			buf.EnsureCapacity(fileLen);
+			int bytesRead = ::filesystem->Read( buf.Base(), fileLen, fp2 );
+			::filesystem->Close(fp2);
+
+			int w=0,h=0,comp=0;
+			unsigned char *img = stbi_load_from_memory( (unsigned char*)buf.Base(), bytesRead, &w, &h, &comp, 4 );
+			if( img )
+			{
+				int newW = nextPowerOfTwo(w);
+				int newH = nextPowerOfTwo(h);
+				
+				if (newW != w || newH != h)
+				{
+					unsigned char *resized = (unsigned char*)malloc(newW * newH * 4);
+					stbir_resize_uint8(img, w, h, 0, resized, newW, newH, 0, 4);
+					stbi_image_free(img);
+					img = resized;
+					t->isStbImage = false;
+				}
+				else
+				{
+					t->isStbImage = true;
+				}
+				
+				t->width = newW;
+				t->height = newH;
+				t->rawData = img;
+				t->channels = 4;
+				t->isInAtlas = true;
+				t->vtf = nullptr;
+				atlasSize += t->width * t->height;
+				rectCount++;
+				gotImage = true;
+				break;
+			}
+		}
+
+		if( !gotImage )
 		{
 			t->textureID = vgui::surface()->CreateNewTextureID();
 			vgui::surface()->DrawSetTextureFile( t->textureID, t->szName, true, false );
+			t->isInAtlas = false;
 			continue;
 		}
-
-		::filesystem->Seek( fp, 0, FILESYSTEM_SEEK_TAIL );
-		int srcVTFLength = ::filesystem->Tell( fp );
-		::filesystem->Seek( fp, 0, FILESYSTEM_SEEK_HEAD );
-
-		CUtlBuffer buf;
-		buf.EnsureCapacity( srcVTFLength );
-		int bytesRead = ::filesystem->Read( buf.Base(), srcVTFLength, fp );
-		::filesystem->Close( fp );
-
-		buf.SeekGet( CUtlBuffer::SEEK_HEAD, 0 ); // Need to set these explicitly since ->Read goes straight to memory and skips them.
-		buf.SeekPut( CUtlBuffer::SEEK_HEAD, bytesRead );
-
-		t->vtf = CreateVTFTexture();
-		if (t->vtf->Unserialize(buf))
-		{
-			if( t->vtf->Format() != IMAGE_FORMAT_RGBA8888 && t->vtf->Format() != IMAGE_FORMAT_BGRA8888 )
-			{
-				t->textureID = vgui::surface()->CreateNewTextureID();
-				vgui::surface()->DrawSetTextureFile( t->textureID, t->szName, true, false);
-				DestroyVTFTexture(t->vtf);
-				continue;
-			}
-			if( t->vtf->Height() != t->vtf->Width() || (t->vtf->Height() & (t->vtf->Height() - 1)) != 0 )
-				Error("%s texture is wrong! Don't use npot textures for touch.");
-
-			t->height = t->vtf->Height();
-			t->width = t->vtf->Width();
-			t->isInAtlas = true;
-
-			atlasSize += t->width*t->height;
-		}
-		else
-		{
-			DestroyVTFTexture(t->vtf);
-			t->textureID = vgui::surface()->CreateNewTextureID();
-			vgui::surface()->DrawSetTextureFile( t->textureID, t->szName, true, false);
-			continue;
-		}
-
-		rects[rectCount].h = t->height;
-		rects[rectCount].w = t->width;
-		rectCount++;
 	}
 
 	if( !textureList.Count() || rectCount == 0 )
 	{
 		free(rects);
 		return;
+	}
+
+	rectCount = 0;
+	for( int i = 0; i < textureList.Count(); i++ )
+	{
+		CTouchTexture *t = textureList[i];
+		if( t->textureID || !t->isInAtlas )
+			continue;
+			
+		rects[rectCount].w = t->width;
+		rects[rectCount].h = t->height;
+		rects[rectCount].id = i;
+		rectCount++;
 	}
 
 	int atlasHeight = nextPowerOfTwo(sqrt((double)atlasSize));
@@ -615,7 +629,7 @@ void CTouchControls::CreateAtlasTexture()
 	for( int i = 0; i < textureList.Count(); i++ )
 	{
 		CTouchTexture *t = textureList[i];
-		if( t->textureID )
+		if( t->textureID || !t->isInAtlas )
 			continue;
 
 		t->X0 = rects[rectCount].x / (float)atlasHeight;
@@ -623,17 +637,37 @@ void CTouchControls::CreateAtlasTexture()
 		t->X1 = t->X0 + t->width / (float)atlasHeight;
 		t->Y1 = t->Y0 + t->height / (float)atlasHeight;
 
-		unsigned char *src = t->vtf->ImageData(0, 0, 0);
-		for( int row = 0; row < t->height; row++)
+		unsigned char *src = nullptr;
+		if (t->vtf)
+			src = t->vtf->ImageData(0, 0, 0);
+		else if (t->rawData)
+			src = t->rawData;
+
+		if (src)
 		{
-			unsigned char *row_dest = dest+(row+rects[rectCount].y)*atlasHeight*4+rects[rectCount].x*4;
-			unsigned char *row_src = src+row*t->height*4;
-
-			memcpy(row_dest, row_src, t->height*4);
+			for( int row = 0; row < t->height; row++)
+			{
+				unsigned char *row_dest = dest + (row + rects[rectCount].y) * atlasHeight * 4 + rects[rectCount].x * 4;
+				unsigned char *row_src = src + row * t->width * 4;
+				memcpy(row_dest, row_src, t->width * 4);
+			}
 		}
-		rectCount++;
 
-		DestroyVTFTexture(t->vtf);
+		rectCount++;
+	}
+
+	for( int i = 0; i < textureList.Count(); i++ )
+	{
+		CTouchTexture *t = textureList[i];
+		
+		if (t->rawData)
+		{
+			if (t->isStbImage)
+				stbi_image_free(t->rawData);
+			else
+				free(t->rawData);
+			t->rawData = nullptr;
+		}
 	}
 
 	touchTextureID = vgui::surface()->CreateNewTextureID( true );
@@ -736,8 +770,6 @@ void CTouchControls::Paint()
 
 	CUtlLinkedList<CTouchButton*>::iterator it;
 
-	const rgba_t buttonEditClr = rgba_t( 61, 153, 0, 40 );
-
 	if( state == state_edit )
 	{
 		vgui::surface()->DrawSetColor(gridcolor.r, gridcolor.g, gridcolor.b, gridcolor.a*3); // 255, 0, 0, 200 <- default here
@@ -764,7 +796,7 @@ void CTouchControls::Paint()
 					g_pMatSystemSurface->DrawColoredText( 2, btn->x1*screen_w, btn->y1*screen_h+40, 255, 255, 255, 255, "RGBA: %d %d %d %d", btn->color.r, btn->color.g, btn->color.b, btn->color.a );// color
 				}
 
-				vgui::surface()->DrawSetColor(buttonEditClr.r, buttonEditClr.g, buttonEditClr.b, buttonEditClr.a); // 255, 0, 0, 50 <- default here
+				vgui::surface()->DrawSetColor(gridcolor.r, gridcolor.g, gridcolor.b, gridcolor.a); // 255, 0, 0, 50 <- default here
 				vgui::surface()->DrawFilledRect( btn->x1*screen_w, btn->y1*screen_h, btn->x2*screen_w, btn->y2*screen_h );
 			}
 		}
@@ -1087,7 +1119,7 @@ void CTouchControls::EditEvent(touch_event_t *ev)
 }
 
 
-void CTouchControls::FingerMotion(touch_event_t *ev) // finger in my ass
+void CTouchControls::FingerMotion(touch_event_t *ev) // finger event
 {
 	const float x = ev->x;
 	const float y = ev->y;
@@ -1157,40 +1189,37 @@ void CTouchControls::FingerPress(touch_event_t *ev)
 			}
 		}
 	}
-    else if( ev->type == IE_FingerUp )
-    {
-        for( it = btns.begin(); it != btns.end(); it++ )
-        {
-            CTouchButton *btn = *it;
+	else if( ev->type == IE_FingerUp )
+	{
+		for( it = btns.begin(); it != btns.end(); it++ )
+		{
+			CTouchButton *btn = *it;
 
-            if( btn->flags & TOUCH_FL_HIDE )
-                continue;
+			if( btn->flags & TOUCH_FL_HIDE )
+				continue;
 
-            if( btn->finger == ev->fingerid )
-            {
-                btn->finger = -1;
+			if( btn->finger == ev->fingerid )
+			{
+				btn->finger = -1;
 
-                if( btn->type == touch_move )
-                {
-                    forward = side = 0;
-                    move_finger = -1;
-                }
-                else if( btn->type == touch_look )
-                {
-                    look_finger = -1;
-                    // 重置阻尼状态
-                    ResetLookDamping();
-                }
-                else if( btn->command[0] == '+' )
-                {
-                    char cmd[256];
-                    snprintf( cmd, sizeof cmd, "%s", btn->command );
-                    cmd[0] = '-';
-                    engine->ClientCmd_Unrestricted( cmd );
-                }
-            }
-        }
-    }
+				if( btn->type == touch_move )
+				{
+					forward = side = 0;
+					move_finger = -1;
+				}
+				else if( btn->type == touch_look )
+					look_finger = -1;
+				else if( btn->command[0] == '+' )
+				{
+					char cmd[256];
+
+					snprintf( cmd, sizeof cmd, "%s", btn->command );
+					cmd[0] = '-';
+					engine->ClientCmd_Unrestricted( cmd );
+				}
+			}
+		}
+	}
 }
 
 void CTouchControls::EnableTouchEdit(bool enable)
@@ -1278,12 +1307,7 @@ void CTouchControls::WriteConfig()
 		//filesystem->FPrintf( f, "touch_setclientonly 0\n" );
 		filesystem->FPrintf( f, "\n// touch buttons\n" );
 		filesystem->FPrintf( f, "touch_removeall\n" );
-		// 阻尼    
-        filesystem->FPrintf( f, "\n// look damping settings\n" );
-        filesystem->FPrintf( f, "touch_look_damping \"%f\"\n", touch_look_damping.GetFloat() );
-        filesystem->FPrintf( f, "touch_look_damping_power \"%f\"\n", touch_look_damping_power.GetFloat() );
-        filesystem->FPrintf( f, "touch_look_inertia \"%f\"\n", touch_look_inertia.GetFloat() );
-    
+
 		CUtlLinkedList<CTouchButton*>::iterator it;
 		for( it = btns.begin(); it != btns.end(); it++ )
 		{
@@ -1313,17 +1337,4 @@ void CTouchControls::WriteConfig()
 		filesystem->RenameFile(newconfigfile, configfile);
 	}
 	else DevMsg( "Couldn't write %s.\n", configfile );
-}
-
-
-
-static float ApplyTouchDamping(float rawInput, float prevValue) {
-    float damping = touch_damping.GetFloat();
-    if (damping <= 0.0f) return rawInput; // no damping
-
-    float velocity = fabs(rawInput - prevValue);
-    // Adaptive damping: small moves = strong damping, large moves = weak damping
-    float adaptiveAlpha = clamp(0.1f + velocity * (1.0f - damping), 0.1f, 1.0f);
-
-    return prevValue + adaptiveAlpha * (rawInput - prevValue);
 }

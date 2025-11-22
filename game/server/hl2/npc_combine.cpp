@@ -97,7 +97,7 @@ void CV_SquadmateGlowUpdate( IConVar *var, const char *pOldValue, float flOldVal
 
 ConVar	sv_squadmate_glow( "sv_squadmate_glow", "1", FCVAR_ARCHIVE, "If 1, Combine soldier squadmates will glow when they are in the player's squad. The color of the glow represents their HP.", CV_SquadmateGlowUpdate );
 ConVar	sv_squadmate_glow_style( "sv_squadmate_glow_style", "1", FCVAR_ARCHIVE, "Different colors for Combine squadmate glows. 0: Green means 100 HP, red means 0 HP\t1: White means 100 HP, red means 0 HP", CV_SquadmateGlowUpdate );
-ConVar	sv_squadmate_glow_alpha( "sv_squadmate_glow_alpha", "0.6", FCVAR_ARCHIVE, "On a scale of 0-1, how much alpha should the squadmate glow have", CV_SquadmateGlowUpdate );
+ConVar	sv_squadmate_glow_alpha( "sv_squadmate_glow_alpha",/* "0.6"*/ "1", FCVAR_ARCHIVE, "On a scale of 0-1, how much alpha should the squadmate glow have", CV_SquadmateGlowUpdate );
 
 #define COMBINE_GLOW_STYLE_REDGREEN	0
 #define COMBINE_GLOW_STYLE_REDWHITE	1

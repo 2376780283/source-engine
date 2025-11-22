@@ -18,8 +18,8 @@
 #include "vgui_controls/PropertySheet.h"
 #include "vgui_controls/TextEntry.h"
 
-// #define STB_IMAGE_IMPLEMENTATION
-// #define STB_IMAGE_RESIZE_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "../thirdparty/stb/stb_image.h"
 #include "../thirdparty/stb/stb_image_resize.h"
 
@@ -395,10 +395,10 @@ class DevPage : public vgui::PropertyPage {
         // 填入开发者列表
         const char *devNames[] = {
             "nillerusr",
-            "ER2",
+            "er2",
             "ItzVladik",
-            "ZZHlife_PixelZ", 
-            "KonuriMaki_MaikJava"};
+            "zzh", 
+            "maik"};
 
         for (int i = 0; i < ARRAYSIZE(devNames); i++) {
             KeyValues *kv = new KeyValues("item");

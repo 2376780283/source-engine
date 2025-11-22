@@ -100,8 +100,10 @@ public:
 	ContinuousProgressBar(Panel *parent, const char *panelName);
 	MESSAGE_FUNC_FLOAT( SetPrevProgress, "SetPrevProgress", prevProgress );
 
-	void SetGainColor( Color color ) { m_colorGain = color; }
-	void SetLossColor( Color color ) { m_colorLoss = color; }
+//	void SetGainColor( Color color ) { m_colorGain = color; }
+//	void SetLossColor( Color color ) { m_colorLoss = color; }
+    void SetGainColor(const Color& color);
+    void SetLossColor(const Color& color);
 
 	virtual void Paint();
 

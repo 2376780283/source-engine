@@ -147,10 +147,10 @@ void CDbgLogger::Init(const char *logfile)
 	        
     fprintf(file,
             ">>> Opt\n"
-            "       Version : 1.18.0\n"
+            "       Version : 1.18.2\n"
             "       Build   : ZZH life\n"
             "------------------------------------------------------ \n"
-            "\n >>> Starting Game (Menu) \n "
+            ">>> Starting Game (Menu) \n "
             );
 	fflush(file);
 		

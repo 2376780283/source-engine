@@ -209,79 +209,6 @@ void CGameMenuItem::SetRightAlignedText(bool state)
 	m_bRightAligned = state;
 }
 
-/* class ImageButton : public vgui::Panel
-{
-public:
-	ImageButton(Panel *parent, const char *imageName) : Panel(parent)
-	{
-		m_textureID = vgui::surface()->CreateNewTextureID();
-		vgui::surface()->DrawSetTextureFile( m_textureID, imageName, true, false);
-		m_bSelected = false;
-	}
-
-	virtual void Paint()
-	{    
-		int color = m_bSelected ? 120 : 160;
-		vgui::surface()->DrawSetTexture( m_textureID );
-		vgui::surface()->DrawSetColor( 255, 255, 255, 255 );
-		vgui::surface()->DrawTexturedRect( 0, 0, GetWide(), GetTall() );
-	}
-
-	virtual void OnMousePressed(MouseCode code)
-	{
-		m_bSelected = true;
-		input()->SetMouseCapture(GetVPanel());
-	}
-
-	virtual void OnMouseReleased(MouseCode code)
-	{
-		m_bSelected = false;
-        
-		input()->SetMouseCapture(NULL);
-	}
-    virtual void OnScreenSizeChanged(int nOldWidth, int nOldHeight)
-    {
-    int nw, nh;
-    surface()->GetScreenSize(nw, nh);
-    int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
-    int scaled_h = scheme()->GetProportionalScaledValue(m_iOldH);
-    Panel::SetPos(nw - scheme()->GetProportionalScaledValue(m_iOldX) - scaled_w, nh - scheme()->GetProportionalScaledValue(m_iOldY) - scaled_h );
-       Panel::SetSize(scaled_w, scaled_h);    
-    }
-
-void SetBounds(int x, int y, int w, int h)
-{
-    m_iOldX = x; 
-    m_iOldY = y; 
-    m_iOldW = w;
-    m_iOldH = h;
-    int nw, nh;
-    surface()->GetScreenSize(nw, nh);
-    int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
-    int scaled_h = scheme()->GetProportionalScaledValue(m_iOldH);
-    Panel::SetPos( nw - scheme()->GetProportionalScaledValue(m_iOldX) - scaled_w, nh - scheme()->GetProportionalScaledValue(m_iOldY) - scaled_h );
-    Panel::SetSize(scaled_w, scaled_h);
-}
-
-
-private:
-	int m_iOldX, m_iOldY;
-	int m_iOldW, m_iOldH;
-	bool m_bSelected;
-	int m_textureID;	
-};
-void AddNvgButton(vgui::Panel *parent, const char *imgName , const char *url)
-{
-    static int i = 0;
-    ImageButton *panel = new ImageButton(parent, imgName);    
-    int btnW = 60, btnH = 30;
-    int marginRight = 15;
-    int marginBottom = 10;
-    panel->SetBounds(marginRight + i * (btnW + 4), marginBottom, btnW, btnH);
-    i++;
-}*/
-
-
 
 //-----------------------------------------------------------------------------
 // Purpose: General purpose 1 of N menu
@@ -909,13 +836,6 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 			m_bSinglePlayer = false;
 		}
 	}
-
-/*	if( IsAndroid() )
-	{
-		AddNvgButton( this, "vgui/logos/info_logo_alis");
-		AddNvgButton( this, "vgui/logos/info_logo_zzh");
-		AddNvgButton( this, "vgui/logos/info_logo_er");
-	} */
 }
 
 //-----------------------------------------------------------------------------

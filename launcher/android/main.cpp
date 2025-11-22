@@ -29,19 +29,19 @@ int iLastArgs = 0;
 
 extern void InitCrashHandler();
 DLL_EXPORT int LauncherMain( int argc, char **argv ); // from launcher.cpp
-// zzh.sourceapp.utils
-DLL_EXPORT int Java_zzh_sourceapp_utils_LoadPerf_setenv(JNIEnv *jenv, jclass *jclass, jstring env, jstring value, jint over)
+
+DLL_EXPORT int Java_com_valvesoftware_ValveActivity2_setenv(JNIEnv *jenv, jclass *jclass, jstring env, jstring value, jint over)
 {
-	Msg( "Java_zzh_utils_LoadPerf_setenv %s=%s\n", jenv->GetStringUTFChars(env, NULL), jenv->GetStringUTFChars(value, NULL) );
+	Msg( "Java_com_valvesoftware_ValveActivity2_setenv %s=%s\n", jenv->GetStringUTFChars(env, NULL), jenv->GetStringUTFChars(value, NULL) );
 	return setenv( jenv->GetStringUTFChars(env, NULL), jenv->GetStringUTFChars(value, NULL), over );
 }
 
-DLL_EXPORT void Java_zzh_sourceapp_utils_LoadPerf_nativeOnActivityResult()
+DLL_EXPORT void Java_com_valvesoftware_ValveActivity2_nativeOnActivityResult()
 {
 //	Msg( "Java_com_valvesoftware_ValveActivity_nativeOnActivityResult\n" );
 }
 
-DLL_EXPORT void Java_zzh_sourceapp_utils_LoadPerf_setArgs(JNIEnv *env, jclass *clazz, jstring str)
+DLL_EXPORT void Java_com_valvesoftware_ValveActivity2_setArgs(JNIEnv *env, jclass *clazz, jstring str)
 {
 	strncpy( java_args, env->GetStringUTFChars(str, NULL), sizeof java_args );
 }
@@ -128,7 +128,7 @@ DLL_EXPORT int LauncherMainAndroid( int argc, char **argv )
 	android_property_print("ro.product.manufacturer");
 	android_property_print("ro.product.model");
 	android_property_print("ro.product.name");
-
+	android_property_print("Inltlized Args");
 	SetLauncherArgs();
 
 	SDL_SetHint(SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
