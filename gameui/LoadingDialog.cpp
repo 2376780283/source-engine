@@ -49,7 +49,9 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 
 	// center the loading dialog, unless we have another dialog to show in the background
 	m_bCenter = !GameUI().HasLoadingBackgroundDialog();
-
+	
+    const char *pGameUIName = CommandLine()->ParmValue( "-game", "hl2" );;
+    
 	m_bShowingSecondaryProgress = false;
 	m_flSecondaryProgress = 0.0f;
 	m_flLastSecondaryProgressUpdateTime = 0.0f;
@@ -61,18 +63,19 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
         m_pProgress->SetDrawBackground(false);
         
     ContinuousProgressBar* cProgress = dynamic_cast<ContinuousProgressBar*>(m_pProgress);
-    
-#ifdef PORTAL         
+       if ( Q_stristr( pGameUIName, "portal" ) ){
+          Msg("Using PORTAL colors\n");       
           if (cProgress) {
              cProgress->SetGainColor(Color(49, 185, 224, 255)); 
              cProgress->SetLossColor(Color(49, 185, 200, 255)); // 蓝色
           }
-#else         
+       }else{
+          Msg("Using ORANGE colors\n");     
           if (cProgress) {
              cProgress->SetGainColor(Color(201, 100, 0, 255)); 
              cProgress->SetLossColor(Color(201, 80, 0, 255)); //橙色
           }
-#endif          
+       } 
     } else {
         m_pProgress = new ProgressBar(this, "Progress");
         m_pProgress2 = new ProgressBar(this, "Progress2");
