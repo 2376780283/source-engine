@@ -92,7 +92,7 @@ public:
 	void Init( CDmElement *pOwner, const char *pAttributeName, int flags = 0 );
 
 	// Returns the type of elements allowed into this attribute. UTL_INVAL_SYMBOL allows everything.
-	UtlSymId_t GetElementType() const;
+//	UtlSymId_t GetElementType() const;
 
 	// Get/set
 	void Set( T* pElement );
