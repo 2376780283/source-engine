@@ -110,8 +110,8 @@ protected:
 
 	T** m_pMemory;
 	int m_nBlocks;
-	int m_nIndexMask // : 27;
-	int m_nIndexShift // : 5;
+	int m_nIndexMask ;// : 27;
+	int m_nIndexShift ;// : 5;
 };
 
 //-----------------------------------------------------------------------------
