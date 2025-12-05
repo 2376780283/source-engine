@@ -76,9 +76,6 @@ using namespace vgui;
 #include "iachievementmgr.h"
 #include "UtlSortVector.h"
 
-#include "../thirdparty/stb/stb_image.h"
-#include "../thirdparty/stb/stb_image_resize.h"
-
 #include "game/client/IGameClientExports.h"
 
 #include "OptionsSubAudio.h"
@@ -207,82 +204,6 @@ void CGameMenuItem::PaintBackground()
 void CGameMenuItem::SetRightAlignedText(bool state)
 {
 	m_bRightAligned = state;
-}
-
-class ImageButton : public vgui::Panel
-{
-public:
-	ImageButton(Panel *parent, const char *imageName) : Panel(parent)
-	{
-		m_textureID = vgui::surface()->CreateNewTextureID();
-		vgui::surface()->DrawSetTextureFile( m_textureID, imageName, true, false);
-		m_bSelected = false;
-	}
-
-	virtual void Paint()
-	{    
-		int color = m_bSelected ? 120 : 160;
-		vgui::surface()->DrawSetTexture( m_textureID );
-		vgui::surface()->DrawSetColor( 255, 255, 255, 255 );
-		vgui::surface()->DrawTexturedRect( 0, 0, GetWide(), GetTall() );
-	}
-
-	virtual void OnMousePressed(MouseCode code)
-	{
-		m_bSelected = true;
-		input()->SetMouseCapture(GetVPanel());
-	    if (g_pBasePanel)
-        {
-           g_pBasePanel->ShowWorkshopManager();
-        }
-	}
-
-	virtual void OnMouseReleased(MouseCode code)
-	{
-		m_bSelected = false;
-        
-		input()->SetMouseCapture(NULL);
-	}
-    virtual void OnScreenSizeChanged(int nOldWidth, int nOldHeight)
-    {
-    int nw, nh;
-    surface()->GetScreenSize(nw, nh);
-    int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
-    int scaled_h = scheme()->GetProportionalScaledValue(m_iOldH);
-    Panel::SetPos(nw - scheme()->GetProportionalScaledValue(m_iOldX) - scaled_w, nh - scheme()->GetProportionalScaledValue(m_iOldY) - scaled_h );
-       Panel::SetSize(scaled_w, scaled_h);    
-    }
-
-void SetBounds(int x, int y, int w, int h)
-{
-    m_iOldX = x; 
-    m_iOldY = y; 
-    m_iOldW = w;
-    m_iOldH = h;
-    int nw, nh;
-    surface()->GetScreenSize(nw, nh);
-    int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
-    int scaled_h = scheme()->GetProportionalScaledValue(m_iOldH);
-    Panel::SetPos( nw - scheme()->GetProportionalScaledValue(m_iOldX) - scaled_w, nh - scheme()->GetProportionalScaledValue(m_iOldY) - scaled_h );
-    Panel::SetSize(scaled_w, scaled_h);
-}
-
-
-private:
-	int m_iOldX, m_iOldY;
-	int m_iOldW, m_iOldH;
-	bool m_bSelected;
-	int m_textureID;	
-};
-void AddNvgButton(vgui::Panel *parent, const char *imgName)
-{
-    static int i = 0;
-    ImageButton *panel = new ImageButton(parent, imgName);    
-    int btnW = 60, btnH = 30;
-    int marginRight = 15;
-    int marginBottom = 10;
-    panel->SetBounds(marginRight + i * (btnW + 4), marginBottom, btnW, btnH);
-    i++;
 }
 
 
@@ -828,7 +749,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 	}
 //	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton", ModInfo().GetGameTitle() ) );
 //	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton2", ModInfo().GetGameTitle2() ) );
-    if ( !IsGamepadUI )
+    if ( !IsGamepadUI() )
     {
 		m_pGameMenuButtons.AddToTail(CreateMenuButton(this, "GameMenuButton", ModInfo().GetGameTitle()));
 		m_pGameMenuButtons.AddToTail(CreateMenuButton(this, "GameMenuButton2", ModInfo().GetGameTitle2()));
@@ -884,13 +805,13 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 		ArmFirstMenuItem();
 		m_pConsoleAnimationController->StartAnimationSequence( "InitializeUILayout" );
 	}
-	
-	// Get our active mod directory name
-    const char *pGameName = CommandLine()->ParmValue( "-game", "hl2" );
 
 	// Record data used for rich presence updates
 	if ( IsX360() )
 	{
+		// Get our active mod directory name
+		const char *pGameName = CommandLine()->ParmValue( "-game", "hl2" );;
+
 		// Set the game we're playing
 		m_iGameID = CONTEXT_GAME_GAME_HALF_LIFE_2;
 		m_bSinglePlayer = true;
@@ -912,13 +833,6 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 			m_bSinglePlayer = false;
 		}
 	}
-
-//	if( IsAndroid() )
-//	{
-    if (!CommandLine()->CheckParm( "-showdevicon" )){	     		
-		   AddNvgButton( this, "vgui/workshop_panel");
-    }	
-//	} 
 }
 
 //-----------------------------------------------------------------------------
@@ -1305,7 +1219,7 @@ void CBasePanel::SetBackgroundRenderState(EBackgroundState state)
 			m_bRenderingBackgroundTransition = true;
 			m_flTransitionStartTime = frametime;
 			m_flTransitionEndTime = frametime + 3.0f;
-			if ( IsGamepadUI )
+			if ( IsGamepadUI() )
 			{
 				m_flTransitionEndTime = frametime + 2.0f;
 			}
@@ -1486,23 +1400,15 @@ void CBasePanel::DrawBackgroundImage()
 		surface()->DrawSetTexture(m_iLoadingImageID);
 		int twide, ttall;
 		surface()->DrawGetTextureSize(m_iLoadingImageID, twide, ttall);
-		if (IsGamepadUI)
+//		surface()->DrawTexturedRect(wide - twide, tall - ttall, wide, tall);
+		if (IsGamepadUI())
 		{
 			surface()->DrawTexturedRect(wide - ((twide / 512.f) * twide) - 30, 30, wide - 30, (ttall / 512.f) * ttall + 30);
 			
 			static unsigned int	nFrameCache = 0;
 			surface()->DrawGetTextureSize(m_iLoadingSpinnerImageID, twide, ttall); //now use twide and ttall for spinner
-			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));
-			// Get our active mod directory name
-//            const char *pGameSpinnerName = CommandLine()->ParmValue( "-game", "hl2" );
-            
-            const char* game = engine->GetGameDirectory();
-            if ( Q_stristr( game, "portal" ) ){
-//  		    if ( Q_stristr( pGameSpinnerName, "portal" ) ){
-                    surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 49, 185, 224, alpha })); //设置spinner色 橙
-              	} else {         	        
-         	        surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha })); //设置spinner色 橙色
-         	}
+			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));			
+			surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 255 ,46, 0, alpha })); //设置spinner颜色 红        	
 			surface()->DrawSetTextureFrame(m_iLoadingSpinnerImageID, ((int)m_fLoadingSpinnerFrame) % surface()->GetTextureNumFrames(m_iLoadingSpinnerImageID), &nFrameCache);
 			surface()->DrawSetTexture(m_iLoadingSpinnerImageID);
 
@@ -1641,10 +1547,10 @@ void CBasePanel::UpdateGameMenus()
 CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 {
     CGameMenu *menu = new CGameMenu(this, datafile->GetName());
-      // dont use CommandLine()->FindParm ！！！
-      if (CommandLine()->CheckParm( "-console" )){	     		
-		      menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); 
-	   }
+
+    if (CommandLine()->CheckParm( "-console" )){	     		
+	    menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); 
+    }
 	bool bFoundServerBrowser = false;
 
 	for (KeyValues *dat = datafile->GetFirstSubKey(); dat != NULL; dat = dat->GetNextKey())
@@ -1959,7 +1865,7 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 		// load the loading icon
 		if ( m_iLoadingImageID == -1 )
 		{
-            if (IsGamepadUI)
+            if (IsGamepadUI())
 			{
 				const char* loading = "gamepadui/game_logo.vtf";
 				m_iLoadingImageID = surface()->CreateNewTextureID();
@@ -1975,7 +1881,7 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 		}
 	}
 	// 加载 loading spinner
-	if (IsGamepadUI)
+	if (IsGamepadUI())
 	{
 		if (m_iLoadingSpinnerImageID == -1)
 		{

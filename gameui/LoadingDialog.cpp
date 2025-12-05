@@ -64,13 +64,11 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
         
     ContinuousProgressBar* cProgress = dynamic_cast<ContinuousProgressBar*>(m_pProgress);
        if ( Q_stristr( pGameUIName, "portal" ) ){
-          Msg("Using PORTAL colors\n");       
           if (cProgress) {
              cProgress->SetGainColor(Color(49, 185, 224, 255)); 
              cProgress->SetLossColor(Color(49, 185, 200, 255)); // 蓝色
           }
        }else{
-          Msg("Using ORANGE colors\n");     
           if (cProgress) {
              cProgress->SetGainColor(Color(201, 100, 0, 255)); 
              cProgress->SetLossColor(Color(201, 80, 0, 255)); //橙色
@@ -117,7 +115,6 @@ CLoadingDialog::CLoadingDialog( vgui::Panel *parent ) : Frame(parent, "LoadingDi
 		m_flProgressFraction = 0;
 	} else {
 	    if (IsGamepadUI()) {
-            // 设置窗口
             int zzh_screenWide, zzh_screenTall;
             surface()->GetScreenSize(zzh_screenWide, zzh_screenTall);
             SetSize(zzh_screenWide, zzh_screenTall);
