@@ -540,16 +540,16 @@ class DevPage : public vgui::PropertyPage {
         m_pDevList->AddActionSignalTarget(this);  // <-- 让 OnItemSelected 能接收事件
 
         // 默认显示的图像（使用 COVER 以填充方形）
-        m_pDevImage = new ImagePanelPNG(this, "info_icon", "vgui/devs/default.png", ImagePanelPNG::DISPLAY_COVER);
+        m_pDevImage = new ImagePanelPNG(this, "info_icon", "vgui/devs/zzh.png", ImagePanelPNG::DISPLAY_COVER);
 
         // 打开网页按钮
         m_pDevDummyBtn = new Button(this, "DevBtn", "Open Developer Url", this, "dev_dummy");
 
         // 填入开发者列表
         const char *devNames[] = {
-            "nillerusr",
-            "er2",
-            "ItzVladik",
+            "nill",
+            "er",
+            "ltz",
             "zzh",
             "maik"};
 

@@ -17,7 +17,7 @@
 #include "vgui_controls/ComboBox.h"
 
 #if defined(USE_SDL)
-#include "SDL.h"
+  #include "SDL.h"
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!

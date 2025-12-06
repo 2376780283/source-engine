@@ -810,7 +810,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 	if ( IsX360() )
 	{
 		// Get our active mod directory name
-		const char *pGameName = CommandLine()->ParmValue( "-game", "hl2" );;
+		const char *pGameName = CommandLine()->ParmValue( "-game", "hl2" );
 
 		// Set the game we're playing
 		m_iGameID = CONTEXT_GAME_GAME_HALF_LIFE_2;
@@ -1400,7 +1400,6 @@ void CBasePanel::DrawBackgroundImage()
 		surface()->DrawSetTexture(m_iLoadingImageID);
 		int twide, ttall;
 		surface()->DrawGetTextureSize(m_iLoadingImageID, twide, ttall);
-//		surface()->DrawTexturedRect(wide - twide, tall - ttall, wide, tall);
 		if (IsGamepadUI())
 		{
 			surface()->DrawTexturedRect(wide - ((twide / 512.f) * twide) - 30, 30, wide - 30, (ttall / 512.f) * ttall + 30);
@@ -1408,7 +1407,16 @@ void CBasePanel::DrawBackgroundImage()
 			static unsigned int	nFrameCache = 0;
 			surface()->DrawGetTextureSize(m_iLoadingSpinnerImageID, twide, ttall); //now use twide and ttall for spinner
 			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));			
-			surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 255 ,46, 0, alpha })); //设置spinner颜色 红        	
+	       
+	        const char *p_SpinnerGameName = CommandLine()->ParmValue( "-game", "hl2" );
+			if ( Q_stristr( p_SpinnerGameName, "portal" ) ) {							
+	          	surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 49, 185, 224, alpha })); //设置spinner色 蓝
+           	} else {         	        
+                surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha })); //设置spinner色 橙色
+		    }
+		    
+		    
+			     		     	
 			surface()->DrawSetTextureFrame(m_iLoadingSpinnerImageID, ((int)m_fLoadingSpinnerFrame) % surface()->GetTextureNumFrames(m_iLoadingSpinnerImageID), &nFrameCache);
 			surface()->DrawSetTexture(m_iLoadingSpinnerImageID);
 

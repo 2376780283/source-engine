@@ -363,6 +363,8 @@ $Project
 		$File	"hud_pdump.cpp"
 		$File	"hud_redraw.cpp"
 		$File	"hud_vehicle.cpp"
+    	$File	"sdk\hud_hints.cpp"
+		$File	"sdk\hud_hints.h"
 		$File	"$SRCDIR\game\shared\igamesystem.cpp"
 		$File	"in_camera.cpp"
 		$File	"in_joystick.cpp"

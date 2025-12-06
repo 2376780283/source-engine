@@ -12,7 +12,8 @@
 #include "tier0/icommandline.h"
 #include "vgui_controls/Button.h"
 #include "viewrender.h"
-
+#include "sdk/hud_hints.h"
+	
 #define STB_RECT_PACK_IMPLEMENTATION
 #include "../../thirdparty/stb/stb_rect_pack.h"
 
@@ -166,26 +167,17 @@ CON_COMMAND( touch_removebutton, "remove native touch button" )
 		Msg( "Usage: touch_removebutton <name>\n" );
 }
 
-#if 0
-CON_COMMAND( touch_settexture, "set button texture" )
-{
-	if( args.ArgC() >= 3 )
-	{
-		gTouch.SetTexture( args[1], args[2] );
-		return;
-	}
-	Msg( "Usage: touch_settexture <name> <file>\n" );
-}
-#endif
-
 CON_COMMAND( touch_enableedit, "enable button editing mode" )
 {
 	gTouch.EnableTouchEdit(true);
+    
+    engine->ClientCmd_Unrestricted( "hint_add EnableEditTouch 5" );
 }
 
 CON_COMMAND( touch_disableedit, "disable button editing mode" )
 {
 	gTouch.EnableTouchEdit(false);
+	engine->ClientCmd_Unrestricted( "hint_add DisableEditTouch 5" );
 }
 
 CON_COMMAND( touch_setcolor, "change button color" )
@@ -246,47 +238,10 @@ CON_COMMAND( touch_writeconfig, "save current config" )
 	gTouch.WriteConfig();
 }
 
-
 CON_COMMAND( touch_loaddefaults, "generate config from defaults" )
 {
 	gTouch.ResetToDefaults();
 }
-
-CON_COMMAND( touch_setgridcolor, "change grid color" )
-{
-	if( args.ArgC() >= 5 )
-		gTouch.gridcolor = rgba_t( Q_atoi( args[1] ), Q_atoi( args[2] ), Q_atoi( args[3] ), Q_atoi( args[4] ) );
-	else
-		Msg( "Usage: touch_setgridcolor <r> <g> <b> <a>\n" );
-}
-
-/*
-CON_COMMAND( touch_roundall, "round all buttons coordinates to grid" )
-{
-	
-}
-
-CON_COMMAND( touch_exportconfig, "export config keeping aspect ratio" )
-{
-	
-}
-
-CON_COMMAND( touch_reloadconfig, "load config, not saving changes" )
-{
-	
-}
-*/
-
-/*
-CON_COMMAND( touch_fade, "start fade animation for selected buttons" )
-{
-	
-}
-
-CON_COMMAND( touch_toggleselection, "toggle visibility on selected button in editor" )
-{
-
-}*/
 
 void CTouchControls::GetTouchAccumulators( float *side, float *forward, float *yaw, float *pitch )
 {
@@ -464,218 +419,187 @@ int nextPowerOfTwo(int x)
 
 void CTouchControls::CreateAtlasTexture()
 {
-	char fullFileName[MAX_PATH];
+    char materialFilePath[MAX_PATH];
 
-	int atlasSize = 0;
+    int estimatedAtlasPixels = 0;
 
-	stbrp_rect *rects = (stbrp_rect*)malloc(textureList.Count()*sizeof(stbrp_rect));
-	memset(rects, 0, sizeof(stbrp_rect)*textureList.Count());
+    const int textureCount = textureList.Count();
+    stbrp_rect* packedRects = (stbrp_rect*)malloc(textureCount * sizeof(stbrp_rect));
+    memset(packedRects, 0, textureCount * sizeof(stbrp_rect));
 
-	if( touchTextureID )
-		vgui::surface()->DeleteTextureByID( touchTextureID );
+    if (touchTextureID)
+        vgui::surface()->DeleteTextureByID(touchTextureID);
 
-	int rectCount = 0;
+    int atlasEligibleCount = 0;
 
-	for( int i = 0; i < textureList.Count(); i++ )
-	{
-		CTouchTexture *t = textureList[i];
-		Q_snprintf(fullFileName, MAX_PATH, "materials/%s.vtf", t->szName);
+    // 预加载纹理图像
+    for (int texIndex = 0; texIndex < textureCount; texIndex++)
+    {
+        CTouchTexture* textureEntry = textureList[texIndex];
 
-		FileHandle_t fp = ::filesystem->Open( fullFileName, "rb" );
-		if( fp )
-		{
-			::filesystem->Seek( fp, 0, FILESYSTEM_SEEK_TAIL );
-			int srcVTFLength = ::filesystem->Tell( fp );
-			::filesystem->Seek( fp, 0, FILESYSTEM_SEEK_HEAD );
+        char baseName[MAX_PATH];
+        Q_strncpy(baseName, textureEntry->szName, sizeof(baseName));
 
-			CUtlBuffer buf;
-			buf.EnsureCapacity( srcVTFLength );
-			int bytesRead = ::filesystem->Read( buf.Base(), srcVTFLength, fp );
-			::filesystem->Close( fp );
+        char* extensionPtr = Q_strrchr(baseName, '.');
+        if (extensionPtr) *extensionPtr = '\0';
 
-			buf.SeekGet( CUtlBuffer::SEEK_HEAD, 0 );
-			buf.SeekPut( CUtlBuffer::SEEK_HEAD, bytesRead );
+        const char* fileExtensions[] = { ".png", ".jpg" };
+        bool imageLoaded = false;
 
-			t->vtf = CreateVTFTexture();
-			if ( t->vtf->Unserialize(buf) )
-			{
-				if( t->vtf->Format() != IMAGE_FORMAT_RGBA8888 && t->vtf->Format() != IMAGE_FORMAT_BGRA8888 )
-				{
-					t->textureID = vgui::surface()->CreateNewTextureID();
-					vgui::surface()->DrawSetTextureFile( t->textureID, t->szName, true, false);
-					DestroyVTFTexture(t->vtf);
-					t->vtf = nullptr;
-					t->isInAtlas = false;
-					continue;
-				}
-				if( t->vtf->Height() != t->vtf->Width() || (t->vtf->Height() & (t->vtf->Height() - 1)) != 0 )
-				{
-					Error("%s texture is wrong! Don't use npot textures for touch.", t->szName);
-				}
+        for (size_t extIndex = 0; extIndex < ARRAYSIZE(fileExtensions); extIndex++)
+        {
+            Q_snprintf(materialFilePath, MAX_PATH, "materials/%s%s", baseName, fileExtensions[extIndex]);
+            FileHandle_t fileHandle = ::filesystem->Open(materialFilePath, "rb");
+            if (!fileHandle) continue;
 
-				t->height = t->vtf->Height();
-				t->width = t->vtf->Width();
-				t->isInAtlas = true;
+            ::filesystem->Seek(fileHandle, 0, FILESYSTEM_SEEK_TAIL);
+            int fileLength = ::filesystem->Tell(fileHandle);
+            ::filesystem->Seek(fileHandle, 0, FILESYSTEM_SEEK_HEAD);
 
-				atlasSize += t->width * t->height;
-				rectCount++;
-				continue;
-			}
-			else
-			{
-				DestroyVTFTexture(t->vtf);
-				t->vtf = nullptr;
-				t->isInAtlas = false;
-			}
-		}
+            CUtlBuffer fileBuffer;
+            fileBuffer.EnsureCapacity(fileLength);
 
-		char baseTextureName[MAX_PATH];
-		Q_strncpy(baseTextureName, t->szName, sizeof(baseTextureName));
-		char *dot = Q_strrchr(baseTextureName, '.');
-		if (dot) *dot = '\0';
+            int bytesRead = ::filesystem->Read(fileBuffer.Base(), fileLength, fileHandle);
+            ::filesystem->Close(fileHandle);
 
-		const char *exts[] = { ".png", ".jpg" /*, ".jpeg", ".tga", ".bmp", ".pcx"*/ };
-		bool gotImage = false;
-		for( size_t e = 0; e < sizeof(exts)/sizeof(exts[0]); e++ )
-		{
-			Q_snprintf(fullFileName, MAX_PATH, "materials/%s%s", baseTextureName, exts[e]);
-			FileHandle_t fp2 = ::filesystem->Open( fullFileName, "rb" );
-			if( !fp2 ) continue;
+            int imgW = 0, imgH = 0, imgComponents = 0;
+            unsigned char* loadedPixels = stbi_load_from_memory(
+                (unsigned char*)fileBuffer.Base(),
+                bytesRead,
+                &imgW, &imgH, &imgComponents,
+                4);
 
-			::filesystem->Seek( fp2, 0, FILESYSTEM_SEEK_TAIL );
-			int fileLen = ::filesystem->Tell( fp2 );
-			::filesystem->Seek( fp2, 0, FILESYSTEM_SEEK_HEAD );
+            if (loadedPixels)
+            {
+                int pow2W = nextPowerOfTwo(imgW);
+                int pow2H = nextPowerOfTwo(imgH);
 
-			CUtlBuffer buf;
-			buf.EnsureCapacity(fileLen);
-			int bytesRead = ::filesystem->Read( buf.Base(), fileLen, fp2 );
-			::filesystem->Close(fp2);
+                if (pow2W != imgW || pow2H != imgH)
+                {
+                    unsigned char* resizedPixels = (unsigned char*)malloc(pow2W * pow2H * 4);
+                    stbir_resize_uint8(loadedPixels, imgW, imgH, 0,
+                                       resizedPixels, pow2W, pow2H, 0, 4);
 
-			int w=0,h=0,comp=0;
-			unsigned char *img = stbi_load_from_memory( (unsigned char*)buf.Base(), bytesRead, &w, &h, &comp, 4 );
-			if( img )
-			{
-				int newW = nextPowerOfTwo(w);
-				int newH = nextPowerOfTwo(h);
-				
-				if (newW != w || newH != h)
-				{
-					unsigned char *resized = (unsigned char*)malloc(newW * newH * 4);
-					stbir_resize_uint8(img, w, h, 0, resized, newW, newH, 0, 4);
-					stbi_image_free(img);
-					img = resized;
-					t->isStbImage = false;
-				}
-				else
-				{
-					t->isStbImage = true;
-				}
-				
-				t->width = newW;
-				t->height = newH;
-				t->rawData = img;
-				t->channels = 4;
-				t->isInAtlas = true;
-				t->vtf = nullptr;
-				atlasSize += t->width * t->height;
-				rectCount++;
-				gotImage = true;
-				break;
-			}
-		}
+                    stbi_image_free(loadedPixels);
+                    loadedPixels = resizedPixels;
+                    textureEntry->isStbImage = false;
+                }
+                else
+                {
+                    textureEntry->isStbImage = true;
+                }
 
-		if( !gotImage )
-		{
-			t->textureID = vgui::surface()->CreateNewTextureID();
-			vgui::surface()->DrawSetTextureFile( t->textureID, t->szName, true, false );
-			t->isInAtlas = false;
-			continue;
-		}
-	}
+                textureEntry->width = pow2W;
+                textureEntry->height = pow2H;
+                textureEntry->rawData = loadedPixels;
+                textureEntry->channels = 4;
+                textureEntry->isInAtlas = true;
 
-	if( !textureList.Count() || rectCount == 0 )
-	{
-		free(rects);
-		return;
-	}
+                estimatedAtlasPixels += pow2W * pow2H;
+                atlasEligibleCount++;
+                imageLoaded = true;
+                break;
+            }
+        }
 
-	rectCount = 0;
-	for( int i = 0; i < textureList.Count(); i++ )
-	{
-		CTouchTexture *t = textureList[i];
-		if( t->textureID || !t->isInAtlas )
-			continue;
-			
-		rects[rectCount].w = t->width;
-		rects[rectCount].h = t->height;
-		rects[rectCount].id = i;
-		rectCount++;
-	}
+        if (!imageLoaded)
+        {
+            // 未找到 PNG/JPG，则加载为 VGUI 纹理
+            textureEntry->textureID = vgui::surface()->CreateNewTextureID();
+            vgui::surface()->DrawSetTextureFile(textureEntry->textureID, textureEntry->szName, true, false);
+            textureEntry->isInAtlas = false;
+        }
+    }
 
-	int atlasHeight = nextPowerOfTwo(sqrt((double)atlasSize));
-	int sizeInBytes = atlasHeight*atlasHeight*4;
-	unsigned char *dest = new unsigned char[sizeInBytes];
-	memset(dest, 0, sizeInBytes);
+    if (textureCount == 0 || atlasEligibleCount == 0)
+    {
+        free(packedRects);
+        return;
+    }
 
-	int nodesCount = atlasHeight * 2;
-	stbrp_node *nodes = (stbrp_node*)malloc(nodesCount*sizeof(stbrp_node));
-	memset(nodes, 0, sizeof(stbrp_node)*nodesCount);
+    // 初始化打包输入 rects
+    atlasEligibleCount = 0;
+    for (int texIndex = 0; texIndex < textureCount; texIndex++)
+    {
+        CTouchTexture* textureEntry = textureList[texIndex];
+        if (textureEntry->textureID || !textureEntry->isInAtlas)
+            continue;
 
-	stbrp_context context;
-	stbrp_init_target( &context, atlasHeight, atlasHeight, nodes, nodesCount );
-	stbrp_pack_rects(&context, rects, rectCount);
+        packedRects[atlasEligibleCount].w = textureEntry->width;
+        packedRects[atlasEligibleCount].h = textureEntry->height;
+        packedRects[atlasEligibleCount].id = texIndex;
+        atlasEligibleCount++;
+    }
 
-	rectCount = 0;
-	for( int i = 0; i < textureList.Count(); i++ )
-	{
-		CTouchTexture *t = textureList[i];
-		if( t->textureID || !t->isInAtlas )
-			continue;
+    int atlasSize = nextPowerOfTwo((int)sqrt((double)estimatedAtlasPixels));
+    int atlasByteSize = atlasSize * atlasSize * 4;
 
-		t->X0 = rects[rectCount].x / (float)atlasHeight;
-		t->Y0 = rects[rectCount].y / (float)atlasHeight;
-		t->X1 = t->X0 + t->width / (float)atlasHeight;
-		t->Y1 = t->Y0 + t->height / (float)atlasHeight;
+    unsigned char* atlasPixels = new unsigned char[atlasByteSize];
+    memset(atlasPixels, 0, atlasByteSize);
 
-		unsigned char *src = nullptr;
-		if (t->vtf)
-			src = t->vtf->ImageData(0, 0, 0);
-		else if (t->rawData)
-			src = t->rawData;
+    int nodeCapacity = atlasSize * 2;
+    stbrp_node* packingNodes = (stbrp_node*)malloc(nodeCapacity * sizeof(stbrp_node));
+    memset(packingNodes, 0, nodeCapacity * sizeof(stbrp_node));
 
-		if (src)
-		{
-			for( int row = 0; row < t->height; row++)
-			{
-				unsigned char *row_dest = dest + (row + rects[rectCount].y) * atlasHeight * 4 + rects[rectCount].x * 4;
-				unsigned char *row_src = src + row * t->width * 4;
-				memcpy(row_dest, row_src, t->width * 4);
-			}
-		}
+    stbrp_context packContext;
+    stbrp_init_target(&packContext, atlasSize, atlasSize, packingNodes, nodeCapacity);
+    stbrp_pack_rects(&packContext, packedRects, atlasEligibleCount);
 
-		rectCount++;
-	}
+    // 复制纹理像素到图集
+    int usedRectIndex = 0;
+    for (int texIndex = 0; texIndex < textureCount; texIndex++)
+    {
+        CTouchTexture* textureEntry = textureList[texIndex];
+        if (textureEntry->textureID || !textureEntry->isInAtlas)
+            continue;
 
-	for( int i = 0; i < textureList.Count(); i++ )
-	{
-		CTouchTexture *t = textureList[i];
-		
-		if (t->rawData)
-		{
-			if (t->isStbImage)
-				stbi_image_free(t->rawData);
-			else
-				free(t->rawData);
-			t->rawData = nullptr;
-		}
-	}
+        textureEntry->X0 = packedRects[usedRectIndex].x / (float)atlasSize;
+        textureEntry->Y0 = packedRects[usedRectIndex].y / (float)atlasSize;
+        textureEntry->X1 = textureEntry->X0 + textureEntry->width  / (float)atlasSize;
+        textureEntry->Y1 = textureEntry->Y0 + textureEntry->height / (float)atlasSize;
 
-	touchTextureID = vgui::surface()->CreateNewTextureID( true );
-	vgui::surface()->DrawSetTextureRGBA( touchTextureID, dest, atlasHeight, atlasHeight, 1, true );
+        unsigned char* sourcePixels = textureEntry->rawData;
+        if (sourcePixels)
+        {
+            for (int row = 0; row < textureEntry->height; row++)
+            {
+                unsigned char* destRow =
+                    atlasPixels +
+                    (row + packedRects[usedRectIndex].y) * atlasSize * 4 +
+                    packedRects[usedRectIndex].x * 4;
 
-	free(nodes);
-	free(rects);
-	delete[] dest;
+                unsigned char* srcRow =
+                    sourcePixels + row * textureEntry->width * 4;
+
+                memcpy(destRow, srcRow, textureEntry->width * 4);
+            }
+        }
+
+        usedRectIndex++;
+    }
+
+    // 释放单纹理数据
+    for (int texIndex = 0; texIndex < textureCount; texIndex++)
+    {
+        CTouchTexture* textureEntry = textureList[texIndex];
+        if (textureEntry->rawData)
+        {
+            if (textureEntry->isStbImage)
+                stbi_image_free(textureEntry->rawData);
+            else
+                free(textureEntry->rawData);
+
+            textureEntry->rawData = nullptr;
+        }
+    }
+
+    // 上传图集纹理
+    touchTextureID = vgui::surface()->CreateNewTextureID(true);
+    vgui::surface()->DrawSetTextureRGBA(touchTextureID, atlasPixels, atlasSize, atlasSize, 1, true);
+
+    free(packingNodes);
+    free(packedRects);
+    delete[] atlasPixels;
 }
 
 void CTouchControls::Shutdown( )
@@ -705,7 +629,7 @@ void CTouchControls::ListButtons()
 
 void CTouchControls::IN_CheckCoords( float *x1, float *y1, float *x2, float *y2  )
 {
-	/// TODO: grid check here
+	// TODO: grid check here
 	if( *x2 - *x1 < GRID_X * 2 )
 		*x2 = *x1 + GRID_X * 2;
 	if( *y2 - *y1 < GRID_Y * 2)
@@ -987,9 +911,6 @@ void CTouchControls::SetTexture(const char *name, const char *file)
 	if( btn )
 	{
 		Q_strncpy( btn->texturefile, file, sizeof(btn->texturefile) );
-
-//		btn->textureID = vgui::surface()->CreateNewTextureID();
-//		vgui::surface()->DrawSetTextureFile( btn->textureID, file, true, false);
 	}
 }
 
@@ -1265,10 +1186,7 @@ void CTouchControls::WriteConfig()
 	f = filesystem->Open( newconfigfile , "w+");
 
 	if( f )
-	{
-		filesystem->FPrintf( f, "//=======================================================================\n");
-		filesystem->FPrintf( f, "//\t\t\ttouchscreen config\n" );
-		filesystem->FPrintf( f, "//=======================================================================\n" );
+	{		
 		filesystem->FPrintf( f, "\ntouch_config_file \"%s\"\n", touch_config_file.GetString() );
 		filesystem->FPrintf( f, "\n// touch cvars\n" );
 		filesystem->FPrintf( f, "\n// sensitivity settings\n" );
@@ -1276,35 +1194,14 @@ void CTouchControls::WriteConfig()
 		filesystem->FPrintf( f, "touch_yaw \"%f\"\n", touch_yaw.GetFloat() );
 		filesystem->FPrintf( f, "touch_forwardzone \"%f\"\n", touch_forwardzone.GetFloat() );
 		filesystem->FPrintf( f, "touch_sidezone \"%f\"\n", touch_sidezone.GetFloat() );
-/*		filesystem->FPrintf( f, "touch_nonlinear_look \"%d\"\n",touch_nonlinear_look.GetBool() );
-		filesystem->FPrintf( f, "touch_pow_factor \"%f\"\n", touch_pow_factor->value );
-		filesystem->FPrintf( f, "touch_pow_mult \"%f\"\n", touch_pow_mult->value );
-		filesystem->FPrintf( f, "touch_exp_mult \"%f\"\n", touch_exp_mult->value );*/
 		filesystem->FPrintf( f, "\n// grid settings\n" );
 		filesystem->FPrintf( f, "touch_grid_count \"%d\"\n", touch_grid_count.GetInt() );
 		filesystem->FPrintf( f, "touch_grid_enable \"%d\"\n", touch_grid_enable.GetInt() );
-
 		filesystem->FPrintf( f, "touch_setgridcolor \"%d\" \"%d\" \"%d\" \"%d\"\n", gridcolor.r, gridcolor.g, gridcolor.b, gridcolor.a );
 		filesystem->FPrintf( f, "touch_button_info \"%d\"\n", touch_button_info.GetInt() );
-/*
-		filesystem->FPrintf( f, "\n// global overstroke (width, r, g, b, a)\n" );
-		filesystem->FPrintf( f, "touch_set_stroke %d %d %d %d %d\n", touch.swidth, touch.scolor[0], touch.scolor[1], touch.scolor[2], touch.scolor[3] );
-		filesystem->FPrintf( f, "\n// highlight when pressed\n" );
-		filesystem->FPrintf( f, "touch_highlight_r \"%f\"\n", touch_highlight_r->value );
-		filesystem->FPrintf( f, "touch_highlight_g \"%f\"\n", touch_highlight_g->value );
-		filesystem->FPrintf( f, "touch_highlight_b \"%f\"\n", touch_highlight_b->value );
-		filesystem->FPrintf( f, "touch_highlight_a \"%f\"\n", touch_highlight_a->value );
-		filesystem->FPrintf( f, "\n// _joy and _dpad options\n" );
-		filesystem->FPrintf( f, "touch_dpad_radius \"%f\"\n", touch_dpad_radius->value );
-		filesystem->FPrintf( f, "touch_joy_radius \"%f\"\n", touch_joy_radius->value );
-*/
 		filesystem->FPrintf( f, "\n// how much slowdown when Precise Look button pressed\n" );
 		filesystem->FPrintf( f, "touch_precise_amount \"%f\"\n", touch_precise_amount.GetFloat() );
-//		filesystem->FPrintf( f, "\n// enable/disable move indicator\n" );
-//		filesystem->FPrintf( f, "touch_move_indicator \"%f\"\n", touch_move_indicator );
-
 		filesystem->FPrintf( f, "\n// reset menu state when execing config\n" );
-		//filesystem->FPrintf( f, "touch_setclientonly 0\n" );
 		filesystem->FPrintf( f, "\n// touch buttons\n" );
 		filesystem->FPrintf( f, "touch_removeall\n" );
 
