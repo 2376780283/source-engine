@@ -182,6 +182,31 @@ private:
 
 	friend void *AppSystemCreateInterfaceFn(const char *pName, int *pReturnCode);
 	friend class CSteamAppSystemGroup;
+// zzhlife	
+/* public:
+	HMODULE GetModuleHandle(int i) {
+		if(i < 0 || i >= m_Modules.Count() - 1)
+			return 0;
+		return (HMODULE)m_Modules[i].m_pModule;
+	};
+	HMODULE GetModuleHandle(const char *pDLLName) {
+		// Remove the extension when creating the name.
+		int nLen = Q_strlen( pDLLName ) + 1;
+		char *pModuleName = (char*)stackalloc( nLen );
+		Q_StripExtension( pDLLName, pModuleName, nLen );
+
+		// See if we already loaded it...
+		for ( int i = m_Modules.Count(); --i >= 0; )
+		{
+			if ( m_Modules[i].m_pModuleName )
+			{
+				if ( !Q_stricmp( pModuleName, m_Modules[i].m_pModuleName ) )
+					return GetModuleHandle(i);
+			}
+		}
+
+		return 0;
+	}; */
 };
 
 
