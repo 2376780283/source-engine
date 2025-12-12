@@ -47,7 +47,7 @@ GamepadUIMainMenu::GamepadUIMainMenu( vgui::Panel* pParent )
         pModData->deleteThis();
     }
     LoadMenuButtons();
-    // we don t need this funtions
+        
     // SetFooterButtons( FooterButtons::Select, FooterButtons::Select );
 }
 
@@ -56,24 +56,17 @@ void GamepadUIMainMenu::UpdateGradients()
     const float flTime = GamepadUI::GetInstance().GetTime();
     GamepadUI::GetInstance().GetGradientHelper()->ResetTargets( flTime );
     GamepadUI::GetInstance().GetGradientHelper()->SetTargetGradient( GradientSide::Left, { 1.0f, 0.666f }, flTime );
-
+    
     // In case a controller is added mid-game
     // SetFooterButtons( FooterButtons::Select, FooterButtons::Select );
 }
 
-// ─────────────────────────────────────────────────────────────
-// GamepadUIMainMenu::LoadMenuButtons (FIXED)
-// ─────────────────────────────────────────────────────────────
-// ────────────────────────────────────────────────
-//  GamepadUIMainMenu::LoadMenuButtons  (Linux/Clang)
-// ────────────────────────────────────────────────
+
 void GamepadUIMainMenu::LoadMenuButtons()
 {
-    // 1) 清空旧按钮，防止重复
     for ( int i = 0; i < ARRAYSIZE( m_Buttons ); ++i )
         m_Buttons[i].PurgeAndDeleteElements();
 
-    // 2) 读 mainmenu.res
     KeyValues *kvFile = new KeyValues( "MainMenuScript" );
     if ( kvFile && kvFile->LoadFromFile( g_pFullFileSystem, GAMEPADUI_MAINMENU_FILE ) )
     {
@@ -104,18 +97,15 @@ void GamepadUIMainMenu::LoadMenuButtons()
         kvFile->deleteThis();
     }
 
-    // 3) 对两个列表分别排序
     for ( int i = 0; i < ARRAYSIZE( m_Buttons ); ++i )
         m_Buttons[i].Sort( CompareButtonsByPriorityDesc );
 
-    // 4) 其余逻辑保持
     bool showConsole = ( CommandLine()->FindParm( "-console" ) != nullptr );
     SetConsoleButtonVisibility( showConsole );
     UpdateButtonVisibility();
 }
 
 
-// 🔧 新增静态函数（放在 .cpp 上面或类中静态声明）
 int GamepadUIMainMenu::CompareButtonsByPriority( GamepadUIButton * const *a, GamepadUIButton * const *b )
 {
     int prA = (*a)->GetPriority();
@@ -252,7 +242,7 @@ void GamepadUIMainMenu::OnCommand( char const* pCommand )
 void GamepadUIMainMenu::OnSetFocus()
 {
     BaseClass::OnSetFocus();
-    OnMenuStateChanged();
+    OnMenuStateChanged();       
 }
 
 void GamepadUIMainMenu::OnMenuStateChanged()

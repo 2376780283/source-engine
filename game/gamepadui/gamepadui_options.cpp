@@ -20,8 +20,16 @@
   #include "SDL.h"
 #endif
 
+//#ifdef ANDROID
+//  #include <jni.h>
+//#endif
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+// Android Gamepadui Optimize 
+// Jni using
+// open_steaminput 占位command
+//
 
 const int MAX_OPTIONS_TABS = 8;
 
@@ -1683,7 +1691,8 @@ void GamepadUIOptionsPanel::OnCommand(char const *pCommand) {
         }
         if (nController)
             GamepadUI::GetInstance().GetSteamAPIContext()->SteamInput()->ShowBindingPanel(nController);
-#endif                     // HL2_RETAIL
+#endif 
+        // HL2_RETAIL
     } else if (!V_strcmp(pCommand, "open_techcredits")) {
         GamepadUIString title = "#GameUI_ThirdPartyTechCredits";
         GamepadUIString bink = "#GameUI_Bink";

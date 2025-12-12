@@ -85,33 +85,27 @@ void NoticePanel::SetLegacyType( int t )
 	}
 
 	switch ( m_nType )
-	{
-	case NOTIFY_GENERIC:
-	{
-		m_hint_pImage->SetImage( "notices/generic" );
-	
-	}
-	case NOTIFY_ERROR:
-	{
-		m_hint_pImage->SetImage( "notices/error" );
-	
-	}
-	case NOTIFY_UNDO:
-	{
-		m_hint_pImage->SetImage( "notices/undo" );
-	
-	}
-	case NOTIFY_CLEANUP:
-	{
-		m_hint_pImage->SetImage( "notices/cleanup" );
-	
-	}
-	default:
-	{
-		m_hint_pImage->SetImage( "notices/hint" );
-	
-	}
-	}
+{
+case NOTIFY_GENERIC:
+    m_hint_pImage->SetImage( "notices/generic" );
+    break;
+
+case NOTIFY_ERROR:
+    m_hint_pImage->SetImage( "notices/error" );
+    break;
+
+case NOTIFY_UNDO:
+    m_hint_pImage->SetImage( "notices/undo" );
+    break;
+
+case NOTIFY_CLEANUP:
+    m_hint_pImage->SetImage( "notices/cleanup" );
+    break;
+
+default:
+    m_hint_pImage->SetImage( "notices/hint" );
+    break;
+}
 	InvalidateLayout();
 }
 
@@ -446,7 +440,7 @@ void CC_HintAdd( const CCommand &args )
 	}
 
 	const char *text = args[1];
-	float		duration = 5.0f;
+	float		duration = 4.0f;
 
 /*	if ( args.ArgC() >= 3 )
 		duration = atof( args[2] );
@@ -469,4 +463,4 @@ void CC_HintAdd( const CCommand &args )
     }
 }
 
-ConCommand hint_add( "hint_add", CC_HintAdd, "Displays a hint on screen. Usage: hint_add <text> [duration]", FCVAR_CHEAT );
+ConCommand hint_add( "cc_hint_add", CC_HintAdd, "Displays a hint on screen. Usage: hint_add <text> [duration]", FCVAR_CHEAT );
