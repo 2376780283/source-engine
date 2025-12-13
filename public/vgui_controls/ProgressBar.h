@@ -60,10 +60,13 @@ public:
 
 	int GetProgressDirection() const { return m_iProgressDirection; }
 	void SetProgressDirection( int val ) { m_iProgressDirection = val; }
+    void SetDrawBackground(bool enabled) { m_bDrawBackground = enabled; }
+    bool m_bDrawBackground;
 
 protected:
 	virtual void Paint();
 	void PaintSegment( int &x, int &y, int tall, int wide );
+	// FOR GAMEPADUI
 	virtual void PaintBackground();
 	virtual void ApplySchemeSettings(IScheme *pScheme);
 	MESSAGE_FUNC_PARAMS( OnDialogVariablesChanged, "DialogVariables", dialogVariables );
@@ -83,6 +86,7 @@ private:
 	int m_iBarInset;
 	int m_iBarMargin;
 	char *m_pszDialogVar;
+
 };
 
 //-----------------------------------------------------------------------------
@@ -96,8 +100,10 @@ public:
 	ContinuousProgressBar(Panel *parent, const char *panelName);
 	MESSAGE_FUNC_FLOAT( SetPrevProgress, "SetPrevProgress", prevProgress );
 
-	void SetGainColor( Color color ) { m_colorGain = color; }
-	void SetLossColor( Color color ) { m_colorLoss = color; }
+//	void SetGainColor( Color color ) { m_colorGain = color; }
+//	void SetLossColor( Color color ) { m_colorLoss = color; }
+    void SetGainColor(const Color& color);
+    void SetLossColor(const Color& color);
 
 	virtual void Paint();
 

@@ -56,7 +56,11 @@ using namespace vgui;
 #include "OptionsDialog.h"
 #include "CreateMultiplayerGameDialog.h"
 #include "ChangeGameDialog.h"
+#include "WorkshopManagerPanel.h" 
+
 #include "BackgroundMenuButton.h"
+#include "BasePanel.h"
+
 #include "PlayerListDialog.h"
 #include "BenchmarkDialog.h"
 #include "LoadCommentaryDialog.h"
@@ -86,9 +90,6 @@ using namespace vgui;
 #include "../engine/imatchmaking.h"
 #include "tier1/utlstring.h"
 #include "steam/steam_api.h"
-
-#include "materialsystem/imaterial.h"
-#include "tier2/renderutils.h"
 
 #ifdef ANDROID
 #include <SDL_misc.h>
@@ -204,89 +205,6 @@ void CGameMenuItem::SetRightAlignedText(bool state)
 {
 	m_bRightAligned = state;
 }
-
-class ImageButton : public vgui::Panel
-{
-public:
-	ImageButton(Panel *parent, const char *imageName) : Panel(parent)
-	{
-		m_szUrl = NULL;
-
-		m_textureID = vgui::surface()->CreateNewTextureID();
-		vgui::surface()->DrawSetTextureFile( m_textureID, imageName, true, false);
-		m_bSelected = false;
-	}
-
-	virtual void Paint()
-	{
-		if( GameUI().IsInLevel() ) return;
-
-		int color = m_bSelected ? 120 : 160;
-
-		vgui::surface()->DrawSetColor(color, color, color, 100);
-		vgui::surface()->DrawFilledRect( 0, 0, GetWide(), GetTall() );
-		vgui::surface()->DrawSetTexture( m_textureID );
-
-		vgui::surface()->DrawSetColor( 255, 255, 255, 255 );
-		vgui::surface()->DrawTexturedRect( 0, 0, GetWide(), GetTall() );
-	}
-
-	virtual void OnMousePressed(MouseCode code)
-	{
-		if( GameUI().IsInLevel() ) return;
-
-		m_bSelected = true;
-		input()->SetMouseCapture(GetVPanel());
-	}
-
-	virtual void OnMouseReleased(MouseCode code)
-	{
-		if( GameUI().IsInLevel() ) return;
-
-		m_bSelected = false;
-#ifdef ANDROID
-		if( m_szUrl ) SDL_OpenURL( m_szUrl );
-#endif
-
-		input()->SetMouseCapture(NULL);
-	}
-
-	void SetUrl( const char *url )
-	{
-		m_szUrl = url;
-	}
-
-	virtual void OnScreenSizeChanged( int nOldWidth, int nOldHeight )
-	{
-		int nw, nh;
-		surface()->GetScreenSize(nw, nh);
-		int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
-
-		Panel::SetPos(nw-scheme()->GetProportionalScaledValue(m_iOldX)-scaled_w, m_iOldY);
-		Panel::SetSize(scaled_w, scheme()->GetProportionalScaledValue(m_iOldH));
-	}
-
-	void SetBounds( int x, int y, int w, int h )
-	{
-		m_iOldX = x; m_iOldY = y;
-		m_iOldW = w; m_iOldH = h;
-
-		int nw, nh;
-		surface()->GetScreenSize(nw, nh);
-		int scaled_w = scheme()->GetProportionalScaledValue(m_iOldW);
-
-		Panel::SetPos(nw-scheme()->GetProportionalScaledValue(m_iOldX)-scaled_w, m_iOldY);
-		Panel::SetSize(scaled_w, scheme()->GetProportionalScaledValue(m_iOldH));
-	}
-
-private:
-	int m_iOldX, m_iOldY;
-	int m_iOldW, m_iOldH;
-
-	bool m_bSelected;
-	int m_textureID;
-	const char *m_szUrl;
-};
 
 
 //-----------------------------------------------------------------------------
@@ -727,10 +645,10 @@ public:
 
     MESSAGE_FUNC_HANDLE( OnCursorEnteredMenuItem, "CursorEnteredMenuItem", menuItem);
 
-	vgui::VPANEL	m_hMainMenuOverridePanel;
 private:
 	CFooterPanel *m_pConsoleFooter;
 	vgui::CKeyRepeatHandler	m_KeyRepeat;
+	vgui::VPANEL	m_hMainMenuOverridePanel;
 };
 
 //-----------------------------------------------------------------------------
@@ -765,7 +683,6 @@ bool g_bIsCreatingNewGameMenuForPreFetching = false;
 //-----------------------------------------------------------------------------
 CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 {
-	
 	if( NeedProportional() )
 		SetProportional( true );
 
@@ -805,7 +722,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 
 	m_iRenderTargetImageID = -1;
 	m_iBackgroundImageID = -1;
-	m_iProductImageID = -1;
+	m_iProductImageID = -1;	
 	m_iLoadingImageID = -1;
 	m_iLoadingSpinnerImageID = -1;
 	m_fLoadingSpinnerFrame = 0;
@@ -830,9 +747,10 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 		x360_audio_english.SetValue( XboxLaunch()->GetForceEnglish() );
 #endif
 	}
-
-	if (!IsGamepadUI())
-	{
+//	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton", ModInfo().GetGameTitle() ) );
+//	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton2", ModInfo().GetGameTitle2() ) );
+    if ( !IsGamepadUI() )
+    {
 		m_pGameMenuButtons.AddToTail(CreateMenuButton(this, "GameMenuButton", ModInfo().GetGameTitle()));
 		m_pGameMenuButtons.AddToTail(CreateMenuButton(this, "GameMenuButton2", ModInfo().GetGameTitle2()));
 	}
@@ -892,7 +810,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 	if ( IsX360() )
 	{
 		// Get our active mod directory name
-		const char *pGameName = CommandLine()->ParmValue( "-game", "hl2" );;
+		const char *pGameName = CommandLine()->ParmValue( "-game", "hl2" );
 
 		// Set the game we're playing
 		m_iGameID = CONTEXT_GAME_GAME_HALF_LIFE_2;
@@ -972,7 +890,6 @@ CBasePanel::~CBasePanel()
 			vgui::surface()->DestroyTextureID( m_iLoadingImageID );
 			m_iLoadingImageID = -1;
 		}
-
 		if (m_iLoadingSpinnerImageID != -1 )
 		{
 			vgui::surface()->DestroyTextureID(m_iLoadingSpinnerImageID);
@@ -998,6 +915,7 @@ static const char *g_rgValidCommands[] =
 	"OpenCreateMultiplayerGameDialog",
 	"OpenChangeGameDialog",
 	"OpenLoadCommentaryDialog",
+	"workshop_publish",
 	"Quit",
 	"QuitNoConfirm",
 	"ResumeGame",
@@ -1078,8 +996,8 @@ void CBasePanel::PaintBackground()
 {
 	if ( !GameUI().IsInLevel() || g_hLoadingDialog.Get() || m_ExitingFrameCount )
 	{
-		// not in the game or loading dialog active or exiting, draw the ui background
-		DrawBackgroundImage();
+		// not in the game or loading dialog active or exiting, draw the ui background		
+		DrawBackgroundImage();        
 	}
 	else if ( IsX360() )
 	{
@@ -1300,13 +1218,14 @@ void CBasePanel::SetBackgroundRenderState(EBackgroundState state)
 			// fade background into main menu
 			m_bRenderingBackgroundTransition = true;
 			m_flTransitionStartTime = frametime;
-			if (IsGamepadUI())
+			m_flTransitionEndTime = frametime + 3.0f;
+			if ( IsGamepadUI() )
 			{
-				m_flTransitionEndTime = frametime + 1.0f;
+				m_flTransitionEndTime = frametime + 2.0f;
 			}
 			else
 			{
-				m_flTransitionEndTime = frametime + 3.0f;
+				m_flTransitionEndTime = frametime + 4.0f;
 			}
 		}
 	}
@@ -1368,13 +1287,6 @@ void CBasePanel::OnLevelLoadingStarted()
 {
 	m_bLevelLoading = true;
 
-	ConVarRef("cl_gamepadui_mainmenu_draw").SetValue(false);
-	// about to start loading a new level
-
-	//Msg("%d\n", GameUI().IsLoading());
-	//GameUI().SetLoadingState(m_bLevelLoading);
-	//Msg("%d\n", GameUI().IsLoading());
-
 	m_pGameMenu->ShowFooter( false );
 
 	if ( m_hMatchmakingBasePanel.Get() )
@@ -1396,8 +1308,6 @@ void CBasePanel::OnLevelLoadingStarted()
 void CBasePanel::OnLevelLoadingFinished()
 {
 	m_bLevelLoading = false;
-
-	ConVarRef("cl_gamepadui_mainmenu_draw").SetValue(true);
 
 	if ( m_hMatchmakingBasePanel.Get() )
 	{
@@ -1496,8 +1406,17 @@ void CBasePanel::DrawBackgroundImage()
 			
 			static unsigned int	nFrameCache = 0;
 			surface()->DrawGetTextureSize(m_iLoadingSpinnerImageID, twide, ttall); //now use twide and ttall for spinner
-			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));
-			surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha }));
+			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));			
+	       
+	        const char *p_SpinnerGameName = CommandLine()->ParmValue( "-game", "hl2" );
+			if ( Q_stristr( p_SpinnerGameName, "portal" ) ) {							
+	          	surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 49, 185, 224, alpha })); //设置spinner色 蓝
+           	} else {         	        
+                surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha })); //设置spinner色 橙色
+		    }
+		    
+		    
+			     		     	
 			surface()->DrawSetTextureFrame(m_iLoadingSpinnerImageID, ((int)m_fLoadingSpinnerFrame) % surface()->GetTextureNumFrames(m_iLoadingSpinnerImageID), &nFrameCache);
 			surface()->DrawSetTexture(m_iLoadingSpinnerImageID);
 
@@ -1632,20 +1551,14 @@ void CBasePanel::UpdateGameMenus()
 //-----------------------------------------------------------------------------
 // Purpose: sets up the game menu from the keyvalues
 //			the game menu is hierarchial, so this is recursive
-// 是递归的 但是只有一层  菜单命令行
 //-----------------------------------------------------------------------------
 CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 {
-	CGameMenu *menu = new CGameMenu(this, datafile->GetName());
+    CGameMenu *menu = new CGameMenu(this, datafile->GetName());
 
-      if (CommandLine()->FindParm( "-console" )){	     		
-           wchar_t *pString = g_pVGuiLocalize->Find( "#GameUI_Console" );
-	       if( pString )
-		      menu->AddMenuItem("Console", V_wcsupr(pString), "OpenConsole", this); 
-           else
-		      menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); 
-	   }
-
+    if (CommandLine()->CheckParm( "-console" )){	     		
+	    menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); 
+    }
 	bool bFoundServerBrowser = false;
 
 	for (KeyValues *dat = datafile->GetFirstSubKey(); dat != NULL; dat = dat->GetNextKey())
@@ -1841,7 +1754,6 @@ void CBasePanel::PerformLayout()
 //-----------------------------------------------------------------------------
 void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 {
-	
 	int i;
 	BaseClass::ApplySchemeSettings(pScheme);
 
@@ -1904,7 +1816,7 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 	SetBgColor(Color(0, 0, 0, 0));
 
 	m_BackdropColor = pScheme->GetColor("mainmenu.backdrop", Color(0, 0, 0, 128));
-	
+
 	char filename[MAX_PATH];
 	if ( IsX360() )
 	{
@@ -1920,7 +1832,7 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 	surface()->GetScreenSize( screenWide, screenTall );
 	float aspectRatio = (float)screenWide/(float)screenTall;
 	bool bIsWidescreen = aspectRatio >= 1.5999f;
-
+		
 	// work out which background image to use
 	if ( IsPC() || !IsX360() )
 	{
@@ -1942,7 +1854,6 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 	{
 		m_iBackgroundImageID = surface()->CreateNewTextureID();
 	}
-
 	surface()->DrawSetTextureFile( m_iBackgroundImageID, filename, false, false );
 
 	if ( IsX360() )
@@ -1956,14 +1867,13 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 		}
 		surface()->DrawSetTextureFile( m_iProductImageID, filename, false, false );
 	}
-	
-	
+
 	if ( IsPC() )
 	{
 		// load the loading icon
 		if ( m_iLoadingImageID == -1 )
 		{
-			if (IsGamepadUI())
+            if (IsGamepadUI())
 			{
 				const char* loading = "gamepadui/game_logo.vtf";
 				m_iLoadingImageID = surface()->CreateNewTextureID();
@@ -1976,20 +1886,18 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 				m_iLoadingImageID = surface()->CreateNewTextureID();
 				surface()->DrawSetTextureFile(m_iLoadingImageID, loading, false, false);
 			}
-			
-		}
-
-		if (IsGamepadUI())
-		{
-			if (m_iLoadingSpinnerImageID == -1)
-			{
-				const char* loadingCircle = "gamepadui/spinner";
-				m_iLoadingSpinnerImageID = surface()->CreateNewTextureID();
-				surface()->DrawSetTextureFile(m_iLoadingSpinnerImageID, loadingCircle, true, false);
-			}
 		}
 	}
-	
+	// 加载 loading spinner
+	if (IsGamepadUI())
+	{
+		if (m_iLoadingSpinnerImageID == -1)
+		{
+	   	 const char* loadingCircle = "gamepadui/spinner";
+	     m_iLoadingSpinnerImageID = surface()->CreateNewTextureID();
+		 surface()->DrawSetTextureFile(m_iLoadingSpinnerImageID, loadingCircle, true, false);
+		}
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -2185,6 +2093,10 @@ void CBasePanel::RunMenuCommand(const char *command)
 	else if ( !Q_stricmp( command, "OpenLoadCommentaryDialog" ) )
 	{
 		OnOpenLoadCommentaryDialog();	
+	}
+	else if ( !Q_stricmp( command, "workshop_publish" ) )
+	{
+		ShowWorkshopManager();
 	}
 	else if ( !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) )
 	{
@@ -2472,6 +2384,7 @@ bool CBasePanel::IsPromptableCommand( const char *command )
 		 !Q_stricmp( command, "OpenOptionsDialog" ) ||
 		 !Q_stricmp( command, "OpenControllerDialog" ) ||
 		 !Q_stricmp( command, "OpenLoadCommentaryDialog" ) ||
+	     !Q_stricmp( command, "workshop_publish" ) ||
          !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) ||
          !Q_stricmp( command, "OpenAchievementsDialog" ) ||
 
@@ -3531,6 +3444,30 @@ void CBasePanel::OnOpenMatchmakingBasePanel()
 
 	m_hMatchmakingBasePanel->Activate();
 }
+
+
+
+void CBasePanel::ShowWorkshopManager()
+{
+
+    if ( !m_hWorkshopDialog.Get() )
+	{
+	   m_hWorkshopDialog = new WorkshopManagerPanel(this);  // 正确创建实例
+		PositionDialog( m_hWorkshopDialog );
+		m_hWorkshopDialog->MoveToCenterOfScreen(); 
+	}
+     m_hWorkshopDialog->Activate();     
+}
+
+void CC_ShowWorkshopManager(const CCommand &args)
+{
+    if (g_pBasePanel)
+    {
+        g_pBasePanel->ShowWorkshopManager();
+    }
+}
+
+static ConCommand workshop_manager("workshop_publish", CC_ShowWorkshopManager, "Open Workshop Manager dialog", FCVAR_NONE);
 
 //-----------------------------------------------------------------------------
 // Purpose: Helper function for this common operation

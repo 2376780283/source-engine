@@ -66,10 +66,11 @@ int ProgressBar::GetDrawnSegmentCount()
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: So ? 💀
 //-----------------------------------------------------------------------------
 void ProgressBar::PaintBackground()
 {
+ //   if (!m_bDrawBackground) return; 
 	int wide, tall;
 	GetSize(wide, tall);
 
@@ -195,10 +196,16 @@ float ProgressBar::GetProgress()
 void ProgressBar::ApplySchemeSettings(IScheme *pScheme)
 {
 	Panel::ApplySchemeSettings(pScheme);
-
-	SetFgColor(GetSchemeColor("ProgressBar.FgColor", pScheme));
-	SetBgColor(GetSchemeColor("ProgressBar.BgColor", pScheme));
-	SetBorder(pScheme->GetBorder("ButtonDepressedBorder"));
+    if (m_bDrawBackground){ 
+    	SetFgColor(GetSchemeColor("ProgressBar.FgColor", pScheme));
+	    SetBgColor(GetSchemeColor("ProgressBar.BgColor", pScheme));
+ 	    SetBorder(pScheme->GetBorder("ButtonDepressedBorder"));
+ 	    SetPaintBorderEnabled(true); 
+        SetPaintBackgroundEnabled(true);
+    }else{   	    
+	    SetPaintBorderEnabled(false); // 不绘制默认边框
+        SetPaintBackgroundEnabled(false);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -394,8 +401,20 @@ DECLARE_BUILD_FACTORY( ContinuousProgressBar );
 ContinuousProgressBar::ContinuousProgressBar(Panel *parent, const char *panelName) : ProgressBar(parent, panelName)
 {
 	_prevProgress = -1.f;
-	m_colorGain = Color( 100, 255, 100, 255 );
-	m_colorLoss = Color( 200, 45, 45, 255 );
+	
+//#ifdef GAMEPADUI_GAME_EZ2
+//    m_colorGain = Color( 255, 46, 0, 240 );
+//	m_colorLoss = Color( 255, 49, 0, 240 );
+//#else	
+//	m_colorGain = Color( 201, 100, 0, 255 );
+//	m_colorLoss = Color( 201, 90, 0, 255 );
+//#endif
+	
+    if (!m_bDrawBackground){
+       SetPaintBackgroundEnabled(false);
+       SetBgColor(Color(0, 0, 0, 0));
+    }
+
 }
 
 //-----------------------------------------------------------------------------
@@ -411,6 +430,24 @@ void ContinuousProgressBar::SetPrevProgress( float progress )
 }
 
 //-----------------------------------------------------------------------------
+// Purpose: 设置增加条颜色
+//-----------------------------------------------------------------------------
+void ContinuousProgressBar::SetGainColor(const Color& color)
+{
+    m_colorGain = color;
+    Repaint(); // 更新显示
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 设置减少条颜色
+//-----------------------------------------------------------------------------
+void ContinuousProgressBar::SetLossColor(const Color& color)
+{
+    m_colorLoss = color;
+    Repaint(); // 更新显示
+}
+
+//-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
 void ContinuousProgressBar::Paint()
@@ -420,6 +457,7 @@ void ContinuousProgressBar::Paint()
 	GetSize(wide, tall);
 
 	surface()->DrawSetColor( GetFgColor() );
+//    surface()->DrawSetColor( Color(255, 46, 0, 240) );
 
 	bool bUsePrev = _prevProgress >= 0.f;
 	bool bGain = _progress > _prevProgress;
@@ -434,7 +472,7 @@ void ContinuousProgressBar::Paint()
 				surface()->DrawFilledRect( x, y, x + (int)( wide * _prevProgress ), y + tall );
 
 				// Delta
-				surface()->DrawSetColor( m_colorGain );
+				surface()->DrawSetColor( m_colorGain /*Color(255, 46, 0, 240) */);
 				surface()->DrawFilledRect( x + (int)( wide * _prevProgress ), y, x + (int)( wide * _progress ), y + tall );
 				break;
 			}
@@ -445,7 +483,7 @@ void ContinuousProgressBar::Paint()
 				surface()->DrawFilledRect( x + (int)( wide * _progress ), y, x + (int)( wide * _prevProgress ), y + tall );
 			}
 		}
-		surface()->DrawSetColor( GetFgColor() );
+		surface()->DrawSetColor( m_colorGain /*Color(255, 46, 0, 240)*/ );
 		surface()->DrawFilledRect( x, y, x + (int)( wide * _progress ), y + tall );
 		break;
 

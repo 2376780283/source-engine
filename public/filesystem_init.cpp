@@ -595,6 +595,20 @@ FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
 			FileSystem_AddLoadedSearchPath( initInfo, "GAME", vecPaths[idxExtraPath], false );
 		}
 	}
+	// 新增环境变量 EXTRAS_VPK_PATH_TOUCH
+    const char *ExtraVpkPathsTouch = getenv("EXTRAS_VPK_PATH_TOUCH");
+    if (ExtraVpkPathsTouch)
+    {
+        CUtlStringList vecPathsTouch;
+        V_SplitString(ExtraVpkPathsTouch, ",", vecPathsTouch);
+
+        FOR_EACH_VEC(vecPathsTouch, idxExtraPath)
+        {
+            // 添加到文件系统搜索路径
+            FileSystem_AddLoadedSearchPath(initInfo, "PLATFORM", vecPathsTouch[idxExtraPath], false);
+            FileSystem_AddLoadedSearchPath(initInfo, "GAME", vecPathsTouch[idxExtraPath], false);
+        }
+    }
 
 	bool bLowViolence = initInfo.m_bLowViolence;
 	for ( KeyValues *pCur=pSearchPaths->GetFirstValue(); pCur; pCur=pCur->GetNextValue() )
