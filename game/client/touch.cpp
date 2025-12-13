@@ -12,8 +12,8 @@
 #include "tier0/icommandline.h"
 #include "vgui_controls/Button.h"
 #include "viewrender.h"
-#include "sdk/hud_hints.h"
-	
+
+
 #define STB_RECT_PACK_IMPLEMENTATION
 #include "../../thirdparty/stb/stb_rect_pack.h"
 
@@ -169,15 +169,12 @@ CON_COMMAND( touch_removebutton, "remove native touch button" )
 
 CON_COMMAND( touch_enableedit, "enable button editing mode" )
 {
-	gTouch.EnableTouchEdit(true);
-    
-    engine->ClientCmd_Unrestricted( "hint_add EnableEditTouch 5" );
+	gTouch.EnableTouchEdit(true);       
 }
 
 CON_COMMAND( touch_disableedit, "disable button editing mode" )
 {
-	gTouch.EnableTouchEdit(false);
-	engine->ClientCmd_Unrestricted( "hint_add DisableEditTouch 5" );
+	gTouch.EnableTouchEdit(false);	
 }
 
 CON_COMMAND( touch_setcolor, "change button color" )
