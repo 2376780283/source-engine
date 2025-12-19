@@ -86,7 +86,7 @@ COptionsDialog::COptionsDialog(vgui::Panel *parent) : PropertyDialog(parent, "Op
 	AddPage(new COptionsSubKeyboard(this), "#GameUI_Keyboard");
 	AddPage(new COptionsSubMouse(this), "#GameUI_Mouse");
 #ifdef ANDROID
-	AddPage(new COptionsSubTouch(this), "#GameUI_Touch");
+	AddPage(new COptionsSubTouch(this), "Touch");
 #endif
 	m_pOptionsSubAudio = new COptionsSubAudio(this);
 	AddPage(m_pOptionsSubAudio, "#GameUI_Audio");
