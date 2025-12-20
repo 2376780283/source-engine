@@ -2134,12 +2134,12 @@ void CBasePanel::RunMenuCommand(const char *command)
     {
         if ( IsPC() )
         {
-            if ( !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
+ /*           if ( !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
             {
                 vgui::MessageBox *pMessageBox = new vgui::MessageBox("#GameUI_Achievements_SteamRequired_Title", "#GameUI_Achievements_SteamRequired_Message", this );
                 pMessageBox->DoModal();
                 return;
-            }
+            }*/
 
 			OnOpenCSAchievementsDialog();
         }

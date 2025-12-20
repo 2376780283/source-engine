@@ -67,6 +67,8 @@ class CAvatarImage : public vgui::IImage
 public:
 	CAvatarImage( void );
 
+	bool SetAvatarByPlayerName( const char *playerName, EAvatarSize avatarSize );
+
 	// Call this to set the steam ID associated with the avatar
 	//=============================================================================
 	// HPE_BEGIN:
@@ -78,6 +80,9 @@ public:
 	//=============================================================================
 	void UpdateFriendStatus( void );
 	void ClearAvatarSteamID( void );
+	
+	CUtlString m_PlayerName;
+	bool       m_bUseLocalAvatar;
 
 	// Call to Paint the image
 	// Image will draw within the current panel context at the specified position
@@ -145,6 +150,10 @@ protected:
 
 private:
 	void LoadAvatarImage();
+
+	void LoadLocalAvatar();
+
+
 
 	Color m_Color;
 	int m_iTextureID;

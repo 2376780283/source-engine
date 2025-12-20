@@ -42,6 +42,7 @@ CAvatarImage::CAvatarImage( void )
 	//=============================================================================
 	// [tj] Default to drawing the friend icon for avatars
 	m_bDrawFriend = true;
+	m_bUseLocalAvatar = false;
 
 	// [menglish] Default icon for avatar icons if there is no avatar icon for the player
 	m_iTextureID = -1;
@@ -94,6 +95,21 @@ bool CAvatarImage::SetAvatarSteamID( CSteamID steamIDUser, EAvatarSize avatarSiz
 	UpdateFriendStatus();
 
 	return m_bValid;
+}
+
+bool CAvatarImage::SetAvatarByPlayerName(
+	const char *playerName,
+	EAvatarSize avatarSize )
+{
+	ClearAvatarSteamID();
+
+	m_PlayerName = playerName;
+	m_AvatarSize = avatarSize;
+	m_bUseLocalAvatar = true;
+	m_bLoadPending = true;
+
+	// ❌ 绝对不能在这里 Load
+	return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -169,6 +185,61 @@ void CAvatarImage::LoadAvatarImage()
 	}
 }
 
+void CAvatarImage::LoadLocalAvatar()
+{
+    if ( !m_bUseLocalAvatar || !m_bLoadPending )
+        return;
+
+    m_bLoadPending = false;
+
+    char materialName[MAX_PATH];
+    Q_snprintf(
+        materialName,
+        sizeof(materialName),
+        "vgui/avatar/%s",
+        m_PlayerName.String()
+    );
+
+    //-------------------------------------------------------------------------
+    // 1. 通过 MaterialSystem 查找材质（这是关键）
+    //-------------------------------------------------------------------------
+    IMaterial *pMaterial = materials->FindMaterial(
+        materialName,
+        TEXTURE_GROUP_VGUI,
+        false
+    );
+
+    //-------------------------------------------------------------------------
+    // 2. 材质不存在 / 错误材质 → 直接失败
+    //-------------------------------------------------------------------------
+    if ( !pMaterial || IsErrorMaterial( pMaterial ) )
+    {
+        DevWarning(
+            "Local avatar material not found: %s\n",
+            materialName
+        );
+
+        m_bValid = false;
+        return;
+    }
+
+    //-------------------------------------------------------------------------
+    // 3. 创建 VGUI TextureID 并绑定 IMaterial
+    //-------------------------------------------------------------------------
+    m_iTextureID = vgui::surface()->CreateNewTextureID( true );
+
+    vgui::surface()->DrawSetTextureFile(
+        m_iTextureID,
+        materialName,
+        true,   // hardware filter
+        false   // no mipmaps
+    );
+
+    //-------------------------------------------------------------------------
+    // 4. 标记有效
+    //-------------------------------------------------------------------------
+    m_bValid = true;
+}
 
 //-----------------------------------------------------------------------------
 // Purpose: Query Steam to set the m_bFriend status flag
@@ -219,11 +290,13 @@ void CAvatarImage::Paint( void )
 		posX += FRIEND_ICON_AVATAR_INDENT_X * m_avatarWide / DEFAULT_AVATAR_SIZE;
 		posY += FRIEND_ICON_AVATAR_INDENT_Y * m_avatarTall / DEFAULT_AVATAR_SIZE;
 	}
-	
-	if ( m_bLoadPending )
-	{
+    if ( m_bLoadPending )
+    {
+	if ( m_bUseLocalAvatar )
+		LoadLocalAvatar();
+	else
 		LoadAvatarImage();
-	}
+    }
 
 	if ( m_bValid )
 	{
@@ -340,17 +413,12 @@ void CAvatarImagePanel::SetPlayer( int entindex, EAvatarSize avatarSize )
 	m_pImage->ClearAvatarSteamID();
 
 	player_info_t pi;
-	if ( engine->GetPlayerInfo(entindex, &pi) )
+	if ( engine->GetPlayerInfo( entindex, &pi ) )
 	{
-		if ( pi.friendsID != 0 	&& steamapicontext->SteamUtils() )
-		{		
-			CSteamID steamIDForPlayer( pi.friendsID, 1, steamapicontext->SteamUtils()->GetConnectedUniverse(), k_EAccountTypeIndividual );
-			SetPlayer(steamIDForPlayer, avatarSize);
-		}
-		else
-		{
-			m_pImage->ClearAvatarSteamID();
-		}
+		// 直接用玩家名匹配本地头像
+		m_pImage->SetAvatarByPlayerName(
+			pi.name,
+			avatarSize );
 	}
 }
 
