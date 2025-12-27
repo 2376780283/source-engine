@@ -27,151 +27,303 @@ using namespace vgui;
 
 extern IFileSystem *g_pFullFileSystem;
 
+// ====== 便利宏：统一比例缩放（使用时须保证在函数体内或合适作用域） ======
+// 使用示例： int w = PROPVAL(300);
+#ifndef PROPVAL
+#define PROPVAL(x) (IsProportional() ? scheme()->GetProportionalScaledValueEx(GetScheme(), (x)) : (x))
+#endif
+
+// ======= ImagePanelPNG with Texture Cache & MaxSize control =======
 class ImagePanelPNG : public vgui::Panel {
     DECLARE_CLASS_SIMPLE(ImagePanelPNG, vgui::Panel);
 
 public:
     enum DisplayMode {
-        DISPLAY_CENTER,   // 居中保持比例
-        DISPLAY_STRETCH,  // 拉伸填充
-        DISPLAY_COVER     // 覆盖填充（保持比例但可能裁剪）
+        DISPLAY_CENTER,
+        DISPLAY_STRETCH,
+        DISPLAY_COVER
     };
 
     ImagePanelPNG(vgui::Panel *parent, const char *name, const char *pngPath, DisplayMode mode = DISPLAY_CENTER)
         : vgui::Panel(parent, name),
-          m_textureID(-1),
+          m_cacheIndex(-1),
           m_imgWidth(0),
           m_imgHeight(0),
-          m_u0(0.0f),
-          m_v0(0.0f),
-          m_u1(1.0f),
-          m_v1(1.0f),
+          m_u0(0.0f), m_v0(0.0f), m_u1(1.0f), m_v1(1.0f),
           m_displayMode(mode) {
-        LoadPNG(pngPath);
+        SetPaintBackgroundEnabled(false);
+        if (pngPath && pngPath[0]) {
+            SetImage(pngPath);
+        }
     }
 
     ~ImagePanelPNG() override {
-        if (m_textureID != -1) {
-            surface()->DestroyTextureID(m_textureID);
-            m_textureID = -1;
+        ReleaseCachedTexture();
+    }
+
+    void SetDisplayMode(DisplayMode mode) { m_displayMode = mode; InvalidateLayout(true); Repaint(); }
+    DisplayMode GetDisplayMode() const { return m_displayMode; }
+
+    // 更改图片（会使用缓存）
+    void SetImage(const char *pngPath) {
+        if (!pngPath) return;
+        // 如果路径和当前缓存相同，直接返回
+        if (m_cacheIndex >= 0 && m_cacheIndex < s_TextureCache.Count()) {
+            if (!Q_stricmp(s_TextureCache[m_cacheIndex].path, pngPath)) {
+                return;
+            }
+        }
+        // 释放当前
+        ReleaseCachedTexture();
+        // 尝试从缓存获取或加载
+        m_cacheIndex = AcquireTextureFromCache(pngPath, &m_imgWidth, &m_imgHeight);
+        if (m_cacheIndex >= 0) {
+            // 读取尺寸并计算 UV
+            const CacheEntry &e = s_TextureCache[m_cacheIndex];
+            m_imgWidth = e.width;
+            m_imgHeight = e.height;
+            UpdateUV();
+            InvalidateLayout(true);
+            Repaint();
         }
     }
 
-    void SetDisplayMode(DisplayMode mode) { m_displayMode = mode; }
-    DisplayMode GetDisplayMode() const { return m_displayMode; }
+    // 设置全局最大纹理尺寸（像素），影响后续加载。默认 2048。
+    static void SetGlobalMaxTextureSize(int maxSize) {
+        s_maxTextureSize = max(64, min(maxSize, 16384)); // 防御性限制
+    }
+    static int GetGlobalMaxTextureSize() { return s_maxTextureSize; }
 
     virtual void Paint() override {
-        if (m_textureID == -1)
+        // draw background if desired
+        if (m_cacheIndex < 0 || m_cacheIndex >= s_TextureCache.Count())
             return;
+
+        const CacheEntry &e = s_TextureCache[m_cacheIndex];
+        if (e.textureID < 0) return;
 
         int panelW, panelH;
         GetSize(panelW, panelH);
+        if (panelW <= 0 || panelH <= 0) return;
 
         surface()->DrawSetColor(255, 255, 255, 255);
-        surface()->DrawSetTexture(m_textureID);
+        surface()->DrawSetTexture(e.textureID);
 
-        int x = 0, y = 0;
-        int drawW = panelW, drawH = panelH;
+        float x = 0.0f, y = 0.0f;
+        float drawW = (float)panelW, drawH = (float)panelH;
+        float panelAspect = (float)panelW / (float)panelH;
+        float imgAspect = e.height > 0 ? (float)e.width / (float)e.height : 1.0f;
 
         switch (m_displayMode) {
-            case DISPLAY_CENTER: {
-                float panelAspect = (float)panelW / (float)panelH;
-                float imgAspect = (float)m_imgWidth / (float)m_imgHeight;
+            case DISPLAY_CENTER:
                 if (imgAspect > panelAspect) {
-                    drawH = (int)((float)panelW / imgAspect);
-                    y = (panelH - drawH) / 2;
-                } else if (imgAspect < panelAspect) {
-                    drawW = (int)((float)panelH * imgAspect);
-                    x = (panelW - drawW) / 2;
+                    drawW = (float)panelW;
+                    drawH = drawW / imgAspect;
+                    y = ((float)panelH - drawH) * 0.5f;
+                } else {
+                    drawH = (float)panelH;
+                    drawW = drawH * imgAspect;
+                    x = ((float)panelW - drawW) * 0.5f;
                 }
                 break;
-            }
-
             case DISPLAY_STRETCH:
-                // 默认行为：拉伸填满
+                // do nothing
                 break;
-
-            case DISPLAY_COVER: {
-                float panelAspect = (float)panelW / (float)panelH;
-                float imgAspect = (float)m_imgWidth / (float)m_imgHeight;
+            case DISPLAY_COVER:
                 if (imgAspect > panelAspect) {
-                    drawW = (int)((float)panelH * imgAspect);
-                    x = (panelW - drawW) / 2;
-                } else if (imgAspect < panelAspect) {
-                    drawH = (int)((float)panelW / imgAspect);
-                    y = (panelH - drawH) / 2;
+                    drawH = (float)panelH;
+                    drawW = drawH * imgAspect;
+                    x = ((float)panelW - drawW) * 0.5f;
+                } else {
+                    drawW = (float)panelW;
+                    drawH = drawW / imgAspect;
+                    y = ((float)panelH - drawH) * 0.5f;
                 }
                 break;
+        }
+
+        int ix = (int)floorf(x + 0.5f);
+        int iy = (int)floorf(y + 0.5f);
+        int iwx = max(1, (int)floorf(drawW + 0.5f));
+        int ihy = max(1, (int)floorf(drawH + 0.5f));
+
+        surface()->DrawTexturedSubRect(ix, iy, ix + iwx, iy + ihy, s_tex_u0, s_tex_v0, s_tex_u1, s_tex_v1);
+    }
+
+private:
+    // 简单缓存项
+    struct CacheEntry {
+        CUtlString path;   // materials/... 路径
+        int textureID;
+        int width;
+        int height;
+        int refCount;
+        CacheEntry() : textureID(-1), width(0), height(0), refCount(0) {}
+    };
+
+    // 释放当前控件持有的引用
+    void ReleaseCachedTexture() {
+        if (m_cacheIndex >= 0 && m_cacheIndex < s_TextureCache.Count()) {
+            CacheEntry &e = s_TextureCache[m_cacheIndex];
+            e.refCount = max(0, e.refCount - 1);
+            if (e.refCount == 0) {
+                // 销毁纹理
+                if (e.textureID != -1) {
+                    surface()->DestroyTextureID(e.textureID);
+                    e.textureID = -1;
+                }
+                // 从缓存中移除（保持简单：线性删除）
+                s_TextureCache.Remove(m_cacheIndex);
+                // 改变后无需调整其他索引（使用后续访问时重新查询）
             }
         }
-
-        // 使用 UV 修正的绘制
-        surface()->DrawTexturedSubRect(x, y, x + drawW, y + drawH, m_u0, m_v0, m_u1, m_v1);
+        m_cacheIndex = -1;
     }
 
-private:
-    void LoadPNG(const char *path) {
-        char resolved[MAX_PATH];
-        Q_strncpy(resolved, path, sizeof(resolved));
-        if (!Q_stristr(resolved, "materials/"))
-            Q_snprintf(resolved, sizeof(resolved), "materials/%s", path);
+    // 在缓存中查找，若不存在则加载并加入缓存
+// 在 ImagePanelPNG::AcquireTextureFromCache 的定义内，替换整个函数体为下面内容：
+static int AcquireTextureFromCache(const char *requestedPath, int *outW, int *outH) {
+    if (!requestedPath || !requestedPath[0]) return -1;
 
-        FileHandle_t f = g_pFullFileSystem->Open(resolved, "rb");
-        if (!f) {
-            Warning("[ImagePanelPNG] Cannot open: %s\n", resolved);
-            return;
+    // 规范化路径（确保带 materials/ 前缀）
+    char resolved[MAX_PATH];
+    Q_strncpy(resolved, requestedPath, sizeof(resolved));
+    if (!Q_stristr(resolved, "materials/")) {
+        Q_snprintf(resolved, sizeof(resolved), "materials/%s", requestedPath);
+    }
+
+    // 先查缓存（线性查找）
+    for (int i = 0; i < s_TextureCache.Count(); ++i) {
+        if (!Q_stricmp(s_TextureCache[i].path.Get(), resolved)) {
+            s_TextureCache[i].refCount++;
+            if (outW) *outW = s_TextureCache[i].width;
+            if (outH) *outH = s_TextureCache[i].height;
+            return i;
         }
+    }
 
-        int fileSize = g_pFullFileSystem->Size(f);
-        CUtlMemory<unsigned char> buffer(0, fileSize);
-        g_pFullFileSystem->Read(buffer.Base(), fileSize, f);
+    // 打开文件
+    FileHandle_t f = g_pFullFileSystem->Open(resolved, "rb");
+    if (!f) {
+        Warning("[ImagePanelPNG] Cannot open: %s\n", resolved);
+        return -1;
+    }
+    int fileSize = g_pFullFileSystem->Size(f);
+    if (fileSize <= 0) {
         g_pFullFileSystem->Close(f);
+        Warning("[ImagePanelPNG] empty file: %s\n", resolved);
+        return -1;
+    }
 
-        int channels = 0;
-        unsigned char *raw = stbi_load_from_memory(buffer.Base(), fileSize, &m_imgWidth, &m_imgHeight, &channels, STBI_rgb_alpha);
-        if (!raw) {
-            Warning("[ImagePanelPNG] Failed to decode PNG: %s\n", resolved);
+    CUtlMemory<unsigned char> buffer(0, fileSize);
+    g_pFullFileSystem->Read(buffer.Base(), fileSize, f);
+    g_pFullFileSystem->Close(f);
+
+    int imgW = 0, imgH = 0, channels = 0;
+    unsigned char *raw = stbi_load_from_memory(buffer.Base(), fileSize, &imgW, &imgH, &channels, STBI_rgb_alpha);
+    if (!raw) {
+        Warning("[ImagePanelPNG] stbi load failed: %s\n", resolved);
+        return -1;
+    }
+
+    // 决定是否缩放到受限尺寸，优先使用全局限制
+    int maxSize = s_maxTextureSize;
+    // 使用局部整数名（避免与 outW/outH 指针冲突）
+    int w = imgW, h = imgH;
+    if (w > maxSize || h > maxSize) {
+        float scale = min((float)maxSize / (float)w, (float)maxSize / (float)h);
+        w = max(1, (int)(w * scale));
+        h = max(1, (int)(h * scale));
+    }
+
+    unsigned char *uploadBuf = nullptr;
+    bool resized = false;
+
+    if (w != imgW || h != imgH) {
+        // 需要 resize —— 分配 resized buffer，然后释放原始 raw
+        uploadBuf = new unsigned char[w * h * 4];
+        stbir_resize_uint8(raw, imgW, imgH, 0, uploadBuf, w, h, 0, 4);
+        // 原始 raw 是由 stbi 分配，必须用 stbi_image_free 释放
+        stbi_image_free(raw);
+        raw = nullptr;
+        resized = true; // uploadBuf 需用 delete[]
+    } else {
+        // 不需要 resize —— 直接使用 raw（stbi 分配），并用 stbi_image_free 释放
+        uploadBuf = raw;
+        raw = nullptr;
+        resized = false; // uploadBuf 需用 stbi_image_free
+    }
+
+    // 创建纹理 ID 并上传（surface 会内部复制数据）
+    int texID = surface()->CreateNewTextureID(true);
+    surface()->DrawSetTextureRGBA(texID, uploadBuf, w, h, false, false);
+
+    // 根据分配方式正确释放 uploadBuf
+    if (resized) {
+        delete[] uploadBuf;
+    } else {
+        // uploadBuf 来自 stbi_load，使用 stbi_image_free 释放
+        if (uploadBuf) stbi_image_free(uploadBuf);
+    }
+
+    // 把 texture 信息加入缓存（使用局部 w/h）
+    CacheEntry entry;
+    entry.path = resolved;
+    entry.textureID = texID;
+    entry.width = w;
+    entry.height = h;
+    entry.refCount = 1;
+
+    int newIndex = s_TextureCache.AddToTail(entry);
+
+    // 将尺寸写回调用者（如果传入非空指针）
+    if (outW) *outW = entry.width;
+    if (outH) *outH = entry.height;
+
+    // UV 半像素修正（全局缓存通用）
+    UpdateGlobalUV(entry.width, entry.height);
+
+    return newIndex;
+}
+
+    // 更新当前对象的 UV（基于全局静态值）
+    void UpdateUV() {
+        // s_tex_* 已由 Acquire 设置（全局）
+    }
+
+    // 静态，供全局 UV 使用（纹理尺寸变化时更新）
+    static void UpdateGlobalUV(int texW, int texH) {
+        if (texW <= 0 || texH <= 0) {
+            s_tex_u0 = 0.0f; s_tex_v0 = 0.0f; s_tex_u1 = 1.0f; s_tex_v1 = 1.0f;
             return;
         }
-
-        const int maxSize = 4080;
-        int outW = m_imgWidth, outH = m_imgHeight;
-        if (outW > maxSize || outH > maxSize) {
-            float scale = min((float)maxSize / outW, (float)maxSize / outH);
-            outW = (int)(outW * scale);
-            outH = (int)(outH * scale);
-        }
-
-        unsigned char *resized = new unsigned char[outW * outH * 4];
-        stbir_resize_uint8(raw, m_imgWidth, m_imgHeight, 0, resized, outW, outH, 0, 4);
-
-        m_textureID = surface()->CreateNewTextureID(true);
-        surface()->DrawSetTextureRGBA(m_textureID, resized, outW, outH, false, false);
-
-        m_imgWidth = outW;
-        m_imgHeight = outH;
-
-        delete[] resized;
-        stbi_image_free(raw);
-
-        // ✅ 半像素 UV 修正
-        float texelU = 0.5f / (float)m_imgWidth;
-        float texelV = 0.5f / (float)m_imgHeight;
-        m_u0 = texelU;
-        m_v0 = texelV;
-        m_u1 = 1.0f - texelU;
-        m_v1 = 1.0f - texelV;
-
-        Warning("[ImagePanelPNG] Texture %s loaded: %dx%d (UV fixed)\n", resolved, outW, outH);
+        float texelU = 0.5f / (float)texW;
+        float texelV = 0.5f / (float)texH;
+        s_tex_u0 = texelU;
+        s_tex_v0 = texelV;
+        s_tex_u1 = 1.0f - texelU;
+        s_tex_v1 = 1.0f - texelV;
     }
 
 private:
-    int m_textureID;
+    int m_cacheIndex; // 在 s_TextureCache 中的索引
     int m_imgWidth, m_imgHeight;
     float m_u0, m_v0, m_u1, m_v1;
     DisplayMode m_displayMode;
+
+    // 静态缓存数据
+    static CUtlVector<CacheEntry> s_TextureCache;
+    static int s_maxTextureSize;
+    static float s_tex_u0, s_tex_v0, s_tex_u1, s_tex_v1;
 };
 
+// ========== 静态成员定义 ==========
+CUtlVector<ImagePanelPNG::CacheEntry> ImagePanelPNG::s_TextureCache;
+int ImagePanelPNG::s_maxTextureSize = 2048;
+float ImagePanelPNG::s_tex_u0 = 0.0f;
+float ImagePanelPNG::s_tex_v0 = 0.0f;
+float ImagePanelPNG::s_tex_u1 = 1.0f;
+float ImagePanelPNG::s_tex_v1 = 1.0f;
 // ---------------- WorkshopListPage -----------------
 WorkshopListPage::WorkshopListPage(Panel *parent, const char *panelName)
     : BaseClass(parent, panelName) {
@@ -197,14 +349,14 @@ void WorkshopListPage::PerformLayout() {
     int wide, tall;
     GetSize(wide, tall);
 
-    const int margin = 10;
-    const int headerHeight = 30;
-    const int buttonWidth = 80;
-    const int inputHeight = 24;
+    int margin = PROPVAL(10);
+    int headerHeight = PROPVAL(30);
+    int buttonWidth = PROPVAL(80);
+    int inputHeight = PROPVAL(24);
 
-    m_pFilterLabel->SetBounds(margin, margin + 2, 45, inputHeight);
-    m_pSearchBox->SetBounds(margin + 50, margin, 200, inputHeight);
-    m_pCategoryBox->SetBounds(margin + 260, margin, 150, inputHeight);
+    m_pFilterLabel->SetBounds(margin, margin + 2, PROPVAL(45), inputHeight);
+    m_pSearchBox->SetBounds(margin + PROPVAL(50), margin, PROPVAL(200), inputHeight);
+    m_pCategoryBox->SetBounds(margin + PROPVAL(260), margin, PROPVAL(150), inputHeight);
     m_pRefreshButton->SetBounds(wide - margin - buttonWidth, margin, buttonWidth, inputHeight);
     m_pFolderList->SetBounds(margin, margin + headerHeight, wide - 2 * margin, tall - headerHeight - 2 * margin);
 }
@@ -312,14 +464,14 @@ class ModelPreviewPage : public vgui::PropertyPage {
         BaseClass::PerformLayout();
         int wide, tall;
         GetSize(wide, tall);
-        const int margin = 10;
-        const int buttonHeight = 24;
-        const int rightWidth = 300;
+        int margin = PROPVAL(10);
+        int buttonHeight = PROPVAL(24);
+        int rightWidth = PROPVAL(300);
 
         m_pModelList->SetBounds(margin, margin, wide - rightWidth - 3 * margin, tall - 2 * margin);
 
-        m_pPreviewButton->SetBounds(wide - rightWidth - margin, tall - margin - buttonHeight, 140, buttonHeight);
-        m_pOtherButton->SetBounds(wide - rightWidth - margin + 160, tall - margin - buttonHeight, 140, buttonHeight);
+        m_pPreviewButton->SetBounds(wide - rightWidth - margin, tall - margin - buttonHeight, PROPVAL(140), buttonHeight);
+        m_pOtherButton->SetBounds(wide - rightWidth - margin + PROPVAL(160), tall - margin - buttonHeight, PROPVAL(140), buttonHeight);
     }
 
     virtual void OnCommand(const char *command) override {
@@ -374,6 +526,7 @@ class ModelPreviewPage : public vgui::PropertyPage {
     }
 };
 
+// ---------------- DevPage -----------------
 class DevPage : public vgui::PropertyPage {
     DECLARE_CLASS_SIMPLE(DevPage, vgui::PropertyPage);
 
@@ -386,18 +539,18 @@ class DevPage : public vgui::PropertyPage {
         m_pDevList->AddColumnHeader(1, "role", "Role", 150);
         m_pDevList->AddActionSignalTarget(this);  // <-- 让 OnItemSelected 能接收事件
 
-        // 默认显示的图像
-        m_pDevImage = new ImagePanelPNG(this, "info_icon", "vgui/devs/default.png", ImagePanelPNG::DISPLAY_COVER);
+        // 默认显示的图像（使用 COVER 以填充方形）
+        m_pDevImage = new ImagePanelPNG(this, "info_icon", "vgui/devs/zzh.png", ImagePanelPNG::DISPLAY_COVER);
 
         // 打开网页按钮
         m_pDevDummyBtn = new Button(this, "DevBtn", "Open Developer Url", this, "dev_dummy");
 
         // 填入开发者列表
         const char *devNames[] = {
-            "nillerusr",
-            "er2",
-            "ItzVladik",
-            "zzh", 
+            "nill",
+            "er",
+            "ltz",
+            "zzh",
             "maik"};
 
         for (int i = 0; i < ARRAYSIZE(devNames); i++) {
@@ -418,41 +571,33 @@ class DevPage : public vgui::PropertyPage {
         int wide, tall;
         GetSize(wide, tall);
 
-        const int margin = 10;
-        const int rightWidth = 300;
-        const int buttonHeight = 24;
+        int margin = PROPVAL(10);
+        int rightWidth = PROPVAL(300);
+        int buttonHeight = PROPVAL(24);
 
         // 左侧列表
         m_pDevList->SetBounds(margin, margin, wide - rightWidth - 3 * margin, tall - 2 * margin - buttonHeight);
 
-        // 右侧区域
+        // 右侧区域尺寸
         int rightX = wide - rightWidth - margin;
         int rightY = margin;
         int rightH = tall - 2 * margin - buttonHeight;
         int rightW = rightWidth;
 
-        // ✅ 方形显示：取最小边
+        // 保证图片为方形，使用较小边作为尺寸，并居中放置
         int squareSize = min(rightW, rightH);
-
-        // ✅ 居中放置
         int imgX = rightX + (rightW - squareSize) / 2;
         int imgY = rightY + (rightH - squareSize) / 2;
 
-        // 设置图片区域
         if (m_pDevImage)
             m_pDevImage->SetBounds(imgX, imgY, squareSize, squareSize);
 
-        // 按钮位置不变
-        m_pDevDummyBtn->SetBounds(
-            wide - rightWidth - margin,
-            tall - margin - buttonHeight,
-            140,
-            buttonHeight);
+        // 按钮位于右侧底部
+        m_pDevDummyBtn->SetBounds(rightX, tall - margin - buttonHeight, PROPVAL(140), buttonHeight);
     }
 
     // 当列表中某一行被点击
     MESSAGE_FUNC_INT(OnItemSelected, "ItemSelected", itemID) {
-        // 获取当前选中项的实际索引
         int selected = m_pDevList->GetSelectedItem(0);
         if (selected < 0)
             return;
@@ -504,14 +649,23 @@ class DevPage : public vgui::PropertyPage {
 // ---------------- WorkshopManagerPanel -----------------
 WorkshopManagerPanel::WorkshopManagerPanel(vgui::Panel *parent)
     : BaseClass(parent, "WorkshopManagerPanel") {
-    int m_z_high = 750;
-    int m_z_wide = 610;    
-	if (IsProportional())
-	{
-		m_z_wide = scheme()->GetProportionalScaledValueEx(GetScheme(), m_z_wide);
-		m_z_high = scheme()->GetProportionalScaledValueEx(GetScheme(), m_z_high);
-	}
-	SetBounds(0, 0, m_z_high, m_z_wide);           
+    // 基础设计尺寸（宽 x 高）
+    int baseW = 750;
+    int baseH = 610;
+
+    int scaledW = PROPVAL(baseW);
+    int scaledH = PROPVAL(baseH);
+
+    // 限制窗口不超过屏幕尺寸（保留一些边距）
+    int screenW = 1024, screenH = 768;
+    surface()->GetScreenSize(screenW, screenH);
+    int maxW = max(200, screenW - PROPVAL(50));
+    int maxH = max(200, screenH - PROPVAL(50));
+    scaledW = min(scaledW, maxW);
+    scaledH = min(scaledH, maxH);
+
+    // 修正：SetBounds 参数顺序为 (x, y, wide, tall)
+    SetBounds(0, 0, scaledW, scaledH);
     SetSizeable(false);
     SetTitle("Workshop tools", true);
 
@@ -539,8 +693,11 @@ void WorkshopManagerPanel::PerformLayout() {
     int wide, tall;
     GetSize(wide, tall);
 
-    if (m_pTabSheet) m_pTabSheet->SetBounds(10, 30, wide - 20, tall - 60);
-    if (m_pCloseButton) m_pCloseButton->SetBounds(wide - 90, tall - 34, 80, 24);
+    int margin = PROPVAL(10);
+    int topGap = PROPVAL(30);
+
+    if (m_pTabSheet) m_pTabSheet->SetBounds(margin, topGap, wide - 2 * margin, tall - topGap - PROPVAL(30));
+    if (m_pCloseButton) m_pCloseButton->SetBounds(wide - PROPVAL(90), tall - PROPVAL(34), PROPVAL(80), PROPVAL(24));
 }
 
 void WorkshopManagerPanel::OnCommand(const char *command) {
@@ -560,3 +717,4 @@ void WorkshopManagerPanel::OnClose() {
     BaseClass::OnClose();
     SetVisible(false);
 }
+

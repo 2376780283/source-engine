@@ -7,7 +7,7 @@ export CC=aarch64-linux-android32-clang
 export CXX=aarch64-linux-android32-clang++
 export STRIP=$NDK/toolchains/llvm/prebuilt/linux-arm64/bin/llvm-strip
 
-# 编译与链接参数
+# 编译与链接参数 注意添加 -Wl,--no-rosegment !
 export CXXFLAGS="-DNO_STD_REGEX=1 -Wno-error"
 export LDFLAGS="-lunwind -static-libstdc++"
 
@@ -25,4 +25,6 @@ python3 ./waf configure -T release \
 # python3 ./waf build -v
 
 
-python3 ./waf configure -T release --prefix=../android_build --android=aarch64,host,32 --target=../android_build/aarch64 --disable-warns --build-games=cstrike --togles --enable-opus
+python3 ./waf configure -T release --prefix=../android_build --android=aarch64,host,30 --target=../android_build/aarch64 --disable-warns --togles --enable-opus
+
+

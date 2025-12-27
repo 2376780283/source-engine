@@ -1410,14 +1410,8 @@ void CBasePanel::DrawBackgroundImage()
 			
 			static unsigned int	nFrameCache = 0;
 			surface()->DrawGetTextureSize(m_iLoadingSpinnerImageID, twide, ttall); //now use twide and ttall for spinner
-			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));
-			
-//#ifdef GAMEPADUI_GAME_EZ2
-			surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 255 ,46, 0, alpha })); //设置spinner颜色 红
-//#else	
-//            surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha })); //设置spinner颜色	
-//#endif   
-         	
+			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));			
+			surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 255 ,46, 0, alpha })); //设置spinner颜色 红        	
 			surface()->DrawSetTextureFrame(m_iLoadingSpinnerImageID, ((int)m_fLoadingSpinnerFrame) % surface()->GetTextureNumFrames(m_iLoadingSpinnerImageID), &nFrameCache);
 			surface()->DrawSetTexture(m_iLoadingSpinnerImageID);
 
@@ -1556,10 +1550,10 @@ void CBasePanel::UpdateGameMenus()
 CGameMenu *CBasePanel::RecursiveLoadGameMenu(KeyValues *datafile)
 {
     CGameMenu *menu = new CGameMenu(this, datafile->GetName());
-      // dont use CommandLine()->FindParm ！！！
-      if (CommandLine()->CheckParm( "-console" )){	     		
-		      menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); 
-	   }
+
+    if (CommandLine()->CheckParm( "-console" )){	     		
+	    menu->AddMenuItem("Console", "CONSOLE", "OpenConsole", this); 
+    }
 	bool bFoundServerBrowser = false;
 
 	for (KeyValues *dat = datafile->GetFirstSubKey(); dat != NULL; dat = dat->GetNextKey())
