@@ -675,55 +675,47 @@ class GamepadUIWheelyWheel : public GamepadUIConvarButton {
 };
 
 class GamepadUISlideySlide : public GamepadUIConvarButton {
-   public:
+public:
     DECLARE_CLASS_SIMPLE(GamepadUISlideySlide, GamepadUIConvarButton);
 
-    GamepadUISlideySlide(const char *pszCvar, const char *pszCvarDepends, bool bInstantApply, float flMin, float flMax, float flStep, int nTextPrecision, vgui::Panel *pParent, vgui::Panel *pActionSignalTarget, const char *pSchemeFile, const char *pCommand, const char *pText, const char *pDescription)
-        : BaseClass(pszCvar, pszCvarDepends, bInstantApply, pParent, pActionSignalTarget, pSchemeFile, pCommand, pText, pDescription), m_flMin(flMin), m_flMax(flMax), m_flStep(flStep), nTextPrecision(nTextPrecision) {
+    GamepadUISlideySlide(const char *pszCvar, const char *pszCvarDepends, bool bInstantApply,
+                         float flMin, float flMax, float flStep, int nTextPrecision,
+                         vgui::Panel *pParent, vgui::Panel *pActionSignalTarget,
+                         const char *pSchemeFile, const char *pCommand,
+                         const char *pText, const char *pDescription)
+        : BaseClass(pszCvar, pszCvarDepends, bInstantApply, pParent, pActionSignalTarget,
+                    pSchemeFile, pCommand, pText, pDescription),
+          m_flMin(flMin), m_flMax(flMax), m_flStep(flStep), nTextPrecision(nTextPrecision)
+    {
         SetUseCaptureMouse(true);
+        m_flValue = m_flMin;
+        m_flMouseStep = flStep;
     }
 
-    void OnKeyCodePressed(vgui::KeyCode code) {
+    // 键盘控制
+    void OnKeyCodePressed(vgui::KeyCode code) OVERRIDE {
         ButtonCode_t buttonCode = GetBaseButtonCode(code);
         switch (buttonCode) {
             case KEY_LEFT:
             case KEY_XBUTTON_LEFT:
-
-#ifdef HL2_RETAIL  // Steam input and Steam Controller are not supported in SDK2013 (Madi)
+#ifdef HL2_RETAIL
             case STEAMCONTROLLER_DPAD_LEFT:
 #endif
-            {
-                float flValue = Clamp(m_flValue - (m_bFineAdjust ? m_flMouseStep : m_flStep), m_flMin, m_flMax);
-                if (flValue != m_flValue) {
-                    if (m_sSliderSoundName != UTL_INVAL_SYMBOL)
-                        vgui::surface()->PlaySound(g_ButtonSoundNames.String(m_sSliderSoundName));
-                    m_flValue = flValue;
-                    if (m_bInstantApply)
-                        UpdateConVar();
-                }
-            } break;
+                AdjustValue(-(m_bFineAdjust ? m_flMouseStep : m_flStep));
+                break;
 
             case KEY_RIGHT:
             case KEY_XBUTTON_RIGHT:
-
 #ifdef HL2_RETAIL
             case STEAMCONTROLLER_DPAD_RIGHT:
 #endif
-            {
-                float flValue = Clamp(m_flValue + (m_bFineAdjust ? m_flMouseStep : m_flStep), m_flMin, m_flMax);
-                if (flValue != m_flValue) {
-                    if (m_sSliderSoundName != UTL_INVAL_SYMBOL)
-                        vgui::surface()->PlaySound(g_ButtonSoundNames.String(m_sSliderSoundName));
-                    m_flValue = flValue;
-                    if (m_bInstantApply)
-                        UpdateConVar();
-                }
-            } break;
+                AdjustValue(m_bFineAdjust ? m_flMouseStep : m_flStep);
+                break;
 
             case KEY_RSHIFT:
-            case KEY_LSHIFT: {
+            case KEY_LSHIFT:
                 m_bFineAdjust = true;
-            } break;
+                break;
 
             default:
                 BaseClass::OnKeyCodePressed(code);
@@ -731,13 +723,13 @@ class GamepadUISlideySlide : public GamepadUIConvarButton {
         }
     }
 
-    void OnKeyCodeReleased(vgui::KeyCode code) {
+    void OnKeyCodeReleased(vgui::KeyCode code) OVERRIDE {
         ButtonCode_t buttonCode = GetBaseButtonCode(code);
         switch (buttonCode) {
             case KEY_RSHIFT:
-            case KEY_LSHIFT: {
+            case KEY_LSHIFT:
                 m_bFineAdjust = false;
-            } break;
+                break;
 
             default:
                 BaseClass::OnKeyCodeReleased(code);
@@ -745,22 +737,45 @@ class GamepadUISlideySlide : public GamepadUIConvarButton {
         }
     }
 
-    void OnMousePressed(vgui::MouseCode code) {
-        int x, y;
-        GetPos(x, y);
+    // 鼠标/触摸按下
+    void OnMousePressed(vgui::MouseCode code) OVERRIDE {
+        int px, py;
+        GetPos(px, py);
 
         int mx, my;
         g_pVGuiInput->GetCursorPos(mx, my);
 
-        // 转换为本地坐标
-        int localX = mx - x;
+        int localX = mx - px;
+        int sliderStart = (int)(m_flWidth - m_flTextOffsetX - m_flSliderWidth);
+        int sliderEnd   = (int)(m_flWidth - m_flTextOffsetX);
 
-        int iSliderEnd = m_flWidth - m_flTextOffsetX;
-        int iSliderStart = iSliderEnd - m_flSliderWidth;
+        if (localX >= sliderStart && localX <= sliderEnd) {
+            m_bDragging = true;
+            m_iDragOffsetX = localX - sliderStart; // 点击偏移
+            UpdateValueFromLocalX(localX);
+        }
 
-        // 鼠标在滑条范围内
-        if (localX >= iSliderStart - 4 && localX <= iSliderEnd + 4) {
-            BaseClass::OnMousePressed(code);
+        BaseClass::OnMousePressed(code);
+    }
+
+    void OnMouseReleased(vgui::MouseCode code) OVERRIDE {
+        m_bDragging = false;
+        BaseClass::OnMouseReleased(code);
+    }
+
+    void OnCursorMoved(int x, int y) OVERRIDE {
+        BaseClass::OnCursorMoved(x, y);
+        if (m_bDragging) {
+            int px, py;
+            GetPos(px, py);
+            int localX = x - px;
+
+            // 修复类型冲突，统一 float clamp 后再转 int
+            float fLocalX = (float)localX;
+            fLocalX = Clamp(fLocalX, m_flWidth - m_flTextOffsetX - m_flSliderWidth, m_flWidth - m_flTextOffsetX);
+            localX = (int)fLocalX;
+
+            UpdateValueFromLocalX(localX);
         }
     }
 
@@ -768,47 +783,11 @@ class GamepadUISlideySlide : public GamepadUIConvarButton {
         m_flMouseStep = flStep;
     }
 
-    void OnThink() {
-        if (IsSelected()) {
-            int x, y;
-            GetPos(x, y);
-
-            int mx, my;
-            g_pVGuiInput->GetCursorPos(mx, my);
-
-            // 转换为本地坐标
-            int localX = mx - x;
-
-            int iSliderEnd = m_flWidth - m_flTextOffsetX;
-            int iSliderStart = iSliderEnd - m_flSliderWidth;
-
-            // 映射鼠标位置到滑条值
-            float flProgress = RemapValClamped(localX, (float)iSliderStart, (float)iSliderEnd, m_flMin, m_flMax);
-
-            // 对齐到鼠标步长
-            float flRemainder = fmodf(flProgress, m_flMouseStep);
-            flProgress -= flRemainder;
-            if ((flRemainder / m_flMouseStep) > 0.5f)
-                flProgress += m_flMouseStep;
-
-            // 更新值
-            if (flProgress != m_flValue) {
-                if (m_sSliderSoundName != UTL_INVAL_SYMBOL && m_flLastSliderSoundTime < GamepadUI::GetInstance().GetTime()) {
-                    vgui::surface()->PlaySound(g_ButtonSoundNames.String(m_sSliderSoundName));
-                    m_flLastSliderSoundTime = GamepadUI::GetInstance().GetTime() + 0.04f;
-                }
-
-                m_flValue = flProgress;
-
-                if (m_bInstantApply)
-                    UpdateConVar();
-            }
-        }
-
+    void OnThink() OVERRIDE {
         BaseClass::OnThink();
     }
 
-    void ApplySchemeSettings(vgui::IScheme *pScheme) {
+    void ApplySchemeSettings(vgui::IScheme *pScheme) OVERRIDE {
         BaseClass::ApplySchemeSettings(pScheme);
 
         const char *pSliderSound = pScheme->GetResourceString("Slider.Sound.Adjust");
@@ -829,7 +808,7 @@ class GamepadUISlideySlide : public GamepadUIConvarButton {
         return (m_flValue - m_flMin) / (m_flMax - m_flMin);
     }
 
-    virtual void Paint() {
+    void Paint() OVERRIDE {
         BaseClass::Paint();
 
         if (nTextPrecision >= 0) {
@@ -838,17 +817,23 @@ class GamepadUISlideySlide : public GamepadUIConvarButton {
 
             int w, h;
             vgui::surface()->GetTextSize(m_hTextFont, szValue, w, h);
-            vgui::surface()->DrawSetTextPos(m_flWidth - 2 * m_flTextOffsetX - m_flSliderWidth - w, m_flHeight / 2 - h / 2);
+            vgui::surface()->DrawSetTextPos(m_flWidth - 2 * m_flTextOffsetX - m_flSliderWidth - w,
+                                            m_flHeight / 2 - h / 2);
             vgui::surface()->DrawPrintText(szValue, V_wcslen(szValue));
         }
 
         vgui::surface()->DrawSetColor(m_colSliderBacking);
-        vgui::surface()->DrawFilledRect(m_flWidth - m_flTextOffsetX - m_flSliderWidth, m_flHeight / 2 - m_flSliderHeight / 2, m_flWidth - m_flTextOffsetX, m_flHeight / 2 + m_flSliderHeight / 2);
+        vgui::surface()->DrawFilledRect(m_flWidth - m_flTextOffsetX - m_flSliderWidth,
+                                        m_flHeight / 2 - m_flSliderHeight / 2,
+                                        m_flWidth - m_flTextOffsetX,
+                                        m_flHeight / 2 + m_flSliderHeight / 2);
 
         float flFill = m_flSliderWidth * (1.0f - GetMultiplier());
-
         vgui::surface()->DrawSetColor(m_colSliderFill);
-        vgui::surface()->DrawFilledRect(m_flWidth - m_flTextOffsetX - m_flSliderWidth, m_flHeight / 2 - m_flSliderHeight / 2, m_flWidth - m_flTextOffsetX - flFill, m_flHeight / 2 + m_flSliderHeight / 2);
+        vgui::surface()->DrawFilledRect(m_flWidth - m_flTextOffsetX - m_flSliderWidth,
+                                        m_flHeight / 2 - m_flSliderHeight / 2,
+                                        m_flWidth - m_flTextOffsetX - flFill,
+                                        m_flHeight / 2 + m_flSliderHeight / 2);
     }
 
     void SetToDefault() OVERRIDE {
@@ -858,31 +843,64 @@ class GamepadUISlideySlide : public GamepadUIConvarButton {
 
     void RunAnimations(ButtonState state) OVERRIDE {
         BaseClass::RunAnimations(state);
-
         GAMEPADUI_RUN_ANIMATION_COMMAND(m_colSliderBacking, vgui::AnimationController::INTERPOLATOR_LINEAR);
         GAMEPADUI_RUN_ANIMATION_COMMAND(m_colSliderFill, vgui::AnimationController::INTERPOLATOR_LINEAR);
     }
 
-   private:
+private:
     float m_flValue = 0.0f;
-
     float m_flMin = 0.0f;
     float m_flMax = 1.0f;
     float m_flStep = 0.1f;
-
     int nTextPrecision = -1;
+
+    bool m_bDragging = false;
+    bool m_bFineAdjust = false;
+    int m_iDragOffsetX = 0;
+
+    float m_flMouseStep = 0.1f;
 
     CUtlSymbol m_sSliderSoundName = UTL_INVAL_SYMBOL;
     float m_flLastSliderSoundTime = 0.0f;
-
-    float m_flMouseStep = 0.1f;
-    bool m_bFineAdjust = false;
 
     GAMEPADUI_BUTTON_ANIMATED_PROPERTY(Color, m_colSliderBacking, "Slider.Backing", "255 255 255 22", SchemeValueTypes::Color);
     GAMEPADUI_BUTTON_ANIMATED_PROPERTY(Color, m_colSliderFill, "Slider.Fill", "255 255 255 255", SchemeValueTypes::Color);
 
     GAMEPADUI_PANEL_PROPERTY(float, m_flSliderWidth, "Slider.Width", "160", SchemeValueTypes::ProportionalFloat);
     GAMEPADUI_PANEL_PROPERTY(float, m_flSliderHeight, "Slider.Height", "11", SchemeValueTypes::ProportionalFloat);
+
+    void AdjustValue(float delta) {
+        float flNew = Clamp(m_flValue + delta, m_flMin, m_flMax);
+        if (flNew != m_flValue) {
+            m_flValue = flNew;
+            if (m_sSliderSoundName != UTL_INVAL_SYMBOL)
+                vgui::surface()->PlaySound(g_ButtonSoundNames.String(m_sSliderSoundName));
+            if (m_bInstantApply)
+                UpdateConVar();
+        }
+    }
+
+    void UpdateValueFromLocalX(int localX) {
+        float sliderStart = m_flWidth - m_flTextOffsetX - m_flSliderWidth;
+        float sliderEnd   = m_flWidth - m_flTextOffsetX;
+
+        float flProgress = RemapValClamped((float)localX, sliderStart, sliderEnd, m_flMin, m_flMax);
+
+        float flRemainder = fmodf(flProgress - m_flMin, m_flMouseStep);
+        flProgress -= flRemainder;
+        if ((flRemainder / m_flMouseStep) > 0.5f)
+            flProgress += m_flMouseStep;
+
+        if (flProgress != m_flValue) {
+            m_flValue = flProgress;
+            if (m_sSliderSoundName != UTL_INVAL_SYMBOL && m_flLastSliderSoundTime < GamepadUI::GetInstance().GetTime()) {
+                vgui::surface()->PlaySound(g_ButtonSoundNames.String(m_sSliderSoundName));
+                m_flLastSliderSoundTime = GamepadUI::GetInstance().GetTime() + 0.04f;
+            }
+            if (m_bInstantApply)
+                UpdateConVar();
+        }
+    }
 };
 
 class GamepadUISkillySkill : public GamepadUIOptionButton {

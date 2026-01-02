@@ -151,6 +151,7 @@ $Project
 			$File	"game_controls\slideshowpanel.cpp"
 			$File	"game_controls\slideshowpanel.h"
 			
+			
 			$File	"$SRCDIR\common\movieobjects\timeutils.cpp"
 			{
 				$Configuration
@@ -500,6 +501,14 @@ $Project
 		$File	"$SRCDIR\public\haptics\haptic_utils.cpp"	[$WIN32&&!$X360]
 
 		$File	"$SRCDIR\game\client\touch.cpp"
+		
+	    $File "../../thirdparty/imgui/imgui.cpp"
+        $File "../../thirdparty/imgui/imgui_draw.cpp"
+        $File "../../thirdparty/imgui/imgui_widgets.cpp"
+        $File "../../thirdparty/imgui/imgui_tables.cpp"
+        $File "../../imgui/imgui_impl_source.cpp"
+
+        
 
 		$Folder	"Sixense"
 		{

@@ -13,6 +13,8 @@
 #include "vgui_controls/Button.h"
 #include "viewrender.h"
 
+#include "../../imgui/imgui_system.h"
+#include "../../imgui/imgui_impl_source.h"
 	
 #define STB_RECT_PACK_IMPLEMENTATION
 #include "../../thirdparty/stb/stb_rect_pack.h"
@@ -32,6 +34,8 @@ extern ConVar cl_upspeed;
 extern ConVar default_fov;
 
 extern IMatSystemSurface *g_pMatSystemSurface;
+
+extern IImguiSystem* g_pImguiSystem;
 
 #ifdef ANDROID
 #define TOUCH_DEFAULT "1"
@@ -382,25 +386,67 @@ void CTouchControls::Init()
 
 	CreateAtlasTexture();
 	m_flHideTouch = 0.f;
+	
+	ConColorMsg( Color( 255, 182, 193, 255 ), "[ImGui] Starting init \n");
+	ImGui::CreateContext();
+	ImGui_ImplSource_Init();
+	ImGuiStyle& style = ImGui::GetStyle();
+    ImVec4* colors = style.Colors;
+
+    // --- 背景 ---
+    colors[ImGuiCol_WindowBg]         = ImVec4(0.10f, 0.15f, 0.10f, 1.0f); // 深绿色背景
+    colors[ImGuiCol_ChildBg]          = ImVec4(0.12f, 0.18f, 0.12f, 1.0f);
+    colors[ImGuiCol_PopupBg]          = ImVec4(0.10f, 0.15f, 0.10f, 1.0f);
+
+    // --- 标题栏 ---
+    colors[ImGuiCol_TitleBg]          = ImVec4(0.20f, 0.35f, 0.20f, 1.0f); // 深绿色
+    colors[ImGuiCol_TitleBgActive]    = ImVec4(0.30f, 0.50f, 0.30f, 1.0f);
+    colors[ImGuiCol_TitleBgCollapsed] = ImVec4(0.08f, 0.12f, 0.08f, 1.0f);
+
+    // --- 按钮 ---
+    colors[ImGuiCol_Button]           = ImVec4(0.25f, 0.55f, 0.25f, 1.0f);
+    colors[ImGuiCol_ButtonHovered]    = ImVec4(0.30f, 0.65f, 0.30f, 1.0f);
+    colors[ImGuiCol_ButtonActive]     = ImVec4(0.35f, 0.70f, 0.35f, 1.0f);
+
+    // --- 文字 ---
+    colors[ImGuiCol_Text]             = ImVec4(0.90f, 0.95f, 0.90f, 1.0f); // 浅绿
+    colors[ImGuiCol_TextDisabled]     = ImVec4(0.60f, 0.65f, 0.60f, 1.0f);
+
+    // --- 滑块/条 ---
+    colors[ImGuiCol_SliderGrab]       = ImVec4(0.30f, 0.65f, 0.30f, 1.0f);
+    colors[ImGuiCol_SliderGrabActive] = ImVec4(0.40f, 0.75f, 0.40f, 1.0f);
+    colors[ImGuiCol_FrameBg]          = ImVec4(0.12f, 0.20f, 0.12f, 1.0f);
+    colors[ImGuiCol_FrameBgHovered]   = ImVec4(0.18f, 0.28f, 0.18f, 1.0f);
+    colors[ImGuiCol_FrameBgActive]    = ImVec4(0.22f, 0.36f, 0.22f, 1.0f);
+
+    // --- 滚动条 ---
+    colors[ImGuiCol_ScrollbarBg]      = ImVec4(0.10f, 0.15f, 0.10f, 1.0f);
+    colors[ImGuiCol_ScrollbarGrab]    = ImVec4(0.25f, 0.55f, 0.25f, 1.0f);
+    colors[ImGuiCol_ScrollbarGrabHovered] = ImVec4(0.30f, 0.65f, 0.30f, 1.0f);
+    colors[ImGuiCol_ScrollbarGrabActive]  = ImVec4(0.35f, 0.70f, 0.35f, 1.0f);
+
+    // --- 选中高亮 ---
+    colors[ImGuiCol_Header]           = ImVec4(0.30f, 0.55f, 0.30f, 1.0f);
+    colors[ImGuiCol_HeaderHovered]    = ImVec4(0.35f, 0.65f, 0.35f, 1.0f);
+    colors[ImGuiCol_HeaderActive]     = ImVec4(0.40f, 0.75f, 0.40f, 1.0f);
+
+    // --- 边框 ---
+    colors[ImGuiCol_Border]           = ImVec4(0.25f, 0.55f, 0.25f, 0.7f);
+
+    // --- 圆角 ---
+    style.WindowRounding    = 8.0f;
+    style.FrameRounding     = 6.0f;
+    style.GrabRounding      = 6.0f;
+    style.ScrollbarRounding = 6.0f;
 
 	initialized = true;
 }
 
 void CTouchControls::LevelInit()
-
-
 {
-
-
 	m_bCutScene = false;
-
-
 	m_AlphaDiff = 0;
-
-
 	m_flHideTouch = 0;
-
-
 }
 
 int nextPowerOfTwo(int x)
@@ -600,9 +646,11 @@ void CTouchControls::CreateAtlasTexture()
 }
 
 void CTouchControls::Shutdown( )
-{
+{   
+    ConColorMsg( Color( 255, 182, 193, 255 ), "[ImGui] Destroy \n");
 	textureList.PurgeAndDeleteElements();
 	btns.PurgeAndDeleteElements();
+    ImGui_ImplSource_Shutdown();
 }
 
 void CTouchControls::RemoveButtons()
@@ -659,29 +707,72 @@ void CTouchControls::IN_Look()
 
 void CTouchControls::Frame()
 {
-	if (!initialized)
-		return;
+    if (!initialized)
+        return;
 
-	C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
+    C_BasePlayer *pPlayer = C_BasePlayer::GetLocalPlayer();
 
-	if( pPlayer && (pPlayer->GetFlags() & FL_FROZEN || g_pIntroData != NULL) )
-	{
-		if( !m_bCutScene )
-		{
-			m_bCutScene = true;
-			m_AlphaDiff = 0;
-		}
-	}
-	else if( !pPlayer )
-	{
-		m_bCutScene = false;
-		m_AlphaDiff = 0;
-		m_flHideTouch = 0;
-	}
-	else
-		m_bCutScene = false;
+    // --- Cutscene / Player frozen 状态处理 ---
+    if (pPlayer && (pPlayer->GetFlags() & FL_FROZEN || g_pIntroData != NULL))
+    {
+        if (!m_bCutScene)
+        {
+            m_bCutScene = true;
+            m_AlphaDiff = 0;
+        }
+    }
+    else if (!pPlayer)
+    {
+        m_bCutScene = false;
+        m_AlphaDiff = 0;
+        m_flHideTouch = 0;
+    }
+    else
+        m_bCutScene = false;
+    if (touch_enable.GetBool() && touch_draw.GetBool() && !enginevgui->IsGameUIVisible())
+    {
+        // Paint() 可选增加区域检测，避免覆盖 ImGui 窗口
+        // 比如判断每个按钮中心是否在 ImGui 窗口内，跳过绘制
+        Paint();
+    }
 
-	if( touch_enable.GetBool() && touch_draw.GetBool() && !enginevgui->IsGameUIVisible() ) Paint();
+    // --- ImGui 处理 ---
+    if (m_bShowImGui)
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        io.DisplaySize = ImVec2((float)screen_w, (float)screen_h);
+        io.DeltaTime = 1.f / 60.f; // 可以改为实际帧间时间
+
+        ImGui::NewFrame();
+
+        // 固定窗口位置和大小
+        ImGui::SetNextWindowPos(ImVec2(50, 50), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_Always);
+
+        if (ImGui::Begin("Touch Debug Test"))
+        {
+            ImGui::Text("Forward: %.2f Side: %.2f", forward, side);
+            ImGui::SliderFloat("Forward", &forward, -1.f, 1.f);
+            ImGui::SliderFloat("Side", &side, -1.f, 1.f);
+
+            static float col[4] = { gridcolor.r/255.f, gridcolor.g/255.f, gridcolor.b/255.f, gridcolor.a/255.f };
+            if (ImGui::ColorEdit4("Grid Color", col))
+            {
+                gridcolor.r = (int)(col[0]*255);
+                gridcolor.g = (int)(col[1]*255);
+                gridcolor.b = (int)(col[2]*255);
+                gridcolor.a = (int)(col[3]*255);
+            }
+        }
+        ImGui::End();
+
+        ImGui::Render();
+        ImGui_ImplSource_RenderDrawData(ImGui::GetDrawData());
+
+        // 如果 ImGui 想捕获鼠标/触摸，则不再处理 touch 按钮事件
+        if (io.WantCaptureMouse)
+            return;
+    }
 }
 
 void CTouchControls::Paint()
@@ -1149,6 +1240,7 @@ void CTouchControls::EnableTouchEdit(bool enable)
 		move_button = NULL;
 		configchanged = true;
 		AddButton( "close_edit", "vgui/touch/back", "touch_disableedit", 0.020000, 0.800000, 0.100000, 0.977778, rgba_t(255,255,255,255), 0, 1.f, TOUCH_FL_NOEDIT );
+		m_bShowImGui = true;
 	}
 	else
 	{
@@ -1158,6 +1250,7 @@ void CTouchControls::EnableTouchEdit(bool enable)
 		configchanged = false;
 		RemoveButton("close_edit");
 		WriteConfig();
+		m_bShowImGui = false;
 	}
 }
 
