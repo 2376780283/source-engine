@@ -101,7 +101,10 @@ void GamepadUIMainMenu::LoadMenuButtons()
         m_Buttons[i].Sort( CompareButtonsByPriorityDesc );
 
     bool showConsole = ( CommandLine()->FindParm( "-console" ) != nullptr );
+    bool showDevExtra = ( CommandLine()->FindParm( "-showdevextra" ) != nullptr );
+   
     SetConsoleButtonVisibility( showConsole );
+    SetDevExtraVisibility( showDevExtra );
     UpdateButtonVisibility();
 }
 
@@ -124,6 +127,17 @@ void GamepadUIMainMenu::SetConsoleButtonVisibility(bool bVisible)
      m_pConsoleButton->SetVisible(bVisible); 
 }
 
+void GamepadUIMainMenu::SetDevExtraVisibility(bool bVisible)
+{
+    if (!m_pExtrasButton)
+    {
+        m_pExtrasButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd imgui_show touch_full","Extra options", "");
+        m_pExtrasButton->SetPriority(0);
+    }
+     m_pExtrasButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res","cmd imgui_show touch_full","Extra options", "");
+     m_pExtrasButton->SetVisible(bVisible); 
+}
+
 void GamepadUIMainMenu::ApplySchemeSettings( vgui::IScheme* pScheme )
 {
     BaseClass::ApplySchemeSettings( pScheme );
@@ -141,6 +155,7 @@ void GamepadUIMainMenu::ApplySchemeSettings( vgui::IScheme* pScheme )
 
 void GamepadUIMainMenu::LayoutMainMenu()
 {
+    // 主按钮列表布局
     m_flOldUIButtonOffsetX = 20.0f; 
     m_flOldUIButtonOffsetY = 20.0f; 
     int nY = GetCurrentButtonOffset();
@@ -152,10 +167,21 @@ void GamepadUIMainMenu::LayoutMainMenu()
         pButton->SetPos( m_flButtonsOffsetX, GetTall() - nY );
         nY += m_flButtonSpacing;
     }
-     int nParentW, nParentH;
-     GetParent()->GetSize( nParentW, nParentH );
-     m_pConsoleButton->SetPos( m_flOldUIButtonOffsetX, nParentH - m_pConsoleButton->m_flHeight - m_flOldUIButtonOffsetY );
-    
+
+    // 获取父控件尺寸
+    int nParentW, nParentH;
+    GetParent()->GetSize( nParentW, nParentH );
+
+    // Console 和 Extras 左下角左右排列
+    float buttonSpacing = 10.0f; // 两按钮间距
+    float baseX = m_flOldUIButtonOffsetX;
+    float baseY = nParentH - m_pConsoleButton->m_flHeight - m_flOldUIButtonOffsetY;
+
+    // Console 按钮在左
+    m_pConsoleButton->SetPos(baseX, baseY);
+
+    // Extras 按钮在右
+    m_pExtrasButton->SetPos(baseX + m_pConsoleButton->m_flWidth + buttonSpacing, baseY);
 }
 
 void GamepadUIMainMenu::PaintLogo()

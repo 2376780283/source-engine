@@ -163,7 +163,6 @@ CON_COMMAND( touch_addbutton, "add native touch button" )
 	Msg( "Usage: touch_addbutton <name> <texture> <command> [<x1> <y1> <x2> <y2> [ r g b a ] ]\n" );
 }
 
-// ImguiLib
 CON_COMMAND( touch_imgui, "Toggle ImGui window" )
 {
     if ( !g_pImguiSystem )
