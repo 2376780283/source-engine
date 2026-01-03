@@ -737,22 +737,21 @@ public:
         }
     }
 
-    // 鼠标/触摸按下
+    // 鼠标按下
     void OnMousePressed(vgui::MouseCode code) OVERRIDE {
-        int px, py;
-        GetPos(px, py);
+        int x, y;
+        GetPos(x, y);
 
         int mx, my;
         g_pVGuiInput->GetCursorPos(mx, my);
 
-        int localX = mx - px;
-        int sliderStart = (int)(m_flWidth - m_flTextOffsetX - m_flSliderWidth);
-        int sliderEnd   = (int)(m_flWidth - m_flTextOffsetX);
+        int localX = mx - x;
+        int iSliderEnd = m_flWidth - m_flTextOffsetX;
+        int iSliderStart = iSliderEnd - m_flSliderWidth;
 
-        if (localX >= sliderStart && localX <= sliderEnd) {
-            m_bDragging = true;
-            m_iDragOffsetX = localX - sliderStart; // 点击偏移
-            UpdateValueFromLocalX(localX);
+        if (localX >= iSliderStart - 4 && localX <= iSliderEnd + 4) {
+            m_bDragging = true;                 // 开始拖动
+            UpdateValueFromLocalX(localX);      // 点击时立即更新值
         }
 
         BaseClass::OnMousePressed(code);
@@ -769,12 +768,6 @@ public:
             int px, py;
             GetPos(px, py);
             int localX = x - px;
-
-            // 修复类型冲突，统一 float clamp 后再转 int
-            float fLocalX = (float)localX;
-            fLocalX = Clamp(fLocalX, m_flWidth - m_flTextOffsetX - m_flSliderWidth, m_flWidth - m_flTextOffsetX);
-            localX = (int)fLocalX;
-
             UpdateValueFromLocalX(localX);
         }
     }
@@ -785,6 +778,7 @@ public:
 
     void OnThink() OVERRIDE {
         BaseClass::OnThink();
+        // 可以完全依赖 OnCursorMoved 更新值，不再在 OnThink 中重复
     }
 
     void ApplySchemeSettings(vgui::IScheme *pScheme) OVERRIDE {
@@ -811,6 +805,7 @@ public:
     void Paint() OVERRIDE {
         BaseClass::Paint();
 
+        // 显示数值
         if (nTextPrecision >= 0) {
             wchar_t szValue[256];
             V_snwprintf(szValue, sizeof(szValue), L"%.*f", nTextPrecision, m_flValue);
@@ -822,6 +817,7 @@ public:
             vgui::surface()->DrawPrintText(szValue, V_wcslen(szValue));
         }
 
+        // 绘制滑条
         vgui::surface()->DrawSetColor(m_colSliderBacking);
         vgui::surface()->DrawFilledRect(m_flWidth - m_flTextOffsetX - m_flSliderWidth,
                                         m_flHeight / 2 - m_flSliderHeight / 2,
@@ -829,6 +825,7 @@ public:
                                         m_flHeight / 2 + m_flSliderHeight / 2);
 
         float flFill = m_flSliderWidth * (1.0f - GetMultiplier());
+
         vgui::surface()->DrawSetColor(m_colSliderFill);
         vgui::surface()->DrawFilledRect(m_flWidth - m_flTextOffsetX - m_flSliderWidth,
                                         m_flHeight / 2 - m_flSliderHeight / 2,
@@ -843,6 +840,7 @@ public:
 
     void RunAnimations(ButtonState state) OVERRIDE {
         BaseClass::RunAnimations(state);
+
         GAMEPADUI_RUN_ANIMATION_COMMAND(m_colSliderBacking, vgui::AnimationController::INTERPOLATOR_LINEAR);
         GAMEPADUI_RUN_ANIMATION_COMMAND(m_colSliderFill, vgui::AnimationController::INTERPOLATOR_LINEAR);
     }
@@ -852,11 +850,11 @@ private:
     float m_flMin = 0.0f;
     float m_flMax = 1.0f;
     float m_flStep = 0.1f;
+
     int nTextPrecision = -1;
 
     bool m_bDragging = false;
     bool m_bFineAdjust = false;
-    int m_iDragOffsetX = 0;
 
     float m_flMouseStep = 0.1f;
 
@@ -881,11 +879,12 @@ private:
     }
 
     void UpdateValueFromLocalX(int localX) {
-        float sliderStart = m_flWidth - m_flTextOffsetX - m_flSliderWidth;
-        float sliderEnd   = m_flWidth - m_flTextOffsetX;
+        int iSliderEnd = m_flWidth - m_flTextOffsetX;
+        int iSliderStart = iSliderEnd - m_flSliderWidth;
 
-        float flProgress = RemapValClamped((float)localX, sliderStart, sliderEnd, m_flMin, m_flMax);
+        float flProgress = RemapValClamped((float)localX, (float)iSliderStart, (float)iSliderEnd, m_flMin, m_flMax);
 
+        // 对齐步长
         float flRemainder = fmodf(flProgress - m_flMin, m_flMouseStep);
         flProgress -= flRemainder;
         if ((flRemainder / m_flMouseStep) > 0.5f)

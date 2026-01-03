@@ -209,7 +209,7 @@ public:
 	rgba_t gridcolor;
 	// default is false dont show!
 	bool m_bShowImGui = false;
-
+	
 private:
 	bool initialized = false;
 	ETouchState state;

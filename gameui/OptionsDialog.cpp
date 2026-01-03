@@ -19,6 +19,9 @@
 #include "vgui/ISystem.h"
 #include "vgui/IVGui.h"
 
+// #include "tier0/icommandline.h"
+// #include "tier1/convar.h"
+
 #include "KeyValues.h"
 #include "OptionsSubKeyboard.h"
 #include "OptionsSubMouse.h"
@@ -68,7 +71,7 @@ COptionsDialog::COptionsDialog(vgui::Panel *parent) : PropertyDialog(parent, "Op
 	// NVNT START see if the user has a haptic device via convar. if so create haptics dialog.
 	ConVarRef checkHap("hap_HasDevice");
 	checkHap.Init("hap_HasDevice",true);
-	if(checkHap.GetBool())
+	if(checkHap.GetBool() || CommandLine()->CheckParm( "-console" ))
 	{
 		AddPage(new COptionsSubHaptics(this), "#GameUI_Haptics_TabTitle");
 	}

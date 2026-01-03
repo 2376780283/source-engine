@@ -3301,17 +3301,17 @@ void CBasePanel::OnOpenCreateMultiplayerGameDialog()
 //-----------------------------------------------------------------------------
 void CBasePanel::OnOpenChangeGameDialog()
 {
-#ifdef POSIX
+//#ifdef POSIX
 	// Alfred says this is old legacy code that allowed you to walk through looking for
 	// gameinfos and switch and it's not needed anymore. So I'm killing this assert...
-#else
+//#else
 	if (!m_hChangeGameDialog.Get())
 	{
 		m_hChangeGameDialog = new CChangeGameDialog(this);
 		PositionDialog(m_hChangeGameDialog);
 	}
 	m_hChangeGameDialog->Activate();
-#endif
+//#endif
 }
 
 //-----------------------------------------------------------------------------

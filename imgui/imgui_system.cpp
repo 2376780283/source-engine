@@ -149,21 +149,18 @@ public:
 		MakePopup();
 	}
 
-	void OnMousePressed( ButtonCode_t code ) override
-	{
-		auto& io = ImGui::GetIO();
-		if ( io.WantCaptureMouse )
-			io.AddMouseButtonEvent( code - MOUSE_FIRST, true );
-	}
-	
-	void OnMouseReleased( ButtonCode_t code ) override
-	{
-		auto& io = ImGui::GetIO();
-		if ( io.WantCaptureMouse )
-		{
-			io.AddMouseButtonEvent( code - MOUSE_FIRST, false );
-		}
-	}
+	void OnMousePressed(ButtonCode_t code) override
+{
+   
+    ImGuiIO& io = ImGui::GetIO();
+    io.AddMouseButtonEvent(code - MOUSE_FIRST, true);
+}
+
+void OnMouseReleased(ButtonCode_t code) override
+{   
+    ImGuiIO& io = ImGui::GetIO();
+    io.AddMouseButtonEvent(code - MOUSE_FIRST, false);
+}
 	
 	void OnMouseWheeled( int delta ) override
 	{
@@ -342,7 +339,11 @@ void CDearImGuiSystem::Render()
 bool CDearImGuiSystem::DrawWindow( IImguiWindow *pWindow )
 {
 	bool closeButton = pWindow->ShouldDraw();
-	ImGui::Begin( pWindow->GetWindowTitle(), &closeButton, pWindow->GetFlags() );
+	ImGui::Begin(
+        pWindow->GetWindowTitle(),
+        &closeButton,
+        pWindow->GetFlags() | ImGuiWindowFlags_NoMove
+    );
 	pWindow->SetDraw( closeButton );
 
 	bool stayOpen = pWindow->Draw();

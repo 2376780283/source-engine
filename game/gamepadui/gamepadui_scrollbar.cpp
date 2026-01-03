@@ -109,7 +109,7 @@ void GamepadUIScrollBar::UpdateScrollBounds( float flMin, float flMax, float flR
 void GamepadUIScrollBar::OnMousePressed( vgui::MouseCode code )
 {
     BaseClass::OnMousePressed( code );
-
+           
     int nX, nY;
     GetPos( nX, nY );
 
@@ -125,6 +125,8 @@ void GamepadUIScrollBar::OnMousePressed( vgui::MouseCode code )
 void GamepadUIScrollBar::OnCursorMoved( int x, int y )
 {
         BaseClass::OnCursorMoved( x, y );
+        
+        vgui::input()->SetMouseCapture( GetVPanel() );
 
         m_iPos[0] = x;
         m_iPos[1] = y;
@@ -132,9 +134,11 @@ void GamepadUIScrollBar::OnCursorMoved( int x, int y )
 
 void GamepadUIScrollBar::OnMouseReleased( vgui::MouseCode code )
 {
-    BaseClass::OnMouseReleased( code );
+    BaseClass::OnMouseReleased( code );    
+    // 释放鼠标捕获
+    vgui::input()->SetMouseCapture(NULL);
 
-    m_nMouseOffset = -1;
+    m_nMouseOffset = -1;       
 }
 
 void GamepadUIScrollBar::OnKeyCodePressed( vgui::KeyCode code )

@@ -222,6 +222,8 @@ IEngineClientReplay *g_pEngineClientReplay = NULL;
 IReplaySystem *g_pReplay = NULL;
 #endif
 
+#include "../../imgui/imgui_system.h"
+
 #if defined(GAMEPADUI)
 IGamepadUI* g_pGamepadUI = nullptr;
 #endif // GAMEPADUI	
@@ -1097,6 +1099,8 @@ int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physi
 #ifndef _X360
 	HookHapticMessages(); // Always hook the messages
 #endif
+    
+    g_pImguiSystem->Init();
 
 	return true;
 }
@@ -1261,6 +1265,7 @@ void CHLClient::PostInit()
 //-----------------------------------------------------------------------------
 void CHLClient::Shutdown( void )
 {
+    g_pImguiSystem->Shutdown();
     if (g_pAchievementsAndStatsInterface)
     {
         g_pAchievementsAndStatsInterface->ReleasePanel();
@@ -1329,7 +1334,7 @@ void CHLClient::Shutdown( void )
 #if defined( WIN32 ) && !defined( _X360 )
 	// NVNT Disconnect haptics system
 	DisconnectHaptics();
-#endif
+#endif    
 }
 
 
