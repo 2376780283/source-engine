@@ -171,7 +171,7 @@ CON_COMMAND( touch_imgui, "Toggle ImGui window" )
 
     gTouch.m_bShowImGui = !gTouch.m_bShowImGui;
 
-    IImguiWindow* pWindow = g_pImguiSystem->FindWindow("touch");
+    IImguiWindow* pWindow = g_pImguiSystem->FindWindow("touch_full");
     if ( !pWindow )
         return;
 

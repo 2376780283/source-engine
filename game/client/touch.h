@@ -209,13 +209,13 @@ public:
 	rgba_t gridcolor;
 	// default is false dont show!
 	bool m_bShowImGui = false;
-	
-private:
-	bool initialized = false;
 	ETouchState state;
 	CUtlLinkedList<CTouchButton*> btns;
+	
+private:
+	bool initialized = false;	
+	
 	CUtlVector<CTouchTexture*> textureList;
-
 	int look_finger, move_finger, wheel_finger;
 	CTouchButton *move_button;
 
