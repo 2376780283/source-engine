@@ -12,9 +12,6 @@
 #include "tier0/icommandline.h"
 #include "vgui_controls/Button.h"
 #include "viewrender.h"
-
-#include "../../imgui/imgui_system.h"
-#include "../../imgui/imgui_impl_source.h"
 	
 #define STB_RECT_PACK_IMPLEMENTATION
 #include "../../thirdparty/stb/stb_rect_pack.h"
@@ -35,7 +32,6 @@ extern ConVar default_fov;
 
 extern IMatSystemSurface *g_pMatSystemSurface;
 
-extern IImguiSystem* g_pImguiSystem;
 
 #ifdef ANDROID
 #define TOUCH_DEFAULT "1"
@@ -161,24 +157,6 @@ CON_COMMAND( touch_addbutton, "add native touch button" )
 	}
 
 	Msg( "Usage: touch_addbutton <name> <texture> <command> [<x1> <y1> <x2> <y2> [ r g b a ] ]\n" );
-}
-
-CON_COMMAND( touch_imgui, "Toggle ImGui window" )
-{
-    if ( !g_pImguiSystem )
-        return;
-
-    gTouch.m_bShowImGui = !gTouch.m_bShowImGui;
-
-    IImguiWindow* pWindow = g_pImguiSystem->FindWindow("touch_full");
-    if ( !pWindow )
-        return;
-
-    g_pImguiSystem->SetWindowVisible(
-        pWindow,
-        gTouch.m_bShowImGui,
-        true   // 同步处理 ImGui 输入上下文
-    );
 }
 
 CON_COMMAND( touch_removebutton, "remove native touch button" )
@@ -403,9 +381,8 @@ void CTouchControls::Init()
 	textureList.AddToTail(texture);
 
 	CreateAtlasTexture();
-	m_flHideTouch = 0.f;
+	m_flHideTouch = 0.f;	
 	
-	ConColorMsg( Color( 255, 182, 193, 255 ), "[ImGui] Starting init \n");
 	initialized = true;
 }
 
@@ -613,8 +590,7 @@ void CTouchControls::CreateAtlasTexture()
 }
 
 void CTouchControls::Shutdown( )
-{   
-    ConColorMsg( Color( 255, 182, 193, 255 ), "[ImGui] Destroy \n");
+{       
 	textureList.PurgeAndDeleteElements();
 	btns.PurgeAndDeleteElements();
   
@@ -700,11 +676,7 @@ void CTouchControls::Frame()
     {
         Paint();
     }
-
-    // --- ImGui 处理 ---
-    if (m_bShowImGui)
-    {        
-    }
+   
 }
 
 void CTouchControls::Paint()
@@ -1171,8 +1143,7 @@ void CTouchControls::EnableTouchEdit(bool enable)
 		resize_finger = move_finger = look_finger = wheel_finger = -1;
 		move_button = NULL;
 		configchanged = true;
-		AddButton( "close_edit", "vgui/touch/back", "touch_disableedit", 0.020000, 0.800000, 0.100000, 0.977778, rgba_t(255,255,255,255), 0, 1.f, TOUCH_FL_NOEDIT );
-		m_bShowImGui = true;
+		AddButton( "close_edit", "vgui/touch/back", "touch_disableedit", 0.020000, 0.800000, 0.100000, 0.977778, rgba_t(255,255,255,255), 0, 1.f, TOUCH_FL_NOEDIT );	
 	}
 	else
 	{
@@ -1182,7 +1153,6 @@ void CTouchControls::EnableTouchEdit(bool enable)
 		configchanged = false;
 		RemoveButton("close_edit");
 		WriteConfig();
-		m_bShowImGui = false;
 	}
 }
 

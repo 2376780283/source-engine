@@ -131,10 +131,10 @@ void GamepadUIMainMenu::SetDevExtraVisibility(bool bVisible)
 {
     if (!m_pExtrasButton)
     {
-        m_pExtrasButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd touch_imgui","Extra options", "");
+        m_pExtrasButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd gamemenucommand workshop_publish","Extra options", "");
         m_pExtrasButton->SetPriority(0);
     }
-     m_pExtrasButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res","cmd touch_imgui","Extra options", "");
+     m_pExtrasButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res","cmd gamemenucommand workshop_publish","Extra options", "");
      m_pExtrasButton->SetVisible(bVisible); 
 }
 

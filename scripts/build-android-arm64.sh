@@ -20,7 +20,8 @@ python3 ./waf install --strip
 
 
 
-python3 ./waf configure -T release --prefix=../android_build --android=aarch64,host,30 --target=../android_build/aarch64 --disable-warns --togles
+python3 ./waf configure -T release --prefix=../android_build --android=aarch64,host,30 --target=../android_build/ --disable-warns --togles --use-ccache --enable-opus --progress
+
 
 
 

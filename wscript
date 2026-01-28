@@ -95,7 +95,6 @@ projects={
 		'unicode',
 		'video',
         'game/gamepadui',
-        'imgui'
 	],
 	'tests': [
 		'appframework',
@@ -148,7 +147,6 @@ projects={
 		'vstdlib',
 		'vtf',
 		'stub_steam'
-		'imgui'
 	]
 }
 

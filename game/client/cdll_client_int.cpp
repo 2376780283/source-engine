@@ -222,7 +222,6 @@ IEngineClientReplay *g_pEngineClientReplay = NULL;
 IReplaySystem *g_pReplay = NULL;
 #endif
 
-#include "../../imgui/imgui_system.h"
 
 #if defined(GAMEPADUI)
 IGamepadUI* g_pGamepadUI = nullptr;
@@ -1100,7 +1099,6 @@ int CHLClient::Init( CreateInterfaceFn appSystemFactory, CreateInterfaceFn physi
 	HookHapticMessages(); // Always hook the messages
 #endif
     
-    g_pImguiSystem->Init();
 
 	return true;
 }
@@ -1264,8 +1262,7 @@ void CHLClient::PostInit()
 // Purpose: Called when the client .dll is being dismissed
 //-----------------------------------------------------------------------------
 void CHLClient::Shutdown( void )
-{
-    g_pImguiSystem->Shutdown();
+{    
     if (g_pAchievementsAndStatsInterface)
     {
         g_pAchievementsAndStatsInterface->ReleasePanel();

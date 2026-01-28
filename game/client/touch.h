@@ -207,8 +207,7 @@ public:
 	float forward, side, movecount;
 	float yaw, pitch;
 	rgba_t gridcolor;
-	// default is false dont show!
-	bool m_bShowImGui = false;
+
 	ETouchState state;
 	CUtlLinkedList<CTouchButton*> btns;
 	

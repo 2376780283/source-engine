@@ -43,7 +43,6 @@ def build(bld):
 		'../../public/tier1',
 		'../../vgui2/include',
 		'../../vgui2/controls',
-		'../../imgui'
 		'../shared'
 	]
 
@@ -64,7 +63,6 @@ def build(bld):
 		'vtf',
 		'RT',
 		'ZLIB',
-		'imgui'
 	]
 
 	install_path = bld.env.PREFIX

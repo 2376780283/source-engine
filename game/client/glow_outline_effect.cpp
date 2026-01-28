@@ -154,6 +154,7 @@ void CGlowObjectManager::RenderGlowModels( const CViewSetup *pSetup, int nSplitS
 
 void CGlowObjectManager::ApplyEntityGlowEffects( const CViewSetup *pSetup, int nSplitScreenSlot, CMatRenderContextPtr &pRenderContext, float flBloomScale, int x, int y, int w, int h )
 {
+    // Msg("ApplyEntityGlowEffects is running! Objects: %d\n", m_GlowObjectDefinitions.Count());
 	//=======================================================//
 	// Render objects into stencil buffer					 //
 	//=======================================================//

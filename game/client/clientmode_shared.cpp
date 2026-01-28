@@ -41,6 +41,8 @@
 #include "xbox/xbox_console.h"
 #endif
 
+#include "glow_outline_effect.h"
+
 #if defined( REPLAY_ENABLED )
 #include "replay/replaycamera.h"
 #include "replay/ireplaysystem.h"
@@ -759,7 +761,10 @@ bool ClientModeShared::DoPostScreenSpaceEffects( const CViewSetup *pSetup )
 			return false;
 	}
 #endif 
-	return true;
+   
+        g_GlowObjectManager.RenderGlowEffects( pSetup, 0 ); 
+    
+	return true;	
 }
 
 //-----------------------------------------------------------------------------
