@@ -809,6 +809,11 @@ public:
     void SetToDefault() OVERRIDE {
         if (m_cvar.IsValid()) m_flValue = m_cvar.GetFloat();
     }
+    void RunAnimations(ButtonState state) OVERRIDE {
+        BaseClass::RunAnimations(state);
+        GAMEPADUI_RUN_ANIMATION_COMMAND(m_colSliderBacking, vgui::AnimationController::INTERPOLATOR_LINEAR);
+        GAMEPADUI_RUN_ANIMATION_COMMAND(m_colSliderFill, vgui::AnimationController::INTERPOLATOR_LINEAR);
+    }
 
 private:
     float m_flValue = 0.0f, m_flMin = 0.0f, m_flMax = 1.0f, m_flStep = 0.1f, m_flMouseStep = 0.1f;

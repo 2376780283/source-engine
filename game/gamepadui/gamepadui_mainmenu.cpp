@@ -64,6 +64,12 @@ void GamepadUIMainMenu::UpdateGradients()
 
 void GamepadUIMainMenu::LoadMenuButtons()
 {
+    m_pExtrasButton = new GamepadUIButton(this, this, GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd gamemenucommand Extra_manager", "Extra options", "");
+    m_pExtrasButton->SetPriority(0);
+        
+    m_pConsoleButton = new GamepadUIButton(this, this,  GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd gamemenucommand openconsole", "#GameUI_Console", "");
+    m_pConsoleButton->SetPriority(0);
+    
     for ( int i = 0; i < ARRAYSIZE( m_Buttons ); ++i )
         m_Buttons[i].PurgeAndDeleteElements();
 
@@ -116,26 +122,18 @@ int GamepadUIMainMenu::CompareButtonsByPriority( GamepadUIButton * const *a, Gam
     return (prA == prB) ? 0 : (prA > prB ? 1 : -1); // 降序排列
 }
 
+
+// --------------------------------------------------------
+// purpose:设置extra内容 SourceApp需要
+// --------------------------------------------------------
 void GamepadUIMainMenu::SetConsoleButtonVisibility(bool bVisible)
 {
-    if (!m_pConsoleButton)
-    {
-        m_pConsoleButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd gamemenucommand openconsole","#GameUI_Console", "");
-        m_pConsoleButton->SetPriority(0);
-    }
-     m_pConsoleButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res","cmd gamemenucommand openconsole","#GameUI_Console", "");
-     m_pConsoleButton->SetVisible(bVisible); 
+    m_pConsoleButton->SetVisible(bVisible); 
 }
 
 void GamepadUIMainMenu::SetDevExtraVisibility(bool bVisible)
 {
-    if (!m_pExtrasButton)
-    {
-        m_pExtrasButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res", "cmd gamemenucommand Extra_manager","Extra options", "");
-        m_pExtrasButton->SetPriority(0);
-    }
-     m_pExtrasButton = new GamepadUIButton(this, this,GAMEPADUI_RESOURCE_FOLDER "schememainmenu_olduibutton.res","cmd gamemenucommand Extra_manager","Extra options", "");
-     m_pExtrasButton->SetVisible(bVisible); 
+    m_pExtrasButton->SetVisible(bVisible); 
 }
 
 void GamepadUIMainMenu::ApplySchemeSettings( vgui::IScheme* pScheme )
