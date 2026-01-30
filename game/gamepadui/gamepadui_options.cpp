@@ -956,7 +956,12 @@ class GamepadUISkillySkill : public GamepadUIOptionButton {
 
         vgui::surface()->DrawSetColor(m_colImage);
         vgui::surface()->DrawSetTexture(m_Image);
-        vgui::surface()->DrawTexturedRect(m_flWidth / 2 - m_flImageWidth / 2, 0, m_flWidth / 2 + m_flImageWidth / 2, m_flImageHeight);
+        // 计算内容区中心（排除了左侧的文本偏移）
+float flContentCenterX = (m_flWidth - m_flTextOffsetX) * 0.5f + m_flTextOffsetX;
+// 将坐标转换为整数像素以避免绘制时1px偏差
+int iCenterX = (int)roundf(flContentCenterX);
+int iHalfImgW = (int)roundf(m_flImageWidth * 0.5f);
+vgui::surface()->DrawTexturedRect(iCenterX - iHalfImgW, 0, iCenterX + iHalfImgW, (int)roundf(m_flImageHeight));
         vgui::surface()->DrawSetTexture(0);
 
         PaintText();
@@ -1526,6 +1531,9 @@ void GamepadUIOptionsPanel::LayoutCurrentTab() {
     int nParentW, nParentH;
     GetParent()->GetSize(nParentW, nParentH);
 
+    // ============================
+    // Tabs layout
+    // ============================
     int nTotalTabsWidth = 0;
     for (int i = 0; i < m_nTabCount; i++) {
         nTotalTabsWidth += m_Tabs[i].pTabButton->GetWide();
@@ -1548,19 +1556,48 @@ void GamepadUIOptionsPanel::LayoutCurrentTab() {
 
     int nActiveTab = GetActiveTab();
 
+    // ============================
+    // nMaxButtonWidth 不能用于“横向多按钮居中”
+    // ============================
     int nMaxButtonWidth = 0;
     for (GamepadUIOptionButton *pButton : m_Tabs[nActiveTab].pButtons) {
         if (pButton->GetWide() > nMaxButtonWidth)
             nMaxButtonWidth = pButton->GetWide();
     }
 
-    int nOptionsCenterStartX = (nParentW - nMaxButtonWidth) / 2;
+    // ============================
+    // 新增：计算“第一行横向按钮”的真实总宽度
+    // ============================
+    int nRowTotalWidth = 0;
+    bool bRowWidthComputed = false;
+
+    for (GamepadUIOptionButton *pButton : m_Tabs[nActiveTab].pButtons) {
+        if (!pButton)
+            continue;
+
+        if (!pButton->IsHorizontal())
+            break;
+
+        nRowTotalWidth += pButton->GetWide();
+        bRowWidthComputed = true;
+    }
+
+    // ============================
+    // 用“真实行宽”居中
+    // ============================
+    int nOptionsCenterStartX = bRowWidthComputed
+        ? (nParentW - nRowTotalWidth) / 2
+        : (nParentW - nMaxButtonWidth) / 2;
 
     int i = 0;
     int previousxSizes = 0;
     int previousySizes = 0;
     int previousxHeight = 0;
     int buttonWide = 0;
+
+    // ============================
+    // Options layout（主体循环，结构保持）
+    // ============================
     for (GamepadUIOptionButton *pButton : m_Tabs[nActiveTab].pButtons) {
         int fade = 255;
 
@@ -1629,7 +1666,6 @@ void GamepadUIOptionsPanel::LayoutCurrentTab() {
         }
 
         if (pButton->IsHorizontal()) {
-            // Set previousxHeight to the tallest button
             if (pButton->GetTall() > previousxHeight)
                 previousxHeight = pButton->GetTall();
             previousxSizes += pButton->GetWide();
@@ -1639,6 +1675,9 @@ void GamepadUIOptionsPanel::LayoutCurrentTab() {
         i++;
     }
 
+    // ============================
+    // Scrollbar
+    // ============================
     int yMax = 0;
     {
         if (previousySizes > m_flScrollBarHeight)
