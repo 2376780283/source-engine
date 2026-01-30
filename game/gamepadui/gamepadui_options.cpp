@@ -683,31 +683,40 @@ public:
                          vgui::Panel *pParent, vgui::Panel *pActionSignalTarget,
                          const char *pSchemeFile, const char *pCommand,
                          const char *pText, const char *pDescription)
-        : BaseClass(pszCvar, pszCvarDepends, bInstantApply, pParent, pActionSignalTarget, pSchemeFile, pCommand, pText, pDescription),
-          m_flMin(flMin), m_flMax(flMax), m_flStep(flStep), m_nTextPrecision(nTextPrecision)
+        : BaseClass(pszCvar, pszCvarDepends, bInstantApply, pParent, pActionSignalTarget,
+                    pSchemeFile, pCommand, pText, pDescription),
+          m_flMin(flMin), m_flMax(flMax), m_flStep(flStep), nTextPrecision(nTextPrecision)
     {
-        SetUseCaptureMouse(true); 
+        SetUseCaptureMouse(true);
         m_flValue = m_flMin;
         m_flMouseStep = flStep;
     }
 
-    // 修复 error: no member named 'SetMouseStep'
-    void SetMouseStep(float flStep) {
-        m_flMouseStep = flStep;
-    }
-
+    // 键盘控制
     void OnKeyCodePressed(vgui::KeyCode code) OVERRIDE {
         ButtonCode_t buttonCode = GetBaseButtonCode(code);
         switch (buttonCode) {
-            case KEY_LEFT: case KEY_XBUTTON_LEFT:
+            case KEY_LEFT:
+            case KEY_XBUTTON_LEFT:
+#ifdef HL2_RETAIL
+            case STEAMCONTROLLER_DPAD_LEFT:
+#endif
                 AdjustValue(-(m_bFineAdjust ? m_flMouseStep : m_flStep));
                 break;
-            case KEY_RIGHT: case KEY_XBUTTON_RIGHT:
+
+            case KEY_RIGHT:
+            case KEY_XBUTTON_RIGHT:
+#ifdef HL2_RETAIL
+            case STEAMCONTROLLER_DPAD_RIGHT:
+#endif
                 AdjustValue(m_bFineAdjust ? m_flMouseStep : m_flStep);
                 break;
-            case KEY_RSHIFT: case KEY_LSHIFT:
+
+            case KEY_RSHIFT:
+            case KEY_LSHIFT:
                 m_bFineAdjust = true;
                 break;
+
             default:
                 BaseClass::OnKeyCodePressed(code);
                 break;
@@ -716,114 +725,145 @@ public:
 
     void OnKeyCodeReleased(vgui::KeyCode code) OVERRIDE {
         ButtonCode_t buttonCode = GetBaseButtonCode(code);
-        if (buttonCode == KEY_RSHIFT || buttonCode == KEY_LSHIFT)
-            m_bFineAdjust = false;
-        else
-            BaseClass::OnKeyCodeReleased(code);
+        switch (buttonCode) {
+            case KEY_RSHIFT:
+            case KEY_LSHIFT:
+                m_bFineAdjust = false;
+                break;
+
+            default:
+                BaseClass::OnKeyCodeReleased(code);
+                break;
+        }
     }
 
+    // 鼠标按下
     void OnMousePressed(vgui::MouseCode code) OVERRIDE {
-        if (code == MOUSE_LEFT) {
-            int mx, my;
-            vgui::input()->GetCursorPos(mx, my);
-            
-            // 修复 ScreenToLocal 报错：函数签名应为 ScreenToLocal(int &x, int &y)
-            int localX = mx;
-            int localY = my;
-            ScreenToLocal(localX, localY); 
+        int x, y;
+        GetPos(x, y);
 
-            int iSliderEnd = m_flWidth - m_flTextOffsetX;
-            int iSliderStart = iSliderEnd - m_flSliderWidth;
+        int mx, my;
+        g_pVGuiInput->GetCursorPos(mx, my);
 
-            // 增加判定容差，解决向左拖动无响应的问题
-            if (localX >= iSliderStart - 10 && localX <= iSliderEnd + 10) {
-                m_bDragging = true;
-                vgui::input()->SetMouseCapture(GetVPanel());
-                UpdateValueFromLocalX(localX);
-            }
+        int localX = mx - x;
+        int iSliderEnd = m_flWidth - m_flTextOffsetX;
+        int iSliderStart = iSliderEnd - m_flSliderWidth;
+
+        if (localX >= iSliderStart - 4 && localX <= iSliderEnd + 4) {
+            m_bDragging = true;                 // 开始拖动
+            UpdateValueFromLocalX(localX);      // 点击时立即更新值
         }
+
         BaseClass::OnMousePressed(code);
     }
 
     void OnMouseReleased(vgui::MouseCode code) OVERRIDE {
-        if (code == MOUSE_LEFT) {
-            m_bDragging = false;
-            vgui::input()->SetMouseCapture(NULL);
-        }
+        m_bDragging = false;
         BaseClass::OnMouseReleased(code);
     }
 
     void OnCursorMoved(int x, int y) OVERRIDE {
+        BaseClass::OnCursorMoved(x, y);
         if (m_bDragging) {
-            int mx, my;
-            vgui::input()->GetCursorPos(mx, my);
-            
-            // 修复此处 ScreenToLocal 调用
-            int localX = mx;
-            int localY = my;
-            ScreenToLocal(localX, localY);
-            
+            int px, py;
+            GetPos(px, py);
+            int localX = x - px;
             UpdateValueFromLocalX(localX);
         }
-        BaseClass::OnCursorMoved(x, y);
+    }
+
+    void SetMouseStep(float flStep) {
+        m_flMouseStep = flStep;
+    }
+
+    void OnThink() OVERRIDE {
+        BaseClass::OnThink();
+        // 可以完全依赖 OnCursorMoved 更新值，不再在 OnThink 中重复
     }
 
     void ApplySchemeSettings(vgui::IScheme *pScheme) OVERRIDE {
         BaseClass::ApplySchemeSettings(pScheme);
+
         const char *pSliderSound = pScheme->GetResourceString("Slider.Sound.Adjust");
         if (pSliderSound && *pSliderSound)
             m_sSliderSoundName = g_ButtonSoundNames.AddString(pSliderSound);
     }
 
     void UpdateConVar() OVERRIDE {
-        if (IsDirty() && m_cvar.IsValid())
+        if (IsDirty())
             m_cvar.SetValue(m_flValue);
     }
 
     bool IsDirty() OVERRIDE {
-        return m_cvar.IsValid() && fabsf(m_cvar.GetFloat() - m_flValue) > 0.0001f;
+        return m_cvar.IsValid() && m_cvar.GetFloat() != m_flValue;
+    }
+
+    float GetMultiplier() const {
+        return (m_flValue - m_flMin) / (m_flMax - m_flMin);
     }
 
     void Paint() OVERRIDE {
         BaseClass::Paint();
 
-        if (m_nTextPrecision >= 0) {
+        // 显示数值
+        if (nTextPrecision >= 0) {
             wchar_t szValue[256];
-            V_snwprintf(szValue, sizeof(szValue), L"%.*f", m_nTextPrecision, m_flValue);
+            V_snwprintf(szValue, sizeof(szValue), L"%.*f", nTextPrecision, m_flValue);
+
             int w, h;
             vgui::surface()->GetTextSize(m_hTextFont, szValue, w, h);
-            vgui::surface()->DrawSetTextPos(m_flWidth - 2 * m_flTextOffsetX - m_flSliderWidth - w, m_flHeight / 2 - h / 2);
+            vgui::surface()->DrawSetTextPos(m_flWidth - 2 * m_flTextOffsetX - m_flSliderWidth - w,
+                                            m_flHeight / 2 - h / 2);
             vgui::surface()->DrawPrintText(szValue, V_wcslen(szValue));
         }
 
+        // 绘制滑条
         vgui::surface()->DrawSetColor(m_colSliderBacking);
-        vgui::surface()->DrawFilledRect(m_flWidth - m_flTextOffsetX - m_flSliderWidth, m_flHeight / 2 - m_flSliderHeight / 2, m_flWidth - m_flTextOffsetX, m_flHeight / 2 + m_flSliderHeight / 2);
+        vgui::surface()->DrawFilledRect(m_flWidth - m_flTextOffsetX - m_flSliderWidth,
+                                        m_flHeight / 2 - m_flSliderHeight / 2,
+                                        m_flWidth - m_flTextOffsetX,
+                                        m_flHeight / 2 + m_flSliderHeight / 2);
 
-        float flMultiplier = (m_flMax > m_flMin) ? (m_flValue - m_flMin) / (m_flMax - m_flMin) : 0.0f;
-        int iFillWidth = (int)(m_flSliderWidth * flMultiplier);
+        float flFill = m_flSliderWidth * (1.0f - GetMultiplier());
 
         vgui::surface()->DrawSetColor(m_colSliderFill);
-        vgui::surface()->DrawFilledRect(m_flWidth - m_flTextOffsetX - m_flSliderWidth, m_flHeight / 2 - m_flSliderHeight / 2, m_flWidth - m_flTextOffsetX - m_flSliderWidth + iFillWidth, m_flHeight / 2 + m_flSliderHeight / 2);
+        vgui::surface()->DrawFilledRect(m_flWidth - m_flTextOffsetX - m_flSliderWidth,
+                                        m_flHeight / 2 - m_flSliderHeight / 2,
+                                        m_flWidth - m_flTextOffsetX - flFill,
+                                        m_flHeight / 2 + m_flSliderHeight / 2);
     }
 
     void SetToDefault() OVERRIDE {
-        if (m_cvar.IsValid()) m_flValue = m_cvar.GetFloat();
+        if (m_cvar.IsValid())
+            m_flValue = m_cvar.GetFloat();
     }
+
     void RunAnimations(ButtonState state) OVERRIDE {
         BaseClass::RunAnimations(state);
+
         GAMEPADUI_RUN_ANIMATION_COMMAND(m_colSliderBacking, vgui::AnimationController::INTERPOLATOR_LINEAR);
         GAMEPADUI_RUN_ANIMATION_COMMAND(m_colSliderFill, vgui::AnimationController::INTERPOLATOR_LINEAR);
     }
 
 private:
-    float m_flValue = 0.0f, m_flMin = 0.0f, m_flMax = 1.0f, m_flStep = 0.1f, m_flMouseStep = 0.1f;
-    int m_nTextPrecision = -1;
-    bool m_bDragging = false, m_bFineAdjust = false;
+    float m_flValue = 0.0f;
+    float m_flMin = 0.0f;
+    float m_flMax = 1.0f;
+    float m_flStep = 0.1f;
+
+    int nTextPrecision = -1;
+
+    bool m_bDragging = false;
+    bool m_bFineAdjust = false;
+
+    float m_flMouseStep = 0.1f;
+
     CUtlSymbol m_sSliderSoundName = UTL_INVAL_SYMBOL;
     float m_flLastSliderSoundTime = 0.0f;
 
     GAMEPADUI_BUTTON_ANIMATED_PROPERTY(Color, m_colSliderBacking, "Slider.Backing", "255 255 255 22", SchemeValueTypes::Color);
     GAMEPADUI_BUTTON_ANIMATED_PROPERTY(Color, m_colSliderFill, "Slider.Fill", "255 255 255 255", SchemeValueTypes::Color);
+
     GAMEPADUI_PANEL_PROPERTY(float, m_flSliderWidth, "Slider.Width", "160", SchemeValueTypes::ProportionalFloat);
     GAMEPADUI_PANEL_PROPERTY(float, m_flSliderHeight, "Slider.Height", "11", SchemeValueTypes::ProportionalFloat);
 
@@ -833,7 +873,8 @@ private:
             m_flValue = flNew;
             if (m_sSliderSoundName != UTL_INVAL_SYMBOL)
                 vgui::surface()->PlaySound(g_ButtonSoundNames.String(m_sSliderSoundName));
-            if (m_bInstantApply) UpdateConVar();
+            if (m_bInstantApply)
+                UpdateConVar();
         }
     }
 
@@ -843,19 +884,20 @@ private:
 
         float flProgress = RemapValClamped((float)localX, (float)iSliderStart, (float)iSliderEnd, m_flMin, m_flMax);
 
-        if (m_flMouseStep > 0.0f) {
-            float flRemainder = fmodf(flProgress - m_flMin, m_flMouseStep);
-            flProgress -= flRemainder;
-            if ((flRemainder / m_flMouseStep) > 0.5f) flProgress += m_flMouseStep;
-        }
+        // 对齐步长
+        float flRemainder = fmodf(flProgress - m_flMin, m_flMouseStep);
+        flProgress -= flRemainder;
+        if ((flRemainder / m_flMouseStep) > 0.5f)
+            flProgress += m_flMouseStep;
 
-        if (fabsf(flProgress - m_flValue) > 0.0001f) {
+        if (flProgress != m_flValue) {
             m_flValue = flProgress;
             if (m_sSliderSoundName != UTL_INVAL_SYMBOL && m_flLastSliderSoundTime < GamepadUI::GetInstance().GetTime()) {
                 vgui::surface()->PlaySound(g_ButtonSoundNames.String(m_sSliderSoundName));
-                m_flLastSliderSoundTime = GamepadUI::GetInstance().GetTime() + 0.05f;
+                m_flLastSliderSoundTime = GamepadUI::GetInstance().GetTime() + 0.04f;
             }
-            if (m_bInstantApply) UpdateConVar();
+            if (m_bInstantApply)
+                UpdateConVar();
         }
     }
 };

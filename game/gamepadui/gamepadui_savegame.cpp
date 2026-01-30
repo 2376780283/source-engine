@@ -1117,7 +1117,7 @@ void GamepadUISaveGamePanel::OnCommand( char const* pCommand )
 			// Add delete panels
 			for (int i = 0; i < m_pSavePanels.Count(); i++)
 			{
-				GamepadUIButton *button = new GamepadUIButton( this, this, GAMEPADUI_RESOURCE_FOLDER "schemedeletesavebutton.res", "action_delete_mode_button", "Delete this", "");
+				GamepadUIButton *button = new GamepadUIButton( this, this, GAMEPADUI_RESOURCE_FOLDER "schemedeletesavebutton.res", "action_delete_mode_button", "X", "");
 				button->SetName( m_pSavePanels[i]->GetSaveGame()->szFileName );
 				button->SetPriority( m_pSavePanels[i]->GetPriority() );
 				button->SetForwardToParent( true );
