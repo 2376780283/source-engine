@@ -26,7 +26,7 @@ ModCardPanel::ModCardPanel(vgui::Panel *parent, const char *name, const char *ti
     
     // 2. 创建文字 Label
     m_pTitle = new vgui::Label(this, "ModTitle", title);
-    m_pTitle->SetPaintBackgroundEnabled(false);      // 修复：关闭背景色防止遮挡字体底部
+    m_pTitle->SetPaintBackgroundEnabled(true);      // 修复：关闭背景色防止遮挡字体底部
     m_pTitle->SetFgColor(Color(255, 255, 255, 255)); // 纯白文字
     m_pTitle->SetContentAlignment(vgui::Label::a_center);
 
