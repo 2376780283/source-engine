@@ -8,10 +8,11 @@
 #include "vgui_controls/Label.h"
 #include "vgui_controls/Panel.h"
 #include "vgui_controls/PanelListPanel.h"
+#include "vgui_controls/EditablePanel.h"
 #include "utlvector.h"
 
 // ---------------------------------------------------------
-// 模组卡片控件：增加内边距来实现宫格 Margin 效果
+// 模组卡片控件
 // ---------------------------------------------------------
 class ModCardPanel : public vgui::EditablePanel {
     DECLARE_CLASS_SIMPLE(ModCardPanel, vgui::EditablePanel);
@@ -23,13 +24,11 @@ public:
 private:
     vgui::ImagePanel *m_pImage;
     vgui::Label      *m_pTitle;
-    
-    // 用于内部间距的变量
     int m_iMargin; 
 };
 
 // ---------------------------------------------------------
-// 第一页：Installed Mods
+// 列表页面
 // ---------------------------------------------------------
 class ExtraListPage : public vgui::PropertyPage {
     DECLARE_CLASS_SIMPLE(ExtraListPage, vgui::PropertyPage);
@@ -41,9 +40,7 @@ private:
     vgui::PanelListPanel *m_pModListPanel; 
 };
 
-// ---------------------------------------------------------
-// 其他页面
-// ---------------------------------------------------------
+// 占位页面
 class ModelPreviewPage : public vgui::PropertyPage {
     DECLARE_CLASS_SIMPLE(ModelPreviewPage, vgui::PropertyPage);
 public:
@@ -69,8 +66,11 @@ public:
     virtual void OnCommand(const char *command) override;
     virtual void OnClose() override;
     virtual void PerformLayout() override;
+    virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
 
 private:
+    vgui::EditablePanel *m_pLeftPanel;   
+    vgui::EditablePanel *m_pRightPanel;  
     vgui::PropertySheet *m_pTabSheet;
     vgui::Button        *m_pCloseButton;
 };
