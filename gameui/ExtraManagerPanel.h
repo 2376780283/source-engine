@@ -12,19 +12,32 @@
 #include "utlvector.h"
 
 // ---------------------------------------------------------
-// 模组卡片控件
+// 模组卡片控件 - 升级版：包含交互反馈与硬编码样式
 // ---------------------------------------------------------
 class ModCardPanel : public vgui::EditablePanel {
     DECLARE_CLASS_SIMPLE(ModCardPanel, vgui::EditablePanel);
 public:
     ModCardPanel(vgui::Panel *parent, const char *name, const char *title);
+    
     virtual void PerformLayout() override;
     virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
+    
+    // 鼠标交互重写
+    virtual void OnCursorEntered() override;
+    virtual void OnCursorExited() override;
+    virtual void OnMousePressed(vgui::MouseCode code) override;
+
+    void UpdateIdealSize();
 
 private:
     vgui::ImagePanel *m_pImage;
     vgui::Label      *m_pTitle;
-    int m_iMargin; 
+    
+    // 硬编码颜色配置
+    Color m_clrBgNormal;
+    Color m_clrBgHover;
+    Color m_clrText;
+    int   m_iPadding; 
 };
 
 // ---------------------------------------------------------
