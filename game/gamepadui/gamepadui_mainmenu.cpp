@@ -135,7 +135,6 @@ void GamepadUIMainMenu::LoadMenuButtons() {
     UpdateButtonVisibility();
 }
 
-// 🔧 新增静态函数（放在 .cpp 上面或类中静态声明）
 int GamepadUIMainMenu::CompareButtonsByPriority(GamepadUIButton *const *a,
                                                 GamepadUIButton *const *b) {
     int prA = (*a)->GetPriority();

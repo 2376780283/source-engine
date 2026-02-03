@@ -56,7 +56,7 @@ using namespace vgui;
 #include "OptionsDialog.h"
 #include "CreateMultiplayerGameDialog.h"
 #include "ChangeGameDialog.h"
-#include "WorkshopManagerPanel.h" 
+#include "ExtraManagerPanel.h" 
 
 #include "BackgroundMenuButton.h"
 #include "BasePanel.h"
@@ -75,9 +75,6 @@ using namespace vgui;
 #include "matchmaking/achievementsdialog.h"
 #include "iachievementmgr.h"
 #include "UtlSortVector.h"
-
-#include "../thirdparty/stb/stb_image.h"
-#include "../thirdparty/stb/stb_image_resize.h"
 
 #include "game/client/IGameClientExports.h"
 
@@ -752,7 +749,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 	}
 //	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton", ModInfo().GetGameTitle() ) );
 //	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton2", ModInfo().GetGameTitle2() ) );
-    if ( !IsSteamDeck() )
+    if ( !IsGamepadUI() )
     {
 		m_pGameMenuButtons.AddToTail(CreateMenuButton(this, "GameMenuButton", ModInfo().GetGameTitle()));
 		m_pGameMenuButtons.AddToTail(CreateMenuButton(this, "GameMenuButton2", ModInfo().GetGameTitle2()));
@@ -813,7 +810,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 	if ( IsX360() )
 	{
 		// Get our active mod directory name
-		const char *pGameName = CommandLine()->ParmValue( "-game", "hl2" );;
+		const char *pGameName = CommandLine()->ParmValue( "-game", "hl2" );
 
 		// Set the game we're playing
 		m_iGameID = CONTEXT_GAME_GAME_HALF_LIFE_2;
@@ -918,7 +915,7 @@ static const char *g_rgValidCommands[] =
 	"OpenCreateMultiplayerGameDialog",
 	"OpenChangeGameDialog",
 	"OpenLoadCommentaryDialog",
-	"workshop_publish",
+	"Extra_manager",
 	"Quit",
 	"QuitNoConfirm",
 	"ResumeGame",
@@ -1222,7 +1219,7 @@ void CBasePanel::SetBackgroundRenderState(EBackgroundState state)
 			m_bRenderingBackgroundTransition = true;
 			m_flTransitionStartTime = frametime;
 			m_flTransitionEndTime = frametime + 3.0f;
-			if ( IsSteamDeck() )
+			if ( IsGamepadUI() )
 			{
 				m_flTransitionEndTime = frametime + 2.0f;
 			}
@@ -1403,15 +1400,23 @@ void CBasePanel::DrawBackgroundImage()
 		surface()->DrawSetTexture(m_iLoadingImageID);
 		int twide, ttall;
 		surface()->DrawGetTextureSize(m_iLoadingImageID, twide, ttall);
-//		surface()->DrawTexturedRect(wide - twide, tall - ttall, wide, tall);
-		if (IsSteamDeck())
+		if (IsGamepadUI())
 		{
 			surface()->DrawTexturedRect(wide - ((twide / 512.f) * twide) - 30, 30, wide - 30, (ttall / 512.f) * ttall + 30);
 			
 			static unsigned int	nFrameCache = 0;
 			surface()->DrawGetTextureSize(m_iLoadingSpinnerImageID, twide, ttall); //now use twide and ttall for spinner
 			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));			
-			surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 255 ,46, 0, alpha })); //设置spinner颜色 红        	
+	       
+	        const char *p_SpinnerGameName = CommandLine()->ParmValue( "-game", "hl2" );
+			if ( Q_stristr( p_SpinnerGameName, "portal" ) ) {							
+	          	surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 49, 185, 224, alpha })); //设置spinner色 蓝
+           	} else {         	        
+                surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha })); //设置spinner色 橙色
+		    }
+		    
+		    
+			     		     	
 			surface()->DrawSetTextureFrame(m_iLoadingSpinnerImageID, ((int)m_fLoadingSpinnerFrame) % surface()->GetTextureNumFrames(m_iLoadingSpinnerImageID), &nFrameCache);
 			surface()->DrawSetTexture(m_iLoadingSpinnerImageID);
 
@@ -1868,7 +1873,7 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 		// load the loading icon
 		if ( m_iLoadingImageID == -1 )
 		{
-            if (IsSteamDeck())
+            if (IsGamepadUI())
 			{
 				const char* loading = "gamepadui/game_logo.vtf";
 				m_iLoadingImageID = surface()->CreateNewTextureID();
@@ -1884,7 +1889,7 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 		}
 	}
 	// 加载 loading spinner
-	if (IsSteamDeck())
+	if (IsGamepadUI())
 	{
 		if (m_iLoadingSpinnerImageID == -1)
 		{
@@ -2089,9 +2094,9 @@ void CBasePanel::RunMenuCommand(const char *command)
 	{
 		OnOpenLoadCommentaryDialog();	
 	}
-	else if ( !Q_stricmp( command, "workshop_publish" ) )
+	else if ( !Q_stricmp( command, "Extra_manager" ) )
 	{
-		ShowWorkshopManager();
+		ShowExtraManager();
 	}
 	else if ( !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) )
 	{
@@ -2129,12 +2134,12 @@ void CBasePanel::RunMenuCommand(const char *command)
     {
         if ( IsPC() )
         {
-            if ( !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
+ /*           if ( !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
             {
                 vgui::MessageBox *pMessageBox = new vgui::MessageBox("#GameUI_Achievements_SteamRequired_Title", "#GameUI_Achievements_SteamRequired_Message", this );
                 pMessageBox->DoModal();
                 return;
-            }
+            }*/
 
 			OnOpenCSAchievementsDialog();
         }
@@ -2379,7 +2384,7 @@ bool CBasePanel::IsPromptableCommand( const char *command )
 		 !Q_stricmp( command, "OpenOptionsDialog" ) ||
 		 !Q_stricmp( command, "OpenControllerDialog" ) ||
 		 !Q_stricmp( command, "OpenLoadCommentaryDialog" ) ||
-	     !Q_stricmp( command, "workshop_publish" ) ||
+	     !Q_stricmp( command, "Extra_manager" ) ||
          !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) ||
          !Q_stricmp( command, "OpenAchievementsDialog" ) ||
 
@@ -3442,27 +3447,27 @@ void CBasePanel::OnOpenMatchmakingBasePanel()
 
 
 
-void CBasePanel::ShowWorkshopManager()
+void CBasePanel::ShowExtraManager()
 {
 
-    if ( !m_hWorkshopDialog.Get() )
+    if ( !m_hExtraDialog.Get() )
 	{
-	   m_hWorkshopDialog = new WorkshopManagerPanel(this);  // 正确创建实例
-		PositionDialog( m_hWorkshopDialog );
-		m_hWorkshopDialog->MoveToCenterOfScreen(); 
+	   m_hExtraDialog = new ExtraManagerPanel(this);  // 正确创建实例
+		PositionDialog( m_hExtraDialog );
+		m_hExtraDialog->MoveToCenterOfScreen(); 
 	}
-     m_hWorkshopDialog->Activate();     
+     m_hExtraDialog->Activate();     
 }
 
-void CC_ShowWorkshopManager(const CCommand &args)
+void CC_ShowExtraManager(const CCommand &args)
 {
     if (g_pBasePanel)
     {
-        g_pBasePanel->ShowWorkshopManager();
+        g_pBasePanel->ShowExtraManager();
     }
 }
 
-static ConCommand workshop_manager("workshop_publish", CC_ShowWorkshopManager, "Open Workshop Manager dialog", FCVAR_NONE);
+static ConCommand Extra_manager("workshop_publish", CC_ShowExtraManager, "Open Extra Manager dialog", FCVAR_NONE);
 
 //-----------------------------------------------------------------------------
 // Purpose: Helper function for this common operation

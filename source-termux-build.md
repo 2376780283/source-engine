@@ -14,7 +14,7 @@ export LDFLAGS="-lunwind -static-libstdc++"
 # ===== Waf 配置阶段 =====
 python3 ./waf configure -T release \
   --prefix=../android_build \
-  --android=aarch64,host,32 \
+  --android=aarch64,host,30 \
   --target=../android_build/aarch64 \
   --disable-warns \
   --build-games=entropyzero2 \
@@ -28,3 +28,12 @@ python3 ./waf configure -T release \
 python3 ./waf configure -T release --prefix=../android_build --android=aarch64,host,30 --target=../android_build/aarch64 --disable-warns --togles --enable-opus
 
 
+python3 ./waf configure -T release \
+  --prefix=../android_build \
+  --android=aarch64,host,30 \
+  --target=../android_build \
+  --disable-warns \
+  --build-games=entropyzero2 \
+  --togles \
+  --use-ccache \
+  --enable-lto

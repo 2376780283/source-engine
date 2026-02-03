@@ -15,7 +15,7 @@
 #include "vgui_controls/PHandle.h"
 #include "vgui_controls/MenuItem.h"
 #include "vgui_controls/MessageDialog.h"
-#include "WorkshopManagerPanel.h" 
+#include "ExtraManagerPanel.h" 
 
 #include "KeyValues.h"
 #include "utlvector.h"
@@ -230,7 +230,7 @@ public:
 	void OnOpenChangeGameDialog();
 	void OnOpenPlayerListDialog();
 	void OnOpenBenchmarkDialog();
-	void ShowWorkshopManager();
+	void ShowExtraManager();
 	void OnOpenOptionsDialog();
 	void OnOpenOptionsDialog_Xbox();
 	void OnOpenLoadCommentaryDialog();
@@ -292,7 +292,7 @@ public:
 	int  GetMenuAlpha( void );
 
 	void SetMainMenuOverride( vgui::VPANEL panel );   
-    WorkshopManagerPanel *m_pWorkshopPanel;
+    ExtraManagerPanel *m_pExtraPanel;
     
 protected:
 	virtual void PaintBackground();
@@ -386,7 +386,7 @@ private:
 	vgui::DHANDLE<vgui::Frame> m_hBenchmarkDialog;
 	vgui::DHANDLE<vgui::Frame> m_hLoadCommentaryDialog;
 	vgui::DHANDLE<vgui::Frame> m_hAchievementsDialog;
-    vgui::DHANDLE<vgui::Frame> m_hWorkshopDialog;
+    vgui::DHANDLE<vgui::Frame> m_hExtraDialog;
 
 
 	// Xbox 360
