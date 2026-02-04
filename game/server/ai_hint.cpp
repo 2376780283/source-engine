@@ -745,9 +745,9 @@ CAI_Hint *CAI_HintManager::GetFirstHint( AIHintIter_t *pIter )
 //-----------------------------------------------------------------------------
 CAI_Hint *CAI_HintManager::GetNextHint(  AIHintIter_t *pIter )
 {
-	if ( (int)*pIter != gm_AllHints.InvalidIndex() )
-	{
-		int i = ( (int)*pIter ) + 1;
+    if ( (uintptr_t)*pIter != (uintptr_t)gm_AllHints.InvalidIndex() )
+    {
+        int i = (int)( (uintptr_t)*pIter ) + 1;		
 		if ( gm_AllHints.Count() <= i )
 		{
 			*pIter = (AIHintIter_t)gm_AllHints.InvalidIndex();
