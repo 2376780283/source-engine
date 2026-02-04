@@ -749,7 +749,7 @@ CBasePanel::CBasePanel() : Panel(NULL, "BaseGameUIPanel")
 	}
 //	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton", ModInfo().GetGameTitle() ) );
 //	m_pGameMenuButtons.AddToTail( CreateMenuButton( this, "GameMenuButton2", ModInfo().GetGameTitle2() ) );
-    if ( !IsGamepadUI() )
+    if ( !IsSteamDeck() )
     {
 		m_pGameMenuButtons.AddToTail(CreateMenuButton(this, "GameMenuButton", ModInfo().GetGameTitle()));
 		m_pGameMenuButtons.AddToTail(CreateMenuButton(this, "GameMenuButton2", ModInfo().GetGameTitle2()));
@@ -1219,7 +1219,7 @@ void CBasePanel::SetBackgroundRenderState(EBackgroundState state)
 			m_bRenderingBackgroundTransition = true;
 			m_flTransitionStartTime = frametime;
 			m_flTransitionEndTime = frametime + 3.0f;
-			if ( IsGamepadUI() )
+			if ( IsSteamDeck() )
 			{
 				m_flTransitionEndTime = frametime + 2.0f;
 			}
@@ -1400,7 +1400,7 @@ void CBasePanel::DrawBackgroundImage()
 		surface()->DrawSetTexture(m_iLoadingImageID);
 		int twide, ttall;
 		surface()->DrawGetTextureSize(m_iLoadingImageID, twide, ttall);
-		if (IsGamepadUI())
+		if (IsSteamDeck())
 		{
 			surface()->DrawTexturedRect(wide - ((twide / 512.f) * twide) - 30, 30, wide - 30, (ttall / 512.f) * ttall + 30);
 			
@@ -1873,7 +1873,7 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 		// load the loading icon
 		if ( m_iLoadingImageID == -1 )
 		{
-            if (IsGamepadUI())
+            if (IsSteamDeck())
 			{
 				const char* loading = "gamepadui/game_logo.vtf";
 				m_iLoadingImageID = surface()->CreateNewTextureID();
@@ -1889,7 +1889,7 @@ void CBasePanel::ApplySchemeSettings(IScheme *pScheme)
 		}
 	}
 	// 加载 loading spinner
-	if (IsGamepadUI())
+	if (IsSteamDeck())
 	{
 		if (m_iLoadingSpinnerImageID == -1)
 		{
@@ -3451,8 +3451,8 @@ void CBasePanel::ShowExtraManager()
 {
 
     if ( !m_hExtraDialog.Get() )
-	{
-	   m_hExtraDialog = new ExtraManagerPanel(this);  // 正确创建实例
+	{ 
+   	    m_hExtraDialog = new ExtraManagerPanel(this);  // 正确创建实例
 		PositionDialog( m_hExtraDialog );
 		m_hExtraDialog->MoveToCenterOfScreen(); 
 	}
