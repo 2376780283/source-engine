@@ -319,7 +319,16 @@ void GamepadUIAchievementsPanel::LayoutAchievementPanels()
     {
         int tall = m_pAchievementPanels[i]->GetTall();
         int size = ( tall + m_flAchievementsSpacing );
-        int y = m_AchievementsOffsetY + previousSizes - m_ScrollState.GetScrollProgress();        
+        
+        int y = m_AchievementsOffsetY + previousSizes - m_ScrollState.GetScrollProgress();
+        int fade = 255;
+        if ( y < m_AchievementsOffsetY )
+            fade = ( 1.0f - clamp( -( y - m_AchievementsOffsetY ) / m_AchievementsFade, 0.0f, 1.0f ) ) * 255.0f;
+        if ( y > nParentH - m_AchievementsFade )
+            fade = ( 1.0f - clamp(( y - ( nParentH - m_AchievementsFade - size ) ) / m_AchievementsFade, 0.0f, 1.0f ) ) * 255.0f;
+        if ( m_pAchievementPanels[i]->HasFocus() && fade != 0 )
+            fade = 255;
+        m_pAchievementPanels[i]->SetAlpha( fade );     
         m_pAchievementPanels[i]->SetPos( m_AchievementsOffsetX, y );
         previousSizes += size;
     }
