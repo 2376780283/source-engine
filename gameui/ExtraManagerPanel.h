@@ -9,6 +9,8 @@
 #include "vgui_controls/Panel.h"
 #include "vgui_controls/PanelListPanel.h"
 #include "vgui_controls/EditablePanel.h"
+#include "vgui_controls/RichText.h"
+#include "vgui_controls/ComboBox.h"
 #include "utlvector.h"
 
 // ---------------------------------------------------------
@@ -35,6 +37,7 @@ class ExtraListPage : public vgui::PropertyPage {
 public:
     ExtraListPage(vgui::Panel *parent, const char *panelName);
     virtual void PerformLayout() override;
+    void RefreshList(); // 模拟刷新逻辑
 
 private:
     vgui::PanelListPanel *m_pModListPanel; 
@@ -68,9 +71,22 @@ public:
     virtual void PerformLayout() override;
     virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
 
+    // 响应下拉框改变
+    MESSAGE_FUNC_PTR(OnVersionSelected, "TextChanged", panel);
+
 private:
+    // 左侧面板组件
     vgui::EditablePanel *m_pLeftPanel;   
-    vgui::EditablePanel *m_pRightPanel;  
     vgui::PropertySheet *m_pTabSheet;
+    ExtraListPage       *m_pModListPage;
+
+    // 右侧面板组件
+    vgui::EditablePanel *m_pRightPanel;  
+    vgui::Label         *m_pDetailsLabel;
+    vgui::Label         *m_pVersionTitleLabel; // 版本说明标题
+    vgui::RichText      *m_pDescriptionText;
+    vgui::ComboBox      *m_pVersionCombo;
+    vgui::Button        *m_pRefreshButton;
+
     vgui::Button        *m_pCloseButton;
 };
