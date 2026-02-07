@@ -1315,6 +1315,19 @@ void CBasePanel::OnLevelLoadingFinished()
 	}
 }
 
+// ------------------------------------------------------------
+//  spinner color for gamepadui
+// ------------------------------------------------------------
+struct SpinnerColor_t {
+    const char *szGameKeyword;
+    unsigned char r, g, b;
+};
+
+static const SpinnerColor_t g_SpinnerColors[] = {
+    {"portal", 49, 185, 224},
+    {"entropyzero2", 255, 46, 0},
+};
+
 //-----------------------------------------------------------------------------
 // Draws the background image.
 //-----------------------------------------------------------------------------
@@ -1408,14 +1421,21 @@ void CBasePanel::DrawBackgroundImage()
 			surface()->DrawGetTextureSize(m_iLoadingSpinnerImageID, twide, ttall); //now use twide and ttall for spinner
 			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));			
 	       
-	        const char *p_SpinnerGameName = CommandLine()->ParmValue( "-game", "hl2" );
-			if ( Q_stristr( p_SpinnerGameName, "portal" ) ) {							
-	          	surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 49, 185, 224, alpha })); //设置spinner色 蓝
-           	} else {         	        
-                surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha })); //设置spinner色 橙色
-		    }
-		    
-		    
+            const char *p_SpinnerGameName = CommandLine()->ParmValue("-game", "hl2");
+
+            Color finalColor(201, 100, 0, alpha);
+
+            if (pScheme->GetColor("SteamDeckSpinner", Color(0, 0, 0, 0)) != Color(0, 0, 0, 0)) {
+                finalColor = pScheme->GetColor("SteamDeckSpinner", finalColor);
+            } else {
+                for (const auto &item : g_SpinnerColors) {
+                    if (Q_stristr(p_SpinnerGameName, item.szGameKeyword)) {
+                        finalColor.SetColor(item.r, item.g, item.b, alpha);
+                        break;
+                    }
+                }
+            }
+            surface()->DrawSetColor(finalColor);
 			     		     	
 			surface()->DrawSetTextureFrame(m_iLoadingSpinnerImageID, ((int)m_fLoadingSpinnerFrame) % surface()->GetTextureNumFrames(m_iLoadingSpinnerImageID), &nFrameCache);
 			surface()->DrawSetTexture(m_iLoadingSpinnerImageID);

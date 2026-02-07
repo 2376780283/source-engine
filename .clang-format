@@ -1,0 +1,19 @@
+Language:        Cpp
+BasedOnStyle:    LLVM
+
+########################
+# 基础缩进
+########################
+IndentWidth:     4
+TabWidth:        4
+UseTab:          Never
+ContinuationIndentWidth: 4
+
+########################
+# 行宽（宽松核心）
+########################
+ColumnLimit:     160
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+AllowShortBlocksOnASingleLine: true
