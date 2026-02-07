@@ -15,7 +15,6 @@
 #include "gamepadui_interface.h"
 
 // memdbgon must be the last include file in a .cpp file!!!
-// memdbgon.h 必须`是.cpp文件中的最后一个include文件 !!!
 #include "tier0/memdbgon.h"
 
 ConVar gamepadui_background_music_duck( "gamepadui_background_music_duck", "0.35", FCVAR_ARCHIVE );

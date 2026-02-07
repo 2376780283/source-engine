@@ -9,9 +9,6 @@
 #include "KeyValues.h"
 #include "filesystem.h"
 
-// #include "tier0/memdbgon.h"
-
-// command line
 #include "tier0/icommandline.h"
 
 #include "tier0/memdbgon.h"
@@ -153,7 +150,6 @@ void GamepadUIMainMenu::ApplySchemeSettings( vgui::IScheme* pScheme )
 
 void GamepadUIMainMenu::LayoutMainMenu()
 {
-    // 主按钮列表布局
     m_flOldUIButtonOffsetX = 20.0f; 
     m_flOldUIButtonOffsetY = 20.0f; 
     int nY = GetCurrentButtonOffset();
@@ -165,20 +161,12 @@ void GamepadUIMainMenu::LayoutMainMenu()
         pButton->SetPos( m_flButtonsOffsetX, GetTall() - nY );
         nY += m_flButtonSpacing;
     }
-
-    // 获取父控件尺寸
     int nParentW, nParentH;
     GetParent()->GetSize( nParentW, nParentH );
-
-    // Console 和 Extras 左下角左右排列
     float buttonSpacing = 10.0f; // 两按钮间距
     float baseX = m_flOldUIButtonOffsetX;
     float baseY = nParentH - m_pConsoleButton->m_flHeight - m_flOldUIButtonOffsetY;
-
-    // Console 按钮在左
     m_pConsoleButton->SetPos(baseX, baseY);
-
-    // Extras 按钮在右
     m_pExtrasButton->SetPos(baseX + m_pConsoleButton->m_flWidth + buttonSpacing, baseY);
 }
 

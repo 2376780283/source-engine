@@ -30,6 +30,8 @@ public:
     GamepadUIAchievementsPanel( vgui::Panel *pParent, const char* pPanelName );
 
     void UpdateGradients() OVERRIDE;
+    
+    void ApplySchemeSettings( vgui::IScheme *pScheme ) OVERRIDE;
 
     void OnThink() OVERRIDE;
     void OnCommand( char const* pCommand ) OVERRIDE;
@@ -226,6 +228,26 @@ void GamepadUIAchievementsPanel::OnThink()
     BaseClass::OnThink();
 
     LayoutAchievementPanels();
+}
+
+void GamepadUIAchievementsPanel::ApplySchemeSettings( vgui::IScheme *pScheme )
+{
+    BaseClass::ApplySchemeSettings( pScheme );
+    int nParentW, nParentH;
+    if ( GetParent() )
+    {
+        GetParent()->GetSize( nParentW, nParentH );
+    }
+    else
+    {
+        vgui::surface()->GetScreenSize( nParentW, nParentH );
+    }
+    if ( m_pAchievementPanels.Count() > 0 )
+    {
+        float flButtonW = m_pAchievementPanels[0]->GetWide();
+        m_AchievementsOffsetX = ( static_cast<float>( nParentW ) - flButtonW ) / 2.0f;
+        m_AchievementsFade = m_AchievementsOffsetX; 
+    }
 }
 
 void GamepadUIAchievementsPanel::OnGamepadUIButtonNavigatedTo( vgui::VPANEL button )

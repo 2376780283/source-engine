@@ -373,12 +373,8 @@ void GamepadUISaveGamePanel::UpdateGradients()
 
 void GamepadUISaveGamePanel::ApplySchemeSettings( vgui::IScheme *pScheme )
 {
-    // 调用基类以获取基础 Scheme 属性
     BaseClass::ApplySchemeSettings( pScheme );
-
     m_bFooterButtonsStack = true;
-
-    // 获取父容器（屏幕）的实际尺寸
     int nParentW, nParentH;
     if ( GetParent() )
     {
@@ -386,36 +382,24 @@ void GamepadUISaveGamePanel::ApplySchemeSettings( vgui::IScheme *pScheme )
     }
     else
     {
-        // 回退方案：如果无法获取父级，则使用引擎屏幕尺寸
         vgui::surface()->GetScreenSize( nParentW, nParentH );
     }
-
-    // 动态居中逻辑：
-    // 如果已有生成的存档面板，则根据面板宽度计算居中偏移
     if ( m_pSavePanels.Count() > 0 )
     {
         float flButtonW = m_pSavePanels[0]->GetWide();
-        
-        // 计算居中 X 坐标： (总宽度 - 按钮宽度) / 2
         m_flSavesOffsetX = ( static_cast<float>( nParentW ) - flButtonW ) / 2.0f;
-        
-        // 修复渐变/淡出偏移量，使其与存档列表对齐
         m_flSavesFade = m_flSavesOffsetX; 
     }
     else
     {
-        // 如果没有存档，则根据屏幕比例进行基础缩放
         float flX, flY;
         if ( GamepadUI::GetInstance().GetScreenRatio( flX, flY ) )
         {
             m_flSavesOffsetX *= flX;
         }
     }
-
-    // 重新初始化滚动条位置，确保其紧贴在居中列表的右侧
     if ( m_pScrollBar && m_pSavePanels.Count() > 0 )
     {
-        // 滚动条 X = 列表起始点 + 列表宽度 + 间距
         m_pScrollBar->InitScrollBar( &m_ScrollState, m_flSavesOffsetX + m_pSavePanels[0]->GetWide() + m_flSavesSpacing, m_flSavesOffsetY );
     }
 }
