@@ -372,31 +372,35 @@ void GamepadUISaveGamePanel::UpdateGradients()
 
 void GamepadUISaveGamePanel::ApplySchemeSettings( vgui::IScheme *pScheme )
 {
-	BaseClass::ApplySchemeSettings( pScheme );
-
-	m_bFooterButtonsStack = true;
-
-	float flX, flY;
-    if (GamepadUI::GetInstance().GetScreenRatio( flX, flY ))
+    BaseClass::ApplySchemeSettings( pScheme );
+    m_bFooterButtonsStack = true;
+    int nParentW, nParentH;
+    if ( GetParent() )
     {
-        m_flSavesOffsetX *= (flX);
+        GetParent()->GetSize( nParentW, nParentH );
     }
-
-	int nX, nY;
-	GamepadUI::GetInstance().GetSizingPanelOffset( nX, nY );
-	if (nX > 0)
-	{
-		GamepadUI::GetInstance().GetSizingPanelScale( flX, flY );
-		flX *= 0.4f;
-
-		m_flSavesOffsetX += ((float)nX) * flX;
-		m_flSavesFade += ((float)nX) * flX;
-	}
-
-	if ( m_pScrollBar )
-	{
-		m_pScrollBar->InitScrollBar( &m_ScrollState, m_flSavesOffsetX + m_pSavePanels[0]->GetWide() + m_flSavesSpacing, m_flSavesOffsetY );
-	}
+    else
+    {
+        vgui::surface()->GetScreenSize( nParentW, nParentH );
+    }
+    if ( m_pSavePanels.Count() > 0 )
+    {
+        float flButtonW = m_pSavePanels[0]->GetWide();
+        m_flSavesOffsetX = ( static_cast<float>( nParentW ) - flButtonW ) / 2.0f;
+        m_flSavesFade = m_flSavesOffsetX; 
+    }
+    else
+    {
+        float flX, flY;
+        if ( GamepadUI::GetInstance().GetScreenRatio( flX, flY ) )
+        {
+            m_flSavesOffsetX *= flX;
+        }
+    }
+    if ( m_pScrollBar && m_pSavePanels.Count() > 0 )
+    {
+        m_pScrollBar->InitScrollBar( &m_ScrollState, m_flSavesOffsetX + m_pSavePanels[0]->GetWide() + m_flSavesSpacing, m_flSavesOffsetY );
+    }
 }
 
 void GamepadUISaveGamePanel::OnThink()

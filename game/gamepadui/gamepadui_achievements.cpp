@@ -4,6 +4,7 @@
 #include "gamepadui_scroll.h"
 #include "gamepadui_interface.h"
 #include "gamepadui_image.h"
+#include "gamepadui_scrollbar.h"
 
 #include "ienginevgui.h"
 #include "vgui/ILocalize.h"
@@ -30,6 +31,8 @@ public:
     GamepadUIAchievementsPanel( vgui::Panel *pParent, const char* pPanelName );
 
     void UpdateGradients() OVERRIDE;
+    
+    void ApplySchemeSettings( vgui::IScheme *pScheme ) OVERRIDE;
 
     void OnThink() OVERRIDE;
     void OnCommand( char const* pCommand ) OVERRIDE;
@@ -44,6 +47,7 @@ private:
     CUtlVector< GamepadUIAchievement* > m_pAchievementPanels;
 
     GamepadUIScrollState m_ScrollState;
+    GamepadUIScrollBar *m_pScrollBar = NULL;
 
     int m_nTotalAchievements = 0;
     int m_nUnlockedAchievements = 0;
@@ -228,6 +232,35 @@ void GamepadUIAchievementsPanel::OnThink()
     LayoutAchievementPanels();
 }
 
+void GamepadUIAchievementsPanel::ApplySchemeSettings( vgui::IScheme *pScheme )
+{
+    BaseClass::ApplySchemeSettings( pScheme );
+    int nParentW, nParentH;
+    if ( GetParent() )
+        GetParent()->GetSize( nParentW, nParentH );
+    else
+        vgui::surface()->GetScreenSize( nParentW, nParentH );
+    if ( m_pAchievementPanels.Count() > 0 )
+    {
+        float flButtonW = m_pAchievementPanels[0]->GetWide();
+        m_AchievementsOffsetX = ( static_cast<float>( nParentW ) - flButtonW ) / 2.0f;
+        m_AchievementsFade = m_AchievementsOffsetX; 
+    }
+    if ( m_pAchievementPanels.Count() > 0 )
+    {
+        if ( !m_pScrollBar )
+        {
+            m_pScrollBar = new GamepadUIScrollBar(
+                this, this,
+                GAMEPADUI_RESOURCE_FOLDER "schemescrollbar.res",
+                NULL, false );
+            m_pScrollBar->SetNavLeft( m_pAchievementPanels[0] );
+        }
+        float flScrollBarX = m_AchievementsOffsetX + m_pAchievementPanels[0]->GetWide() + m_flAchievementsSpacing;
+        m_pScrollBar->InitScrollBar( &m_ScrollState, flScrollBarX, m_AchievementsOffsetY );
+    }
+}
+
 void GamepadUIAchievementsPanel::OnGamepadUIButtonNavigatedTo( vgui::VPANEL button )
 {
     GamepadUIButton *pButton = dynamic_cast< GamepadUIButton * >( vgui::ipanel()->GetPanel( button, GetModuleName() ) );
@@ -265,39 +298,31 @@ void GamepadUIAchievementsPanel::OnGamepadUIButtonNavigatedTo( vgui::VPANEL butt
 void GamepadUIAchievementsPanel::LayoutAchievementPanels()
 {
     int nParentW, nParentH;
-	GetParent()->GetSize( nParentW, nParentH );
-
+    GetParent()->GetSize( nParentW, nParentH );
     float flScrollClamp = 0.0f;
     for ( int i = 0; i < m_pAchievementPanels.Count(); i++ )
     {
         int size = ( m_pAchievementPanels[i]->GetTall() + m_flAchievementsSpacing );
-
         if ( i < m_pAchievementPanels.Count() - 2 )
             flScrollClamp += size;
     }
-
     m_ScrollState.UpdateScrollBounds( 0.0f, flScrollClamp );
-
+    if ( m_pAchievementPanels.Count() > 0 && m_pScrollBar )
+    {
+        float flVisibleHeight = nParentH - m_AchievementsOffsetY - m_flFooterButtonsOffsetY; 
+        m_pScrollBar->UpdateScrollBounds( 0.0f, flScrollClamp, 
+            ( m_pAchievementPanels[0]->GetTall() + m_flAchievementsSpacing ) * 3.0f, // 视口高度参考
+            flVisibleHeight );
+    }
     int previousSizes = 0;
     for ( int i = 0; i < m_pAchievementPanels.Count(); i++ )
     {
         int tall = m_pAchievementPanels[i]->GetTall();
         int size = ( tall + m_flAchievementsSpacing );
-
-        int y = m_AchievementsOffsetY + previousSizes - m_ScrollState.GetScrollProgress();
-        int fade = 255;
-        if ( y < m_AchievementsOffsetY )
-            fade = ( 1.0f - clamp( -( y - m_AchievementsOffsetY ) / m_AchievementsFade, 0.0f, 1.0f ) ) * 255.0f;
-        if ( y > nParentH - m_AchievementsFade )
-            fade = ( 1.0f - clamp(( y - ( nParentH - m_AchievementsFade - size ) ) / m_AchievementsFade, 0.0f, 1.0f ) ) * 255.0f;
-        if ( m_pAchievementPanels[i]->HasFocus() && fade != 0 )
-            fade = 255;
-        m_pAchievementPanels[i]->SetAlpha( fade );
+        int y = m_AchievementsOffsetY + previousSizes - m_ScrollState.GetScrollProgress();        
         m_pAchievementPanels[i]->SetPos( m_AchievementsOffsetX, y );
-        m_pAchievementPanels[i]->SetVisible( true );
         previousSizes += size;
     }
-
     m_ScrollState.UpdateScrolling( 2.0f, GamepadUI::GetInstance().GetTime() );
 }
 
