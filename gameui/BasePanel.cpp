@@ -2118,13 +2118,6 @@ void CBasePanel::RunMenuCommand(const char *command)
 	{
 		ShowExtraManager();
 	}
-	else if ( !Q_stricmp( "", "workshop_publish" ) )
-	{
-	    vgui::MessageBox *pMessageBox = new vgui::MessageBox
-	    ("Workshop Pubilsh :",
-	    "Workshop_publish is not support", this );
-         pMessageBox->DoModal();        
-	}
 	else if ( !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) )
 	{
 		OpenLoadSingleplayerCommentaryDialog();	
@@ -3493,6 +3486,15 @@ void CC_ShowExtraManager(const CCommand &args)
         g_pBasePanel->ShowExtraManager();
     }
 }
+
+void CC_ShowWorkshopPublish(const CCommand &args)
+{
+	    vgui::MessageBox *pMessageBox = new vgui::MessageBox
+	    ("Workshop Pubilsh Tool:",
+	    "Workshop publish is not support", g_pBasePanel );
+         pMessageBox->DoModal();        
+}
+static ConCommand Workshoppublish("Workshop_publish", CC_ShowWorkshopPublish, "Open WorkShop publish dialog", FCVAR_NONE);
 
 static ConCommand Extra_manager("Extra_manager", CC_ShowExtraManager, "Open Extra Manager dialog", FCVAR_NONE);
 
