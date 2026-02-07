@@ -109,11 +109,7 @@ void CDbgLogger::Init(const char *logfile)
 	file = fopen(logfile, "w+");
 	if( file )
 	{
-#ifdef GIT_COMMIT_HASH
-		fprintf(file, ">>> Engine(arch:%s commit:" GIT_COMMIT_HASH ") started at %s\n", GetProcessorArchName(), szTime);
-#else
 		fprintf(file, ">>> Engine(arch:%s) started at %s\n", GetProcessorArchName(), szTime);
-#endif
 
 #ifdef GNUC
 		fprintf(file, "Compiler version: %s\n", __VERSION__);

@@ -9,6 +9,22 @@ using namespace vgui;
 #endif
 
 // =========================================================
+// 版本维护数据结构 (在此添加新版本即可)
+// =========================================================
+struct VersionInfo_t {
+    const char *szVersion;
+    const char *szDescription;
+};
+
+static VersionInfo_t g_VersionData[] = {
+    { "1.16",    "- 修复touch贴图问题\n- 保持64位稳定。" },
+    { "1.17.26", "- 修复烟雾渲染\n- 修复touch触摸\n- 修改touch网格颜色\n- 添加gamepadui支持" },
+    { "1.18.0",  "- 修复gamepadui问题\n- 支持entropyZero2模组\n- 完整支持png加载\n- 加入更多半条命2 20th更新特性" },
+    { "1.18.3",  "- 修复gamepadui tab对不齐\n- 支持touch使用png作为贴图\n- 优化性能" },
+    { "1.18.4",  "- 修复gamepadui高分辨ui错位问题。" }
+};
+
+// =========================================================
 // ModCardPanel 实现
 // =========================================================
 ModCardPanel::ModCardPanel(vgui::Panel *parent, const char *name, const char *title) 
@@ -108,42 +124,40 @@ ExtraManagerPanel::ExtraManagerPanel(vgui::Panel *parent)
 
     m_pTabSheet = new PropertySheet(m_pLeftPanel, "ExtraTabs");
     m_pModListPage = new ExtraListPage(m_pTabSheet, "ExtraListPage");
-    m_pTabSheet->AddPage(m_pModListPage, "MODS");
-    m_pTabSheet->AddPage(new ModelPreviewPage(m_pTabSheet, "ModelPreviewPage"), "PREVIEW");
-    m_pTabSheet->AddPage(new DevPage(m_pTabSheet, "DevPage"), "DEV");
+    m_pTabSheet->AddPage(m_pModListPage, "mods");
+    m_pTabSheet->AddPage(new ModelPreviewPage(m_pTabSheet, "ModelPreviewPage"), "preview items");
+    m_pTabSheet->AddPage(new DevPage(m_pTabSheet, "DevPage"), "developers");
 
     // --- 右侧面板 ---
     m_pRightPanel = new vgui::EditablePanel(this, "RightFloatingPanel");
     m_pRightPanel->SetPaintBackgroundEnabled(true);
     m_pRightPanel->SetBgColor(Color(0, 0, 0, 160)); 
 
-    // 小标题：功能说明
-    m_pDetailsLabel = new vgui::Label(m_pRightPanel, "DetailsLabel", "版本特性与管理");
-    
-    // 小标题：下拉框说明
-    m_pVersionTitleLabel = new vgui::Label(m_pRightPanel, "VersionTitleLabel", "选择版本查看变更:");
+    m_pDetailsLabel = new vgui::Label(m_pRightPanel, "DetailsLabel", "Information");
+    m_pVersionTitleLabel = new vgui::Label(m_pRightPanel, "VersionTitleLabel", "Watch what new:");
 
-    // 版本详情文本
     m_pDescriptionText = new vgui::RichText(m_pRightPanel, "DescriptionText");
     m_pDescriptionText->SetVerticalScrollbar(true);
 
-    // 版本选择下拉框
     m_pVersionCombo = new vgui::ComboBox(m_pRightPanel, "VersionCombo", 6, false);
-    m_pVersionCombo->AddItem("1.16", nullptr);
-    m_pVersionCombo->AddItem("1.17.26", nullptr);
-    m_pVersionCombo->AddItem("1.18.0", nullptr);
-    m_pVersionCombo->AddItem("1.18.3", nullptr);
-    m_pVersionCombo->AddItem("1.18.4", nullptr);
     m_pVersionCombo->AddActionSignalTarget(this);
 
-    // 刷新按钮 (取代安装按钮)
-    m_pRefreshButton = new vgui::Button(m_pRightPanel, "RefreshBtn", "刷新列表内容", this, "RefreshList");
+    // 数据初始化
+    InitVersionCombo();
 
-    // 退出按钮
-    m_pCloseButton = new Button(this, "CloseBtn", "BACK", this, "Close");
+    m_pRefreshButton = new vgui::Button(m_pRightPanel, "RefreshBtn", "刷新列表内容", this, "RefreshList");
+    m_pCloseButton = new Button(this, "CloseBtn", "Close", this, "Close");
 
     // 默认选择第一个版本
     m_pVersionCombo->ActivateItemByRow(0);
+}
+
+void ExtraManagerPanel::InitVersionCombo() {
+    if (!m_pVersionCombo) return;
+
+    for (int i = 0; i < ARRAYSIZE(g_VersionData); i++) {
+        m_pVersionCombo->AddItem(g_VersionData[i].szVersion, nullptr);
+    }
 }
 
 // 响应版本切换显示特性
@@ -153,22 +167,20 @@ void ExtraManagerPanel::OnVersionSelected(vgui::Panel *panel) {
         m_pVersionCombo->GetText(szText, sizeof(szText));
         
         m_pDescriptionText->SetText(""); // 清空
+        
+        // 渲染标题
         m_pDescriptionText->InsertColorChange(Color(255, 210, 0, 255));
         m_pDescriptionText->InsertString("版本 ");
         m_pDescriptionText->InsertString(szText);
         m_pDescriptionText->InsertString(" 特性说明:\n\n");
         m_pDescriptionText->InsertColorChange(Color(255, 255, 255, 255));
 
-        if (!Q_strcmp(szText, "1.16")) {
-            m_pDescriptionText->InsertString("- 修复touch贴图问题\n- 保持64位稳定。");
-        } else if (!Q_strcmp(szText, "1.17.26")) {
-            m_pDescriptionText->InsertString("- 修复烟雾渲染\n- 修复touch触摸\n- 修改touch网格颜色\n- 添加gamepadui支持");
-        } else if (!Q_strcmp(szText, "1.18.0")) {
-            m_pDescriptionText->InsertString("- 修复gamepadui问题\n- 支持entropyZero2模组\n- 完整支持png加载\n- 加入更多半条命2 20th更新特性");
-        } else if (!Q_strcmp(szText, "1.18.3")) {
-            m_pDescriptionText->InsertString("- 修复gamepadui tab对不齐\n- 支持touch使用png作为贴图\n- 优化性能");
-        } else if (!Q_strcmp(szText, "1.18.4")) {
-            m_pDescriptionText->InsertString("- 修复gamepadui高分辨ui错位问题。");
+        // 查找并插入对应的描述
+        for (int i = 0; i < ARRAYSIZE(g_VersionData); i++) {
+            if (!Q_strcmp(szText, g_VersionData[i].szVersion)) {
+                m_pDescriptionText->InsertString(g_VersionData[i].szDescription);
+                break;
+            }
         }
     }
 }
@@ -219,28 +231,22 @@ void ExtraManagerPanel::PerformLayout() {
     int rInnerPad = PROPVAL(15);
     int currentY = rInnerPad;
 
-    // 主标题
     m_pDetailsLabel->SetBounds(rInnerPad, currentY, rightW - (rInnerPad * 2), PROPVAL(30));
     currentY += PROPVAL(45);
 
-    // 下拉框说明小标题
     m_pVersionTitleLabel->SetBounds(rInnerPad, currentY, rightW - (rInnerPad * 2), PROPVAL(15));
     currentY += PROPVAL(20);
 
-    // 下拉框
     m_pVersionCombo->SetBounds(rInnerPad, currentY, rightW - (rInnerPad * 2), PROPVAL(24));
     currentY += PROPVAL(35);
 
-    // 版本特性文本框
     int descH = panelH / 2.2;
     m_pDescriptionText->SetBounds(rInnerPad, currentY, rightW - (rInnerPad * 2), descH);
 
-    // 刷新按钮 (底部对齐)
     int btnW = rightW - (rInnerPad * 2);
     int btnH = PROPVAL(35);
     m_pRefreshButton->SetBounds(rInnerPad, panelH - rInnerPad - btnH, btnW, btnH);
 
-    // 全局退出按钮
     int exitBtnW = PROPVAL(100);
     int exitBtnH = PROPVAL(30);
     m_pCloseButton->SetBounds(sw - iPadding - exitBtnW, sh - iPadding - exitBtnH, exitBtnW, exitBtnH);

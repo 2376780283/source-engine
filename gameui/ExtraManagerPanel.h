@@ -75,6 +75,9 @@ public:
     MESSAGE_FUNC_PTR(OnVersionSelected, "TextChanged", panel);
 
 private:
+    // 版本数据初始化
+    void InitVersionCombo();
+
     // 左侧面板组件
     vgui::EditablePanel *m_pLeftPanel;   
     vgui::PropertySheet *m_pTabSheet;
@@ -83,7 +86,7 @@ private:
     // 右侧面板组件
     vgui::EditablePanel *m_pRightPanel;  
     vgui::Label         *m_pDetailsLabel;
-    vgui::Label         *m_pVersionTitleLabel; // 版本说明标题
+    vgui::Label         *m_pVersionTitleLabel; 
     vgui::RichText      *m_pDescriptionText;
     vgui::ComboBox      *m_pVersionCombo;
     vgui::Button        *m_pRefreshButton;
