@@ -2118,6 +2118,13 @@ void CBasePanel::RunMenuCommand(const char *command)
 	{
 		ShowExtraManager();
 	}
+	else if ( !Q_stricmp( "", "workshop_publish" ) )
+	{
+	    vgui::MessageBox *pMessageBox = new vgui::MessageBox
+	    ("Workshop Pubilsh :",
+	    "Workshop_publish is not support", this );
+         pMessageBox->DoModal();        
+	}
 	else if ( !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) )
 	{
 		OpenLoadSingleplayerCommentaryDialog();	
