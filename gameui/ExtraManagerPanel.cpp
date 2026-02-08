@@ -17,11 +17,15 @@ struct VersionInfo_t {
 };
 
 static VersionInfo_t g_VersionData[] = {
-    { "1.16",    "- 修复touch贴图问题\n- 保持64位稳定。" },
-    { "1.17.26", "- 修复烟雾渲染\n- 修复touch触摸\n- 修改touch网格颜色\n- 添加gamepadui支持" },
-    { "1.18.0",  "- 修复gamepadui问题\n- 支持entropyZero2模组\n- 完整支持png加载\n- 加入更多半条命2 20th更新特性" },
-    { "1.18.3",  "- 修复gamepadui tab对不齐\n- 支持touch使用png作为贴图\n- 优化性能" },
-    { "1.18.4",  "- 修复gamepadui高分辨ui错位问题。" }
+    { "1.18.4",  "- Fixed GamePadUI alignment issues at high resolutions." },
+    { "1.18.3",  "- Fixed GamePadUI tab misalignment.\n- Added support for PNG textures in Touch UI.\n- Performance optimizations." },
+    { "1.18.0",  "- Fixed GamePadUI issues.\n- Added support for Entropy : Zero 2 mod.\n- Full support for PNG loading.\n- Integrated features from the HL2 20th Anniversary update." },
+    { "1.17.26", " (2024/01/26)\n- Fixed smoke rendering and touch controls.\n- Fixed launcher issues for all ports.\n- Added GamePadUI support and touch grid color customization.\n- Enabled LTO (Link Time Optimization) for certain components." },
+    { "1.17.25", " (2024/01/24)\n- Fixed crashes related to IsMapValid and spec_goto.\n- Resolved black screen and VSync issues after minimizing on Android.\n- Audio now runs in a separate thread.\n- Improved touch responsiveness." },
+    { "1.16",    " (2023/02/17)\n- Fixed touch texture issues and maintained 64-bit stability.\n- Added multi-threaded optimizations for the material system.\n- Unlocked -tickrate parameter for CSS, TF, and DOD.\n- Added Discord, GitHub, and Telegram buttons to main menu." },
+    { "1.14",    " (2022/09/19)\n- Fixed font issues for various languages and added Thai support.\n- Fixed touch button bugs (spawnmenu now works).\n- Fixed particle bugs in HL2." },
+    { "1.13",    " (2022/09/17)\n- Ported to 64-bit (Fixes 'Out of Memory' on 4GB+ RAM devices).\n- Added PBR (Physically Based Rendering) and VTF 7.5 support.\n- Added Chinese, Japanese, and Korean font support.\n- Fixed players sticking to physical props." },
+    { "1.09",    " (2022/03/02)\n- Fixed 'Black Textures' and all scenes in HL2 (Alyx, Dog, Eli).\n- Added voice recording with Opus codec support.\n- Fixed touch sensitivity in zoom (e.g., Crossbow)." }
 };
 
 // =========================================================
@@ -184,9 +188,9 @@ void ExtraManagerPanel::OnVersionSelected(vgui::Panel *panel) {
         
         // 渲染标题
         m_pDescriptionText->InsertColorChange(Color(255, 210, 0, 255));
-        m_pDescriptionText->InsertString("版本 ");
+        m_pDescriptionText->InsertString("version ");
         m_pDescriptionText->InsertString(szText);
-        m_pDescriptionText->InsertString(" 特性说明:\n\n");
+        m_pDescriptionText->InsertString("feature:\n\n");
         m_pDescriptionText->InsertColorChange(Color(255, 255, 255, 255));
 
         // 查找并插入对应的描述
