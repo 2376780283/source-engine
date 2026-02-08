@@ -153,7 +153,7 @@ ExtraManagerPanel::ExtraManagerPanel(vgui::Panel *parent)
 
     // --- 右侧面板 ---
     m_pRightPanel = new vgui::EditablePanel(this, "RightFloatingPanel");
-    m_pRightPanel->SetPaintBackgroundEnabled(true);
+    m_pRightPanel->SetPaintBackgroundEnabled(true);   
     m_pRightPanel->SetBgColor(Color(0, 0, 0, 160)); 
 
     m_pDetailsLabel = new vgui::Label(m_pRightPanel, "DetailsLabel", "Information");
@@ -168,8 +168,8 @@ ExtraManagerPanel::ExtraManagerPanel(vgui::Panel *parent)
     // 数据初始化
     InitVersionCombo();
 
-    m_pRefreshButton = new vgui::Button(m_pRightPanel, "RefreshBtn", "刷新列表内容", this, "RefreshList");
-    m_pCloseButton = new Button(this, "CloseBtn", "Close", this, "Close");
+    m_pRefreshButton = new vgui::Button(m_pRightPanel, "RefreshBtn", "#GameUI_Refresh", this, "RefreshList");
+    m_pCloseButton = new Button(this, "CloseBtn", "#GameUI_Close", this, "Close");
 
     // 默认选择第一个版本
     m_pVersionCombo->ActivateItemByRow(0);
@@ -249,8 +249,6 @@ void ExtraManagerPanel::PerformLayout() {
 
     int tPadding = PROPVAL(12);
     m_pTabSheet->SetBounds(tPadding, tPadding, leftW - (tPadding * 2), panelH - (tPadding * 2));
-
-    // --- 右侧布局 ---
     int rInnerPad = PROPVAL(15);
     int currentY = rInnerPad;
 
@@ -266,13 +264,13 @@ void ExtraManagerPanel::PerformLayout() {
     int descH = panelH / 2.2;
     m_pDescriptionText->SetBounds(rInnerPad, currentY, rightW - (rInnerPad * 2), descH);
 
-    int btnW = rightW - (rInnerPad * 2);
-    int btnH = PROPVAL(35);
-    m_pRefreshButton->SetBounds(rInnerPad, panelH - rInnerPad - btnH, btnW, btnH);
-
-    int exitBtnW = PROPVAL(100);
-    int exitBtnH = PROPVAL(30);
-    m_pCloseButton->SetBounds(sw - iPadding - exitBtnW, sh - iPadding - exitBtnH, exitBtnW, exitBtnH);
+    int btnW = PROPVAL(90);
+    int btnH = PROPVAL(24); 
+    int btnY = panelH - rInnerPad - btnH;
+    m_pRefreshButton->SetBounds(rInnerPad, btnY, btnW + PROPVAL(20), btnH); 
+    int closeBtnX = (iPadding + leftW + iGap) + rightW - rInnerPad - btnW;
+    int closeBtnY = iPadding + btnY;    
+    m_pCloseButton->SetBounds(closeBtnX, closeBtnY, btnW, btnH);
 }
 
 void ExtraManagerPanel::OnCommand(const char *command) {
