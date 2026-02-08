@@ -27,7 +27,6 @@ public:
 private:
     vgui::ImagePanel *m_pImage;
     vgui::Label      *m_pTitle;
-    int m_iCachedLabelHeight;
     int m_iMargin; 
 };
 

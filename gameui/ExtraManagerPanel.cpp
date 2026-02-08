@@ -9,7 +9,7 @@ using namespace vgui;
 #endif
 
 // =========================================================
-// 版本维护数据结构
+// 版本维护数据结构 (在此添加新版本即可)
 // =========================================================
 struct VersionInfo_t {
     const char *szVersion;
@@ -31,49 +31,53 @@ ModCardPanel::ModCardPanel(vgui::Panel *parent, const char *name, const char *ti
     : BaseClass(parent, name) {   
     SetPaintBackgroundEnabled(true);
     SetPaintBorderEnabled(false);
-    
     m_iMargin = PROPVAL(6); 
-    m_iCachedLabelHeight = PROPVAL(36);
 
     m_pImage = new vgui::ImagePanel(this, "ModImage");
     m_pImage->SetShouldScaleImage(true);
     m_pImage->SetImage("default_mod_preview"); 
     
     m_pTitle = new vgui::Label(this, "ModTitle", title);
+    // 关键点：确保 Label 背景透明，否则会遮挡我们绘制的半透明黑色
     m_pTitle->SetPaintBackgroundEnabled(false);      
     m_pTitle->SetFgColor(Color(255, 255, 255, 255));
     m_pTitle->SetContentAlignment(vgui::Label::a_center);
+
     int iImageSize = PROPVAL(120);
-    SetSize(iImageSize + m_iMargin, iImageSize + m_iCachedLabelHeight + m_iMargin);
+    int iLabelHeight = PROPVAL(36); 
+    SetSize(iImageSize + m_iMargin, iImageSize + iLabelHeight + m_iMargin);
 }
 
 void ModCardPanel::ApplySchemeSettings(vgui::IScheme *pScheme) {
     BaseClass::ApplySchemeSettings(pScheme);
-    m_pTitle->SetFont(pScheme->GetFont("DefaultVerySmall", IsProportional()));   
-    m_iMargin = PROPVAL(6);
-    m_iCachedLabelHeight = PROPVAL(36);
-}
-
-void ModCardPanel::PerformLayout() {
-    BaseClass::PerformLayout();
-    
-    int w, h;
-    GetSize(w, h);   
-    int contentW = w - m_iMargin;
-    int drawX = m_iMargin / 2;
-    int drawY = m_iMargin / 2;
-    int imageAreaH = h - m_iCachedLabelHeight - m_iMargin;
-    m_pImage->SetBounds(drawX, drawY, contentW, imageAreaH);
-    int labelY = drawY + imageAreaH;
-    m_pTitle->SetBounds(drawX, labelY, contentW, m_iCachedLabelHeight);
+    m_pTitle->SetFont(pScheme->GetFont("DefaultVerySmall", IsProportional()));
 }
 
 void ModCardPanel::Paint() {
     BaseClass::Paint();
-    int tx, ty, tw, th;
-    m_pTitle->GetBounds(tx, ty, tw, th);
+    int w, h;
+    GetSize(w, h);
+    int contentW = w - m_iMargin;
+    int drawX = m_iMargin / 2;
+    int labelH = PROPVAL(36);
+    int labelY = h - labelH - (m_iMargin / 2);
     vgui::surface()->DrawSetColor(0, 0, 0, 150); 
-    vgui::surface()->DrawFilledRect(tx, ty, tx + tw, ty + th);
+    vgui::surface()->DrawFilledRect(drawX, labelY, drawX + contentW, labelY + labelH);
+}
+
+void ModCardPanel::PerformLayout() {
+    BaseClass::PerformLayout();
+    int w, h;
+    GetSize(w, h);
+    
+    int contentW = w - m_iMargin;
+    int drawX = m_iMargin / 2;
+    int drawY = m_iMargin / 2;
+    m_pImage->SetBounds(drawX, drawY, contentW, contentW);
+
+    int labelH = PROPVAL(36);
+    int labelY = h - labelH - (m_iMargin / 2);
+    m_pTitle->SetBounds(drawX, labelY, contentW, labelH);
 }
 
 // =========================================================
@@ -84,7 +88,7 @@ ExtraListPage::ExtraListPage(vgui::Panel *parent, const char *panelName)
     
     m_pModListPanel = new vgui::PanelListPanel(this, "ModListPanel");
     m_pModListPanel->SetFirstColumnWidth(0);
-    m_pModListPanel->SetNumColumns(3); 
+    m_pModListPanel->SetNumColumns(4); 
     m_pModListPanel->SetVerticalBufferPixels(PROPVAL(12));
 
     RefreshList();
