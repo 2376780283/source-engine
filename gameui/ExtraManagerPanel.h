@@ -21,11 +21,13 @@ class ModCardPanel : public vgui::EditablePanel {
 public:
     ModCardPanel(vgui::Panel *parent, const char *name, const char *title);
     virtual void PerformLayout() override;
-    virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
+    virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;    
+    virtual void Paint() override;
 
 private:
     vgui::ImagePanel *m_pImage;
     vgui::Label      *m_pTitle;
+    int m_iCachedLabelHeight;
     int m_iMargin; 
 };
 
