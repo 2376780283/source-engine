@@ -9,35 +9,25 @@
 #include "vgui_controls/Panel.h"
 #include "vgui_controls/PanelListPanel.h"
 #include "vgui_controls/EditablePanel.h"
+#include "vgui_controls/RichText.h"
+#include "vgui_controls/ComboBox.h"
 #include "utlvector.h"
 
 // ---------------------------------------------------------
-// 模组卡片控件 - 升级版：包含交互反馈与硬编码样式
+// 模组卡片控件
 // ---------------------------------------------------------
 class ModCardPanel : public vgui::EditablePanel {
     DECLARE_CLASS_SIMPLE(ModCardPanel, vgui::EditablePanel);
 public:
     ModCardPanel(vgui::Panel *parent, const char *name, const char *title);
-    
     virtual void PerformLayout() override;
-    virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
-    
-    // 鼠标交互重写
-    virtual void OnCursorEntered() override;
-    virtual void OnCursorExited() override;
-    virtual void OnMousePressed(vgui::MouseCode code) override;
-
-    void UpdateIdealSize();
+    virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;    
+    virtual void Paint() override;
 
 private:
     vgui::ImagePanel *m_pImage;
     vgui::Label      *m_pTitle;
-    
-    // 硬编码颜色配置
-    Color m_clrBgNormal;
-    Color m_clrBgHover;
-    Color m_clrText;
-    int   m_iPadding; 
+    int m_iMargin; 
 };
 
 // ---------------------------------------------------------
@@ -48,6 +38,7 @@ class ExtraListPage : public vgui::PropertyPage {
 public:
     ExtraListPage(vgui::Panel *parent, const char *panelName);
     virtual void PerformLayout() override;
+    void RefreshList(); // 模拟刷新逻辑
 
 private:
     vgui::PanelListPanel *m_pModListPanel; 
@@ -81,9 +72,25 @@ public:
     virtual void PerformLayout() override;
     virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
 
+    // 响应下拉框改变
+    MESSAGE_FUNC_PTR(OnVersionSelected, "TextChanged", panel);
+
 private:
+    // 版本数据初始化
+    void InitVersionCombo();
+
+    // 左侧面板组件
     vgui::EditablePanel *m_pLeftPanel;   
-    vgui::EditablePanel *m_pRightPanel;  
     vgui::PropertySheet *m_pTabSheet;
+    ExtraListPage       *m_pModListPage;
+
+    // 右侧面板组件
+    vgui::EditablePanel *m_pRightPanel;  
+    vgui::Label         *m_pDetailsLabel;
+    vgui::Label         *m_pVersionTitleLabel; 
+    vgui::RichText      *m_pDescriptionText;
+    vgui::ComboBox      *m_pVersionCombo;
+    vgui::Button        *m_pRefreshButton;
+
     vgui::Button        *m_pCloseButton;
 };

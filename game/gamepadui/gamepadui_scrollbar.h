@@ -16,6 +16,12 @@ public:
     {
         m_pScrollState = pScrollState;
         m_bHorizontal = bHorizontal;
+        
+        if (m_bHorizontal) {
+           m_flHeight = 10.0f;
+        } else {
+           m_flWidth = 10.0f;
+        }
 
         SetVisible( false );
     }

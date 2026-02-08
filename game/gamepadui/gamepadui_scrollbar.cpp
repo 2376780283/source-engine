@@ -4,6 +4,16 @@
 void GamepadUIScrollBar::ApplySchemeSettings( vgui::IScheme *pScheme )
 {
     BaseClass::ApplySchemeSettings( pScheme );
+    
+    
+    if (!m_bHorizontal && m_flWidth <= 0)
+    {
+        m_flWidth = 10.0f;
+    }
+    else if (m_bHorizontal && m_flHeight <= 0)
+    {
+        m_flHeight = 10.0f;
+    }
 
     GetPos( m_nStartX, m_nStartY );
 
