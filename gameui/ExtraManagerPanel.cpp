@@ -42,7 +42,6 @@ ModCardPanel::ModCardPanel(vgui::Panel *parent, const char *name, const char *ti
     m_pImage->SetImage("default_mod_preview"); 
     
     m_pTitle = new vgui::Label(this, "ModTitle", title);
-    // 关键点：确保 Label 背景透明，否则会遮挡我们绘制的半透明黑色
     m_pTitle->SetPaintBackgroundEnabled(false);      
     m_pTitle->SetFgColor(Color(255, 255, 255, 255));
     m_pTitle->SetContentAlignment(vgui::Label::a_center);
@@ -59,28 +58,34 @@ void ModCardPanel::ApplySchemeSettings(vgui::IScheme *pScheme) {
 
 void ModCardPanel::Paint() {
     BaseClass::Paint();
-    int w, h;
-    GetSize(w, h);
-    int contentW = w - m_iMargin;
-    int drawX = m_iMargin / 2;
+
+    int imgX, imgY, imgW, imgH;
+    m_pImage->GetBounds(imgX, imgY, imgW, imgH);
+
+    int labelY = imgY + imgH;
     int labelH = PROPVAL(36);
-    int labelY = h - labelH - (m_iMargin / 2);
-    vgui::surface()->DrawSetColor(0, 0, 0, 150); 
-    vgui::surface()->DrawFilledRect(drawX, labelY, drawX + contentW, labelY + labelH);
+
+    vgui::surface()->DrawSetColor(0, 0, 0, 150);
+    vgui::surface()->DrawFilledRect(imgX, labelY, imgX + imgW, labelY + labelH);
 }
 
 void ModCardPanel::PerformLayout() {
     BaseClass::PerformLayout();
+    
     int w, h;
     GetSize(w, h);
-    
-    int contentW = w - m_iMargin;
-    int drawX = m_iMargin / 2;
-    int drawY = m_iMargin / 2;
-    m_pImage->SetBounds(drawX, drawY, contentW, contentW);
 
-    int labelH = PROPVAL(36);
-    int labelY = h - labelH - (m_iMargin / 2);
+    int iMargin = PROPVAL(6);
+    int contentW = w - iMargin;
+    int drawX = iMargin / 2;
+    int drawY = iMargin / 2;
+    m_pImage->SetBounds(drawX, drawY, contentW, contentW);
+    int imgX, imgY, imgW, imgH;
+    m_pImage->GetBounds(imgX, imgY, imgW, imgH);
+  
+    int labelY = imgH; 
+    int labelH = PROPVAL(26); // 保持这样就好
+
     m_pTitle->SetBounds(drawX, labelY, contentW, labelH);
 }
 
