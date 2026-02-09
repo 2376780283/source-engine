@@ -45,6 +45,26 @@ private:
 };
 
 // ---------------------------------------------------------
+// 开发者列表项：扁平化布局
+// ---------------------------------------------------------
+class DevItemPanel : public vgui::EditablePanel {
+    DECLARE_CLASS_SIMPLE(DevItemPanel, vgui::EditablePanel);
+public:
+    DevItemPanel(vgui::Panel *parent, const char *name, const char *nick, const char *desc, const char *iconPath);
+    
+    virtual void PerformLayout() override;
+    virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
+    virtual void Paint() override;
+
+private:
+    vgui::ImagePanel *m_pIcon;
+    vgui::Label      *m_pNameLabel;
+    vgui::Label      *m_pDescLabel;
+    
+    char m_szIconPath[MAX_PATH];
+};
+
+// ---------------------------------------------------------
 // 列表页面：管理纹理生命周期
 // ---------------------------------------------------------
 class ExtraListPage : public vgui::PropertyPage {
@@ -76,10 +96,18 @@ public:
     ModelPreviewPage(vgui::Panel *parent, const char *panelName) : BaseClass(parent, panelName) {}
 };
 
+// ---------------------------------------------------------
+// 开发者页面：管理开发者列表
+// ---------------------------------------------------------
 class DevPage : public vgui::PropertyPage {
     DECLARE_CLASS_SIMPLE(DevPage, vgui::PropertyPage);
 public:
-    DevPage(vgui::Panel *parent, const char *panelName) : BaseClass(parent, panelName) {}
+    DevPage(vgui::Panel *parent, const char *panelName);
+    virtual void PerformLayout() override;
+
+private:
+    void PopulateDevList();
+    vgui::PanelListPanel *m_pDevList;
 };
 
 // ---------------------------------------------------------
