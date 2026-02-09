@@ -50,7 +50,8 @@ private:
 class DevItemPanel : public vgui::EditablePanel {
     DECLARE_CLASS_SIMPLE(DevItemPanel, vgui::EditablePanel);
 public:
-    DevItemPanel(vgui::Panel *parent, const char *name, const char *nick, const char *desc, const char *iconPath);
+    // 增加一个构造函数参数或修改逻辑，使其能接收 TextureID
+    DevItemPanel(vgui::Panel *parent, const char *name, const char *nick, const char *desc, int nTextureID);
     
     virtual void PerformLayout() override;
     virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
@@ -60,8 +61,7 @@ private:
     vgui::ImagePanel *m_pIcon;
     vgui::Label      *m_pNameLabel;
     vgui::Label      *m_pDescLabel;
-    
-    char m_szIconPath[MAX_PATH];
+    int               m_nTextureID; // 存储生成的纹理ID
 };
 
 // ---------------------------------------------------------

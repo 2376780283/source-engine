@@ -20,6 +20,34 @@ extern IFileSystem *g_pFullFileSystem;
 #define PROPVAL(x) (IsProportional() ? scheme()->GetProportionalScaledValueEx(GetScheme(), (x)) : (x))
 #endif
 
+// ========
+// 辅助函数：加载 PNG 并返回 TextureID
+// ========
+static int CreatePNGTextureHelper(const char *szPath) {
+    CUtlBuffer buf;
+    if (!g_pFullFileSystem->ReadFile(szPath, "MOD", buf)) return -1;
+
+    int width, height, channels;
+    unsigned char *data = stbi_load_from_memory((unsigned char *)buf.Base(), buf.TellPut(), &width, &height, &channels, 4);
+    if (!data) return -1;
+
+    int targetW = 128; // 统一缩放大小
+    int targetH = 128;
+    unsigned char *resizedData = (unsigned char *)malloc(targetW * targetH * 4);
+    int textureID = -1;
+
+    if (resizedData) {
+        if (stbir_resize_uint8(data, width, height, width * 4, resizedData, targetW, targetH, targetW * 4, 4)) {
+            textureID = vgui::surface()->CreateNewTextureID(true);
+            vgui::surface()->DrawSetTextureRGBA(textureID, resizedData, targetW, targetH, true, false);
+        }
+        free(resizedData);
+    }
+
+    stbi_image_free(data);
+    return textureID;
+}
+
 // =========================================================
 // 版本维护数据
 // =========================================================
@@ -158,22 +186,43 @@ void ModCardPanel::OnMousePressed(vgui::MouseCode code) {
 // =========================================================
 // DevItemPanel 实现
 // =========================================================
-DevItemPanel::DevItemPanel(vgui::Panel *parent, const char *name, const char *nick, const char *desc, const char *iconPath) : BaseClass(parent, name) {
+DevItemPanel::DevItemPanel(vgui::Panel *parent, const char *name, const char *nick, const char *desc, int nTextureID) : BaseClass(parent, name) {
+    m_nTextureID = nTextureID;
+    
     SetPaintBackgroundEnabled(true);
-    SetBgColor(Color(0, 0, 0, 100)); // 扁平化深色背景
+    SetBgColor(Color(0, 0, 0, 100));
 
+    // 依然保留图标容器位置，但不使用 ImagePanel 的图片加载功能
     m_pIcon = new vgui::ImagePanel(this, "DevIcon");
     m_pIcon->SetShouldScaleImage(true);
-    if (iconPath) m_pIcon->SetImage(iconPath);
+    m_pIcon->SetVisible(false); // 隐藏它，我们自己在 Paint 里画
 
     m_pNameLabel = new vgui::Label(this, "DevName", nick);
-    m_pNameLabel->SetFgColor(Color(255, 210, 0, 255)); // 金色名字
+    m_pNameLabel->SetFgColor(Color(255, 210, 0, 255));
 
     m_pDescLabel = new vgui::Label(this, "DevDesc", desc);
     m_pDescLabel->SetFgColor(Color(200, 200, 200, 255));
     m_pDescLabel->SetContentAlignment(vgui::Label::a_northwest);
 
-    SetSize(PROPVAL(300), PROPVAL(64)); // 扁平化高度
+    SetSize(PROPVAL(300), PROPVAL(64));
+}
+
+void DevItemPanel::Paint() {
+    BaseClass::Paint();
+
+    // 手动绘制 PNG 头像
+    if (m_nTextureID != -1 && vgui::surface()->IsTextureIDValid(m_nTextureID)) {
+        int ix, iy, iw, ih;
+        m_pIcon->GetBounds(ix, iy, iw, ih);
+        
+        vgui::surface()->DrawSetColor(255, 255, 255, 255);
+        vgui::surface()->DrawSetTexture(m_nTextureID);
+        vgui::surface()->DrawTexturedRect(ix, iy, ix + iw, iy + ih);
+    }
+
+    // 绘制底部装饰线
+    vgui::surface()->DrawSetColor(255, 255, 255, 10);
+    vgui::surface()->DrawFilledRect(0, GetTall() - 1, GetWide(), GetTall());
 }
 
 void DevItemPanel::ApplySchemeSettings(vgui::IScheme *pScheme) {
@@ -186,21 +235,13 @@ void DevItemPanel::PerformLayout() {
     BaseClass::PerformLayout();
     int w, h;
     GetSize(w, h);
-
     int iPadding = PROPVAL(8);
-    int iIconSize = h - (iPadding * 2);
-    m_pIcon->SetBounds(iPadding, iPadding, iIconSize, iIconSize);
+    int iIconSize = h - (iPadding * 2);    
+    m_pIcon->SetBounds(iPadding, iPadding, iIconSize, iIconSize);    
     int iTextX = iPadding * 2 + iIconSize;
     int iTextW = w - iTextX - iPadding;
-
     m_pNameLabel->SetBounds(iTextX, iPadding, iTextW, PROPVAL(20));
     m_pDescLabel->SetBounds(iTextX, iPadding + PROPVAL(22), iTextW, h - iPadding * 2 - PROPVAL(22));
-}
-
-void DevItemPanel::Paint() {
-    BaseClass::Paint();
-    vgui::surface()->DrawSetColor(255, 255, 255, 10);
-    vgui::surface()->DrawFilledRect(0, GetTall() - 1, GetWide(), GetTall());
 }
 
 // =========================================================
@@ -215,18 +256,26 @@ DevPage::DevPage(vgui::Panel *parent, const char *panelName) : BaseClass(parent,
 
 void DevPage::PopulateDevList() {
     m_pDevList->DeleteAllItems();
+    
     struct DevData_t {
         const char *name;
         const char *desc;
-        const char *icon;
+        const char *iconPath;
     };
 
-    DevData_t devs[] = {{"Gabe Newell", "Founder of Valve.", "vgui/social/gabe_icon"},
-                        {"Your Name", "Lead Programming & UI.", "vgui/social/my_avatar"},
-                        {"Contributor", "Graphic Design.", "vgui/social/default_dev"}};
+    DevData_t devs[] = {
+        {"nillerusr", "port leader", "vgui/social/gabe.png"},
+        {"er2", "programming", "vgui/social/my_avatar.png"},
+        {"itz", "programming", "vgui/social/default_dev.png"}
+        {"zzh", "programming", "vgui/social/default_dev.png"}
+    };
 
     for (int i = 0; i < ARRAYSIZE(devs); i++) {
-        DevItemPanel *pItem = new DevItemPanel(m_pDevList, "dev_item", devs[i].name, devs[i].desc, devs[i].icon);
+        // 调用我们刚刚定义的 Helper
+        int textureID = CreatePNGTextureHelper(devs[i].iconPath);
+
+        // 使用更新后的构造函数
+        DevItemPanel *pItem = new DevItemPanel(m_pDevList, "dev_item", devs[i].name, devs[i].desc, textureID);
         m_pDevList->AddItem(nullptr, pItem);
     }
 }
