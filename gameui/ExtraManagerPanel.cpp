@@ -4,8 +4,9 @@
 #include "KeyValues.h"
 #include "filesystem.h" 
 #include "tier1/utlbuffer.h"
+#include "tier1/checksum_crc.h" // 用于路径哈希
 
-// STB 库宏定义
+// STB 库实现
 #define STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #include "stb/stb_image.h"
@@ -20,7 +21,7 @@ extern IFileSystem *g_pFullFileSystem;
 #endif
 
 // =========================================================
-// 版本维护数据结构
+// 版本维护数据
 // =========================================================
 struct VersionInfo_t {
     const char *szVersion;
@@ -40,11 +41,13 @@ static VersionInfo_t g_VersionData[] = {
 };
 
 // =========================================================
-// ModCardPanel 实现
+// ModCardPanel 实现 (含延迟加载逻辑)
 // =========================================================
-ModCardPanel::ModCardPanel(vgui::Panel *parent, const char *name, const char *title, int textureID) 
+ModCardPanel::ModCardPanel(vgui::Panel *parent, const char *name, const char *title) 
     : BaseClass(parent, name) {   
-    m_nTextureID = textureID; // 修正：保存纹理ID
+    m_nTextureID = -1;
+    m_bAttemptedLoad = false;
+    m_szImagePath[0] = '\0';
 
     SetPaintBackgroundEnabled(true);
     SetPaintBorderEnabled(false);
@@ -57,7 +60,7 @@ ModCardPanel::ModCardPanel(vgui::Panel *parent, const char *name, const char *ti
     m_pImagePanelPlaceholder = new vgui::ImagePanel(this, "ModImage");
     m_pImagePanelPlaceholder->SetShouldScaleImage(true);    
     m_pImagePanelPlaceholder->SetMouseInputEnabled(false);
-    m_pImagePanelPlaceholder->SetVisible(false); // 仅做坐标参考
+    m_pImagePanelPlaceholder->SetVisible(false); 
     
     m_pTitle = new vgui::Label(this, "ModTitle", title);
     m_pTitle->SetPaintBackgroundEnabled(false);      
@@ -70,6 +73,12 @@ ModCardPanel::ModCardPanel(vgui::Panel *parent, const char *name, const char *ti
     SetSize(iImageSize + m_iMargin, iImageSize + iLabelHeight + m_iMargin);
 }
 
+void ModCardPanel::SetImagePath(const char *path) {
+    if (path) {
+        Q_strncpy(m_szImagePath, path, sizeof(m_szImagePath));
+    }
+}
+
 void ModCardPanel::ApplySchemeSettings(vgui::IScheme *pScheme) {
     BaseClass::ApplySchemeSettings(pScheme);
     m_pTitle->SetFont(pScheme->GetFont("DefaultVerySmall", IsProportional()));
@@ -78,6 +87,21 @@ void ModCardPanel::ApplySchemeSettings(vgui::IScheme *pScheme) {
 void ModCardPanel::Paint() {
     BaseClass::Paint();
 
+    // --- 性能优化：延迟加载逻辑 ---
+    if (m_nTextureID == -1 && !m_bAttemptedLoad && m_szImagePath[0] != '\0') {
+        // 向上寻找 ExtraListPage 以调用其缓存加载器
+        vgui::Panel *pPage = GetParent();
+        while (pPage && !dynamic_cast<ExtraListPage*>(pPage)) {
+            pPage = pPage->GetParent();
+        }
+        
+        if (pPage) {
+            ExtraListPage *pListPage = static_cast<ExtraListPage*>(pPage);
+            m_nTextureID = pListPage->GetTextureForPath(m_szImagePath);
+            m_bAttemptedLoad = true; // 无论成功失败，只尝试一次，避免每帧磁盘访问
+        }
+    }
+
     int w, h;
     GetSize(w, h);
     int iMargin = PROPVAL(6);
@@ -85,14 +109,17 @@ void ModCardPanel::Paint() {
     int drawX = iMargin / 2;
     int drawY = iMargin / 2;
     int imgSize = contentW; 
+
     if (m_nTextureID != -1 && vgui::surface()->IsTextureIDValid(m_nTextureID)) {
         vgui::surface()->DrawSetColor(255, 255, 255, 255);
         vgui::surface()->DrawSetTexture(m_nTextureID);
         vgui::surface()->DrawTexturedRect(drawX, drawY, drawX + imgSize, drawY + imgSize);
     } else {
-        vgui::surface()->DrawSetColor(40, 40, 40, 255);
+        // 加载中或无图：绘制深灰色占位背景
+        vgui::surface()->DrawSetColor(30, 30, 30, 255);
         vgui::surface()->DrawFilledRect(drawX, drawY, drawX + imgSize, drawY + imgSize);
     }
+
     int labelY = drawY + imgSize;
     int labelH = h - labelY - (iMargin / 2);
     vgui::surface()->DrawSetColor(0, 0, 0, 150);
@@ -100,8 +127,7 @@ void ModCardPanel::Paint() {
 }
 
 void ModCardPanel::PerformLayout() {
-    BaseClass::PerformLayout();
-    
+    BaseClass::PerformLayout();    
     int w, h;
     GetSize(w, h);
 
@@ -111,14 +137,11 @@ void ModCardPanel::PerformLayout() {
     int drawY = iMargin / 2;
     m_pImagePanelPlaceholder->SetBounds(drawX, drawY, contentW, contentW);
     int imgX, imgY, imgW, imgH;
-    m_pImagePanelPlaceholder->GetBounds(imgX, imgY, imgW, imgH);
-  
+    m_pImagePanelPlaceholder->GetBounds(imgX, imgY, imgW, imgH); 
     int labelY = imgH; 
     int labelH = PROPVAL(26); // 保持这样就好
-
     m_pTitle->SetBounds(drawX, labelY, contentW, labelH);
 }
-
 
 void ModCardPanel::OnCursorEntered() { SetBgColor(m_clrBgHover); }
 void ModCardPanel::OnCursorExited() { SetBgColor(m_clrBgNormal); }
@@ -130,7 +153,7 @@ void ModCardPanel::OnMousePressed(vgui::MouseCode code) {
 }
 
 // =========================================================
-// ExtraListPage 实现
+// ExtraListPage 实现 (含纹理缓存)
 // =========================================================
 ExtraListPage::ExtraListPage(vgui::Panel *parent, const char *panelName) 
     : BaseClass(parent, panelName) {
@@ -138,6 +161,8 @@ ExtraListPage::ExtraListPage(vgui::Panel *parent, const char *panelName)
     m_pModListPanel->SetFirstColumnWidth(0);
     m_pModListPanel->SetNumColumns(4); 
     m_pModListPanel->SetVerticalBufferPixels(PROPVAL(12));
+
+    m_TextureCache.SetLessFunc(DefLessFunc(unsigned int));
 }
 
 ExtraListPage::~ExtraListPage() {
@@ -145,12 +170,35 @@ ExtraListPage::~ExtraListPage() {
 }
 
 void ExtraListPage::CleanUpTextures() {
-    for (int i = 0; i < m_TextureIds.Count(); i++) {
-        if (vgui::surface()->IsTextureIDValid(m_TextureIds[i])) {
-            vgui::surface()->DeleteTextureByID(m_TextureIds[i]);
+    FOR_EACH_MAP(m_TextureCache, i) {
+        int id = m_TextureCache[i];
+        if (vgui::surface()->IsTextureIDValid(id)) {
+            vgui::surface()->DeleteTextureByID(id);
         }
     }
-    m_TextureIds.RemoveAll();
+    m_TextureCache.RemoveAll();
+}
+
+int ExtraListPage::GetTextureForPath(const char *fullPath) {
+    if (!fullPath || !fullPath[0]) return -1;
+
+    // 使用 CRC 计算路径哈希作为 Key
+    CRC32_t hash;
+    CRC32_Init(&hash);
+    CRC32_ProcessBuffer(&hash, fullPath, Q_strlen(fullPath));
+    CRC32_Final(&hash);
+
+    int index = m_TextureCache.Find(hash);
+    if (index != m_TextureCache.InvalidIndex()) {
+        return m_TextureCache[index];
+    }
+
+    // 缓存中没有，执行实时加载
+    int newID = CreateTextureFromPNG(fullPath);
+    if (newID != -1) {
+        m_TextureCache.Insert(hash, newID);
+    }
+    return newID;
 }
 
 int ExtraListPage::CreateTextureFromPNG(const char *fullPath) {
@@ -158,34 +206,33 @@ int ExtraListPage::CreateTextureFromPNG(const char *fullPath) {
     if (!g_pFullFileSystem->ReadFile(fullPath, "MOD", buf)) return -1;
 
     int width, height, channels;
+    // 使用 stb_image 解码
     unsigned char *data = stbi_load_from_memory((unsigned char*)buf.Base(), buf.TellPut(), &width, &height, &channels, 4);
     if (!data) return -1;
 
+    // 性能优化：统一缩放到 128x128 节省显存
     int targetW = 128; 
     int targetH = 128;
     unsigned char *resizedData = (unsigned char *)malloc(targetW * targetH * 4);
-    if (!resizedData) {
-        stbi_image_free(data);
-        return -1;
-    }
-
-    if (!stbir_resize_uint8(data, width, height, width * 4, resizedData, targetW, targetH, targetW * 4, 4)) {
-        stbi_image_free(data);
+    if (resizedData) {
+        if (stbir_resize_uint8(data, width, height, width * 4, resizedData, targetW, targetH, targetW * 4, 4)) {
+            int textureID = vgui::surface()->CreateNewTextureID(true);
+            vgui::surface()->DrawSetTextureRGBA(textureID, resizedData, targetW, targetH, true, false);
+            stbi_image_free(data);
+            free(resizedData);
+            return textureID;
+        }
         free(resizedData);
-        return -1;
     }
-
-    int textureID = vgui::surface()->CreateNewTextureID(true);
-    vgui::surface()->DrawSetTextureRGBA(textureID, resizedData, targetW, targetH, true, false);
 
     stbi_image_free(data);
-    free(resizedData);
-    return textureID;
+    return -1;
 }
 
 void ExtraListPage::RefreshList() {
     m_pModListPanel->DeleteAllItems();
-    CleanUpTextures();
+    // 注意：此处不主动 CleanUpTextures 以保持缓存。
+    // 如果需要强制刷新物理资源，可手动调用 CleanUpTextures。
 
     FileFindHandle_t findHandle;
     const char *pFileName = g_pFullFileSystem->FindFirst("custom/*", &findHandle);
@@ -196,13 +243,12 @@ void ExtraListPage::RefreshList() {
                 char szIconPath[MAX_PATH];
                 Q_snprintf(szIconPath, sizeof(szIconPath), "custom/%s/icon.png", pFileName);
 
-                int textureID = -1;
+                // 只创建面板，不在此处加载图片 I/O
+                ModCardPanel *pCard = new ModCardPanel(m_pModListPanel, pFileName, pFileName);
                 if (g_pFullFileSystem->FileExists(szIconPath, "MOD")) {
-                    textureID = CreateTextureFromPNG(szIconPath);
-                    if (textureID != -1) m_TextureIds.AddToTail(textureID);
+                    pCard->SetImagePath(szIconPath);
                 }
 
-                ModCardPanel *pCard = new ModCardPanel(m_pModListPanel, pFileName, pFileName, textureID);
                 vgui::Panel *pTarget = GetParent();
                 while (pTarget && !dynamic_cast<ExtraManagerPanel*>(pTarget)) {
                     pTarget = pTarget->GetParent();
@@ -245,13 +291,14 @@ ExtraManagerPanel::ExtraManagerPanel(vgui::Panel *parent)
     m_pLeftPanel = new vgui::EditablePanel(this, "LeftFloatingPanel");
     m_pTabSheet = new PropertySheet(m_pLeftPanel, "ExtraTabs");
     m_pModListPage = new ExtraListPage(m_pTabSheet, "ExtraListPage");
-    m_pTabSheet->AddPage(m_pModListPage, "mods");
-    m_pTabSheet->AddPage(new ModelPreviewPage(m_pTabSheet, "ModelPreviewPage"), "preview items");
-    m_pTabSheet->AddPage(new DevPage(m_pTabSheet, "DevPage"), "developers");
+    
+    m_pTabSheet->AddPage(m_pModListPage, "MODS");
+    m_pTabSheet->AddPage(new ModelPreviewPage(m_pTabSheet, "ModelPreviewPage"), "PREVIEW");
+    m_pTabSheet->AddPage(new DevPage(m_pTabSheet, "DevPage"), "CREDITS");
 
     m_pRightPanel = new vgui::EditablePanel(this, "RightFloatingPanel");
     m_pDetailsLabel = new vgui::Label(m_pRightPanel, "DetailsLabel", "Information");
-    m_pVersionTitleLabel = new vgui::Label(m_pRightPanel, "VersionTitleLabel", "Watch what new:");
+    m_pVersionTitleLabel = new vgui::Label(m_pRightPanel, "VersionTitleLabel", "Update History:");
     m_pDescriptionText = new vgui::RichText(m_pRightPanel, "DescriptionText");
     m_pVersionCombo = new vgui::ComboBox(m_pRightPanel, "VersionCombo", 6, false);
     m_pVersionCombo->AddActionSignalTarget(this);
@@ -269,9 +316,10 @@ void ExtraManagerPanel::OnModCardSelected( KeyValues *data ) {
     const char *pPanelName = data->GetString( "panelName", "" );
     if ( m_pDescriptionText ) {
         m_pDescriptionText->SetText( "" );
-        m_pDescriptionText->InsertColorChange( Color( 255, 255, 255, 255 ) );
-        m_pDescriptionText->InsertString( "Selected Mod: " );
+        m_pDescriptionText->InsertColorChange( Color( 0, 255, 128, 255 ) );
+        m_pDescriptionText->InsertString( ">>> SELECTED MOD: " );
         m_pDescriptionText->InsertString( pPanelName );
+        m_pDescriptionText->InsertString( "\n\nStatus: Locally installed." );
     }
 }
 
@@ -287,9 +335,9 @@ void ExtraManagerPanel::OnVersionSelected(vgui::Panel *panel) {
         m_pVersionCombo->GetText(szText, sizeof(szText));
         m_pDescriptionText->SetText(""); 
         m_pDescriptionText->InsertColorChange(Color(255, 210, 0, 255));
-        m_pDescriptionText->InsertString("version ");
+        m_pDescriptionText->InsertString("Version ");
         m_pDescriptionText->InsertString(szText);
-        m_pDescriptionText->InsertString(" feature:\n\n");
+        m_pDescriptionText->InsertString(" Features:\n\n");
         m_pDescriptionText->InsertColorChange(Color(255, 255, 255, 255));
 
         for (int i = 0; i < (int)ARRAYSIZE(g_VersionData); i++) {
@@ -348,9 +396,9 @@ void ExtraManagerPanel::PerformLayout() {
     currentY += PROPVAL(35);
     m_pDescriptionText->SetBounds(rInnerPad, currentY, rightW - (rInnerPad * 2), panelH / 2.2);
 
-    int btnW = PROPVAL(90), btnH = PROPVAL(24); 
+    int btnW = PROPVAL(110), btnH = PROPVAL(28); 
     int btnY = panelH - rInnerPad - btnH;
-    m_pRefreshButton->SetBounds(rInnerPad, btnY, btnW + PROPVAL(20), btnH); 
+    m_pRefreshButton->SetBounds(rInnerPad, btnY, btnW, btnH); 
     m_pCloseButton->SetBounds(sw - iPadding - rInnerPad - btnW, sh - iPadding - rInnerPad - btnH, btnW, btnH);
 }
 

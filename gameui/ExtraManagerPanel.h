@@ -12,14 +12,17 @@
 #include "vgui_controls/RichText.h"
 #include "vgui_controls/ComboBox.h"
 #include "utlvector.h"
+#include "utlmap.h"
 
 // ---------------------------------------------------------
-// 模组卡片控件
+// 模组卡片控件：支持延迟加载
 // ---------------------------------------------------------
 class ModCardPanel : public vgui::EditablePanel {
     DECLARE_CLASS_SIMPLE(ModCardPanel, vgui::EditablePanel);
 public:
-    ModCardPanel(vgui::Panel *parent, const char *name, const char *title, int textureID);
+    ModCardPanel(vgui::Panel *parent, const char *name, const char *title);
+    
+    void SetImagePath(const char *path);
     virtual void PerformLayout() override;
     virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;    
     virtual void Paint() override;
@@ -36,11 +39,13 @@ private:
     Color m_clrBgHover;
     
     int m_iMargin; 
-    int m_nTextureID; // 存储动态生成的纹理ID
+    int m_nTextureID; 
+    char m_szImagePath[MAX_PATH];
+    bool m_bAttemptedLoad; // 是否尝试过加载，防止失败后死循环
 };
 
 // ---------------------------------------------------------
-// 列表页面
+// 列表页面：管理纹理生命周期
 // ---------------------------------------------------------
 class ExtraListPage : public vgui::PropertyPage {
     DECLARE_CLASS_SIMPLE(ExtraListPage, vgui::PropertyPage);
@@ -51,12 +56,17 @@ public:
     virtual void PerformLayout() override;
     void RefreshList(); 
 
+    // 提供给 ModCardPanel 调用的纹理加载接口
+    int GetTextureForPath(const char *fullPath);
+
 private:
     int CreateTextureFromPNG(const char *fullPath);
     void CleanUpTextures();
 
     vgui::PanelListPanel *m_pModListPanel; 
-    CUtlVector<int> m_TextureIds; 
+
+    // 纹理缓存：Key 是路径哈希或字符串，Value 是 TextureID
+    CUtlMap<unsigned int, int> m_TextureCache; 
 };
 
 // 占位页面
