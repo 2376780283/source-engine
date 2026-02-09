@@ -19,7 +19,7 @@
 class ModCardPanel : public vgui::EditablePanel {
     DECLARE_CLASS_SIMPLE(ModCardPanel, vgui::EditablePanel);
 public:
-    ModCardPanel(vgui::Panel *parent, const char *name, const char *title);
+    ModCardPanel(vgui::Panel *parent, const char *name, const char *title, int textureID);
     virtual void PerformLayout() override;
     virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;    
     virtual void Paint() override;
@@ -29,13 +29,14 @@ public:
     virtual void OnMousePressed(vgui::MouseCode code) override;
 
 private:
-    vgui::ImagePanel *m_pImage;
+    vgui::ImagePanel *m_pImagePanelPlaceholder; 
     vgui::Label      *m_pTitle;
     
     Color m_clrBgNormal;
     Color m_clrBgHover;
     
     int m_iMargin; 
+    int m_nTextureID; // 存储动态生成的纹理ID
 };
 
 // ---------------------------------------------------------
@@ -45,11 +46,17 @@ class ExtraListPage : public vgui::PropertyPage {
     DECLARE_CLASS_SIMPLE(ExtraListPage, vgui::PropertyPage);
 public:
     ExtraListPage(vgui::Panel *parent, const char *panelName);
+    virtual ~ExtraListPage(); 
+
     virtual void PerformLayout() override;
-    void RefreshList(); // 模拟刷新逻辑
+    void RefreshList(); 
 
 private:
+    int CreateTextureFromPNG(const char *fullPath);
+    void CleanUpTextures();
+
     vgui::PanelListPanel *m_pModListPanel; 
+    CUtlVector<int> m_TextureIds; 
 };
 
 // 占位页面
@@ -80,19 +87,16 @@ public:
     virtual void PerformLayout() override;
     virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
 
-    // 响应下拉框改变
     MESSAGE_FUNC_PTR(OnVersionSelected, "TextChanged", panel);
+    MESSAGE_FUNC_PARAMS( OnModCardSelected, "ModCardSelected", data );
 
 private:
-    // 版本数据初始化
     void InitVersionCombo();
 
-    // 左侧面板组件
     vgui::EditablePanel *m_pLeftPanel;   
     vgui::PropertySheet *m_pTabSheet;
     ExtraListPage       *m_pModListPage;
 
-    // 右侧面板组件
     vgui::EditablePanel *m_pRightPanel;  
     vgui::Label         *m_pDetailsLabel;
     vgui::Label         *m_pVersionTitleLabel; 
