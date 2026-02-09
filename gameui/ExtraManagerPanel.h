@@ -1,5 +1,10 @@
 #pragma once
 
+#include "vgui/ISurface.h"
+#include "GameUI_Interface.h"
+#include "vgui/ISystem.h"
+#include "vgui/IInput.h"
+#include "vgui/IVGui.h"
 #include "vgui_controls/Frame.h"
 #include "vgui_controls/PropertySheet.h"
 #include "vgui_controls/PropertyPage.h"
@@ -11,37 +16,87 @@
 #include "vgui_controls/EditablePanel.h"
 #include "vgui_controls/RichText.h"
 #include "vgui_controls/ComboBox.h"
+
+#ifdef ANDROID
+#include <SDL_misc.h>
+#endif
+
 #include "utlvector.h"
+#include "utlmap.h"
 
 // ---------------------------------------------------------
-// 模组卡片控件
+// 模组卡片控件：支持延迟加载
 // ---------------------------------------------------------
 class ModCardPanel : public vgui::EditablePanel {
     DECLARE_CLASS_SIMPLE(ModCardPanel, vgui::EditablePanel);
 public:
     ModCardPanel(vgui::Panel *parent, const char *name, const char *title);
+    
+    void SetImagePath(const char *path);
     virtual void PerformLayout() override;
     virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;    
     virtual void Paint() override;
+    
+    virtual void OnCursorEntered() override;
+    virtual void OnCursorExited() override;
+    virtual void OnMousePressed(vgui::MouseCode code) override;
 
 private:
-    vgui::ImagePanel *m_pImage;
+    vgui::ImagePanel *m_pImagePanelPlaceholder; 
     vgui::Label      *m_pTitle;
+    
+    Color m_clrBgNormal;
+    Color m_clrBgHover;
+    
     int m_iMargin; 
+    int m_nTextureID; 
+    char m_szImagePath[MAX_PATH];
+    bool m_bAttemptedLoad; // 是否尝试过加载，防止失败后死循环
 };
 
 // ---------------------------------------------------------
-// 列表页面
+// 开发者列表项：扁平化布局
+// ---------------------------------------------------------
+class DevItemPanel : public vgui::EditablePanel {
+    DECLARE_CLASS_SIMPLE(DevItemPanel, vgui::EditablePanel);
+public:
+    // 增加一个构造函数参数或修改逻辑，使其能接收 TextureID
+    DevItemPanel(vgui::Panel *parent, const char *name, const char *nick, const char *desc, int nTextureID);
+    
+    virtual void PerformLayout() override;
+    virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
+    virtual void Paint() override;
+
+private:
+    vgui::ImagePanel *m_pIcon;
+    vgui::Label      *m_pNameLabel;
+    vgui::Label      *m_pDescLabel;
+    int               m_nTextureID; // 存储生成的纹理ID
+};
+
+// ---------------------------------------------------------
+// 列表页面：管理纹理生命周期
 // ---------------------------------------------------------
 class ExtraListPage : public vgui::PropertyPage {
     DECLARE_CLASS_SIMPLE(ExtraListPage, vgui::PropertyPage);
 public:
     ExtraListPage(vgui::Panel *parent, const char *panelName);
+    virtual ~ExtraListPage(); 
+
     virtual void PerformLayout() override;
-    void RefreshList(); // 模拟刷新逻辑
+    void RefreshList(); 
+
+    // 提供给 ModCardPanel 调用的纹理加载接口
+    int GetTextureForPath(const char *fullPath);
 
 private:
+    int CreateTextureFromPNG(const char *fullPath);
+    void CleanUpTextures();
+
     vgui::PanelListPanel *m_pModListPanel; 
+
+    // 纹理缓存：Key 是路径哈希或字符串，Value 是 TextureID
+    CUtlMap<unsigned int, int> m_TextureCache; 
 };
 
 // 占位页面
@@ -51,10 +106,18 @@ public:
     ModelPreviewPage(vgui::Panel *parent, const char *panelName) : BaseClass(parent, panelName) {}
 };
 
+// ---------------------------------------------------------
+// 开发者页面：管理开发者列表
+// ---------------------------------------------------------
 class DevPage : public vgui::PropertyPage {
     DECLARE_CLASS_SIMPLE(DevPage, vgui::PropertyPage);
 public:
-    DevPage(vgui::Panel *parent, const char *panelName) : BaseClass(parent, panelName) {}
+    DevPage(vgui::Panel *parent, const char *panelName);
+    virtual void PerformLayout() override;
+
+private:
+    void PopulateDevList();
+    vgui::PanelListPanel *m_pDevList;
 };
 
 // ---------------------------------------------------------
@@ -72,25 +135,29 @@ public:
     virtual void PerformLayout() override;
     virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;
 
-    // 响应下拉框改变
     MESSAGE_FUNC_PTR(OnVersionSelected, "TextChanged", panel);
+    MESSAGE_FUNC_PARAMS( OnModCardSelected, "ModCardSelected", data );
 
 private:
-    // 版本数据初始化
     void InitVersionCombo();
 
-    // 左侧面板组件
     vgui::EditablePanel *m_pLeftPanel;   
     vgui::PropertySheet *m_pTabSheet;
     ExtraListPage       *m_pModListPage;
 
-    // 右侧面板组件
     vgui::EditablePanel *m_pRightPanel;  
     vgui::Label         *m_pDetailsLabel;
     vgui::Label         *m_pVersionTitleLabel; 
     vgui::RichText      *m_pDescriptionText;
     vgui::ComboBox      *m_pVersionCombo;
+    
+    class ImageUrlButton *m_pDiscordBtn;
+    class ImageUrlButton *m_pGithubBtn;
+    class ImageUrlButton *m_pTwitterBtn;
+    class ImageUrlButton *m_pTelegramBtn;
+    
     vgui::Button        *m_pRefreshButton;
-
     vgui::Button        *m_pCloseButton;
 };
+
+
