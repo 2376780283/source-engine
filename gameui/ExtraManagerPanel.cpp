@@ -1,6 +1,7 @@
 #include "ExtraManagerPanel.h"
 #include "vgui/ISurface.h"
 #include "vgui_controls/Controls.h"
+#include "KeyValues.h"
 
 using namespace vgui;
 
@@ -18,8 +19,8 @@ struct VersionInfo_t {
 
 static VersionInfo_t g_VersionData[] = {
     { "1.18.4",  "- Fixed GamePadUI alignment issues at high resolutions." },
-    { "1.18.3",  "- Fixed GamePadUI tab misalignment.\n- Added support for PNG textures in Touch UI.\n- Performance optimizations." },
-    { "1.18.0",  "- Fixed GamePadUI issues.\n- Added support for Entropy : Zero 2 mod.\n- Full support for PNG loading.\n- Integrated features from the HL2 20th Anniversary update." },
+    { "1.18.3",  " (2025/08/14)\n- Fixed GamePadUI tab misalignment.\n- Added support for PNG textures in Touch UI.\n- Performance optimizations." },
+    { "1.18.0",  " (2025/01/26)\n- Fixed GamePadUI issues.\n- Added support for Entropy : Zero 2 mod.\n- Full support for PNG loading.\n- Integrated features from the HL2 20th Anniversary update." },
     { "1.17.26", " (2024/01/26)\n- Fixed smoke rendering and touch controls.\n- Fixed launcher issues for all ports.\n- Added GamePadUI support and touch grid color customization.\n- Enabled LTO (Link Time Optimization) for certain components." },
     { "1.17.25", " (2024/01/24)\n- Fixed crashes related to IsMapValid and spec_goto.\n- Resolved black screen and VSync issues after minimizing on Android.\n- Audio now runs in a separate thread.\n- Improved touch responsiveness." },
     { "1.16",    " (2023/02/17)\n- Fixed touch texture issues and maintained 64-bit stability.\n- Added multi-threaded optimizations for the material system.\n- Unlocked -tickrate parameter for CSS, TF, and DOD.\n- Added Discord, GitHub, and Telegram buttons to main menu." },
@@ -35,16 +36,22 @@ ModCardPanel::ModCardPanel(vgui::Panel *parent, const char *name, const char *ti
     : BaseClass(parent, name) {   
     SetPaintBackgroundEnabled(true);
     SetPaintBorderEnabled(false);
+    SetMouseInputEnabled(true);
     m_iMargin = PROPVAL(6); 
+    
+    m_clrBgNormal = Color(0, 0, 0, 0);
+    m_clrBgHover  = Color(89, 221, 242, 200);
 
     m_pImage = new vgui::ImagePanel(this, "ModImage");
     m_pImage->SetShouldScaleImage(true);
     m_pImage->SetImage("default_mod_preview"); 
+    m_pImage->SetMouseInputEnabled(false);
     
     m_pTitle = new vgui::Label(this, "ModTitle", title);
     m_pTitle->SetPaintBackgroundEnabled(false);      
     m_pTitle->SetFgColor(Color(255, 255, 255, 255));
     m_pTitle->SetContentAlignment(vgui::Label::a_center);
+    m_pTitle->SetMouseInputEnabled(false);
 
     int iImageSize = PROPVAL(120);
     int iLabelHeight = PROPVAL(36); 
@@ -87,6 +94,20 @@ void ModCardPanel::PerformLayout() {
     int labelH = PROPVAL(26); // 保持这样就好
 
     m_pTitle->SetBounds(drawX, labelY, contentW, labelH);
+}
+
+void ModCardPanel::OnCursorEntered() {
+    SetBgColor(m_clrBgHover);
+}
+
+void ModCardPanel::OnCursorExited() {
+    SetBgColor(m_clrBgNormal);
+}
+
+void ModCardPanel::OnMousePressed(vgui::MouseCode code) {
+    if (code == MOUSE_LEFT) {
+        PostActionSignal(new KeyValues("ModCardSelected", "panelName", GetName()));
+    }
 }
 
 // =========================================================

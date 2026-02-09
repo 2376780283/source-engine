@@ -23,10 +23,18 @@ public:
     virtual void PerformLayout() override;
     virtual void ApplySchemeSettings(vgui::IScheme *pScheme) override;    
     virtual void Paint() override;
+    
+    virtual void OnCursorEntered() override;
+    virtual void OnCursorExited() override;
+    virtual void OnMousePressed(vgui::MouseCode code) override;
 
 private:
     vgui::ImagePanel *m_pImage;
     vgui::Label      *m_pTitle;
+    
+    Color m_clrBgNormal;
+    Color m_clrBgHover;
+    
     int m_iMargin; 
 };
 
