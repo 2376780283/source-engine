@@ -153,7 +153,8 @@ private:
     
     class ImageUrlButton *m_pDiscordBtn;
     class ImageUrlButton *m_pGithubBtn;
-    class ImageUrlButton *m_pWebBtn;
+    class ImageUrlButton *m_pTwitterBtn;
+    class ImageUrlButton *m_pTelegramBtn;
     
     vgui::Button        *m_pRefreshButton;
     vgui::Button        *m_pCloseButton;
