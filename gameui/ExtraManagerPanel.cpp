@@ -20,6 +20,79 @@ extern IFileSystem *g_pFullFileSystem;
 #define PROPVAL(x) (IsProportional() ? scheme()->GetProportionalScaledValueEx(GetScheme(), (x)) : (x))
 #endif
 
+// =========================================================
+// ImageUrlButton
+// =========================================================
+class ImageUrlButton : public vgui::Panel
+{
+public:
+    ImageUrlButton(Panel *parent, const char *name, const char *imageName, const char *url) : Panel(parent, name)
+    {
+        m_szUrl = url;
+        m_bSelected = false;
+
+        // 加载图片
+        m_textureID = vgui::surface()->CreateNewTextureID();
+        vgui::surface()->DrawSetTextureFile(m_textureID, imageName, true, false);
+        
+        // 允许鼠标点击
+        SetMouseInputEnabled(true);
+        SetPaintBackgroundEnabled(false); // 我们自己画背景
+    }
+
+    virtual ~ImageUrlButton() {
+        if (vgui::surface()->IsTextureIDValid(m_textureID)) {
+            vgui::surface()->DeleteTextureByID(m_textureID);
+        }
+    }
+
+    virtual void Paint()
+    {
+        // 鼠标按下时变暗
+        int alpha = m_bSelected ? 100 : 255;
+        
+        // 绘制图标
+        if (vgui::surface()->IsTextureIDValid(m_textureID)) {
+            vgui::surface()->DrawSetColor(255, 255, 255, alpha);
+            vgui::surface()->DrawSetTexture(m_textureID);
+            vgui::surface()->DrawTexturedRect(0, 0, GetWide(), GetTall());
+        }
+    }
+
+    virtual void OnMousePressed(MouseCode code)
+    {
+        if (code == MOUSE_LEFT) {
+            m_bSelected = true;
+            input()->SetMouseCapture(GetVPanel());
+        }
+    }
+
+    virtual void OnMouseReleased(MouseCode code)
+    {
+        if (code == MOUSE_LEFT) {
+            m_bSelected = false;
+            input()->SetMouseCapture(NULL);
+
+            // 判定释放时鼠标是否还在按钮范围内
+            if (IsCursorOver() && m_szUrl) {
+                // 跨平台 URL 打开逻辑
+                #ifdef ANDROID
+                    SDL_OpenURL(m_szUrl);
+                #else
+                    if (vgui::system()) {
+                        vgui::system()->ShellExecute("open", m_szUrl);
+                    }
+                #endif
+            }
+        }
+    }
+
+private:
+    bool m_bSelected;
+    int m_textureID;
+    const char *m_szUrl; // 注意：确保传入的字符串生命周期足够长（如字面量）
+};
+
 // ========
 // 辅助函数：加载 PNG 并返回 TextureID
 // ========
@@ -266,7 +339,7 @@ void DevPage::PopulateDevList() {
     DevData_t devs[] = {
         {"nillerusr", "port leader", "vgui/social/gabe.png"},
         {"er2", "programming", "vgui/social/my_avatar.png"},
-        {"itz", "programming", "vgui/social/default_dev.png"}
+        {"itz", "programming", "vgui/social/default_dev.png"},
         {"zzh", "programming", "vgui/social/default_dev.png"}
     };
 
@@ -418,8 +491,8 @@ ExtraManagerPanel::ExtraManagerPanel(vgui::Panel *parent) : BaseClass(parent, "E
     m_pModListPage = new ExtraListPage(m_pTabSheet, "ExtraListPage");
 
     m_pTabSheet->AddPage(m_pModListPage, "MODS");
-    m_pTabSheet->AddPage(new ModelPreviewPage(m_pTabSheet, "ModelPreviewPage"), "PREVIEW");
-    m_pTabSheet->AddPage(new DevPage(m_pTabSheet, "DevPage"), "CREDITS");
+//    m_pTabSheet->AddPage(new ModelPreviewPage(m_pTabSheet, "ModelPreviewPage"), "PREVIEW");
+//    m_pTabSheet->AddPage(new DevPage(m_pTabSheet, "DevPage"), "CREDITS");
 
     m_pRightPanel = new vgui::EditablePanel(this, "RightFloatingPanel");
     m_pDetailsLabel = new vgui::Label(m_pRightPanel, "DetailsLabel", "Information");
@@ -429,6 +502,10 @@ ExtraManagerPanel::ExtraManagerPanel(vgui::Panel *parent) : BaseClass(parent, "E
     m_pVersionCombo->AddActionSignalTarget(this);
 
     InitVersionCombo();
+    
+    m_pDiscordBtn = new ImageUrlButton(m_pRightPanel, "DiscordBtn", "vgui/social/discord", "https://discord.gg/your_link");
+    m_pGithubBtn = new ImageUrlButton(m_pRightPanel, "GithubBtn", "vgui/social/github", "https://github.com/your_repo");
+    m_pWebBtn = new ImageUrlButton(m_pRightPanel, "WebBtn", "vgui/social/web", "https://yourwebsite.com");
 
     m_pRefreshButton = new vgui::Button(m_pRightPanel, "RefreshBtn", "#GameUI_Refresh", this, "RefreshList");
     m_pCloseButton = new Button(this, "CloseBtn", "#GameUI_Close", this, "Close");
@@ -517,12 +594,44 @@ void ExtraManagerPanel::PerformLayout() {
     currentY += PROPVAL(20);
     m_pVersionCombo->SetBounds(rInnerPad, currentY, rightW - (rInnerPad * 2), PROPVAL(24));
     currentY += PROPVAL(35);
-    m_pDescriptionText->SetBounds(rInnerPad, currentY, rightW - (rInnerPad * 2), panelH / 2.2);
+
+    int textHeight = panelH / 2.2;
+    m_pDescriptionText->SetBounds(rInnerPad, currentY, rightW - (rInnerPad * 2), textHeight);
 
     int btnW = PROPVAL(110), btnH = PROPVAL(28);
     int btnY = panelH - rInnerPad - btnH;
+    
     m_pRefreshButton->SetBounds(rInnerPad, btnY, btnW, btnH);
     m_pCloseButton->SetBounds(sw - iPadding - rInnerPad - btnW, sh - iPadding - rInnerPad - btnH, btnW, btnH);
+
+    int textBottomY = currentY + textHeight;
+    int bottomBtnTopY = btnY;
+    
+    int availableH = bottomBtnTopY - textBottomY;
+    
+    int socialSize = PROPVAL(32); 
+    int socialGap = PROPVAL(10);
+
+    if (availableH > socialSize) {
+        int socialY = textBottomY + (availableH - socialSize) / 2;
+        int currentSocialX = rInnerPad;
+        
+        if (m_pDiscordBtn) {
+            m_pDiscordBtn->SetBounds(currentSocialX, socialY, socialSize, socialSize);
+            currentSocialX += socialSize + socialGap;
+        }
+        if (m_pGithubBtn) {
+            m_pGithubBtn->SetBounds(currentSocialX, socialY, socialSize, socialSize);
+            currentSocialX += socialSize + socialGap;
+        }
+        if (m_pWebBtn) {
+            m_pWebBtn->SetBounds(currentSocialX, socialY, socialSize, socialSize);
+        }
+    } else {
+        if (m_pDiscordBtn) m_pDiscordBtn->SetVisible(false);
+        if (m_pGithubBtn) m_pGithubBtn->SetVisible(false);
+        if (m_pWebBtn) m_pWebBtn->SetVisible(false);
+    }
 }
 
 void ExtraManagerPanel::OnCommand(const char *command) {

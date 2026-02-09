@@ -1,5 +1,10 @@
 #pragma once
 
+#include "vgui/ISurface.h"
+#include "GameUI_Interface.h"
+#include "vgui/ISystem.h"
+#include "vgui/IInput.h"
+#include "vgui/IVGui.h"
 #include "vgui_controls/Frame.h"
 #include "vgui_controls/PropertySheet.h"
 #include "vgui_controls/PropertyPage.h"
@@ -11,6 +16,11 @@
 #include "vgui_controls/EditablePanel.h"
 #include "vgui_controls/RichText.h"
 #include "vgui_controls/ComboBox.h"
+
+#ifdef ANDROID
+#include <SDL_misc.h>
+#endif
+
 #include "utlvector.h"
 #include "utlmap.h"
 
@@ -140,7 +150,13 @@ private:
     vgui::Label         *m_pVersionTitleLabel; 
     vgui::RichText      *m_pDescriptionText;
     vgui::ComboBox      *m_pVersionCombo;
+    
+    class ImageUrlButton *m_pDiscordBtn;
+    class ImageUrlButton *m_pGithubBtn;
+    class ImageUrlButton *m_pWebBtn;
+    
     vgui::Button        *m_pRefreshButton;
-
     vgui::Button        *m_pCloseButton;
 };
+
+
