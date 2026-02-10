@@ -416,9 +416,6 @@ int ExtraListPage::CreateTextureFromPNG(const char *fullPath) {
 
 void ExtraListPage::RefreshList() {
     m_pModListPanel->DeleteAllItems();
-    // 注意：此处不主动 CleanUpTextures 以保持缓存。
-    // 如果需要强制刷新物理资源，可手动调用 CleanUpTextures。
-
     FileFindHandle_t findHandle;
     const char *pFileName = g_pFullFileSystem->FindFirst("custom/*", &findHandle);
 
@@ -502,7 +499,7 @@ void ExtraManagerPanel::OnModCardSelected(KeyValues *data) {
     if (m_pDescriptionText) {
         m_pDescriptionText->SetText("");
         m_pDescriptionText->InsertColorChange(Color(0, 255, 128, 255));
-        m_pDescriptionText->InsertString(">>> SELECTED MOD: ");
+        m_pDescriptionText->InsertString(">>> selected mod : ");
         m_pDescriptionText->InsertString(pPanelName);
         m_pDescriptionText->InsertString("\n\nStatus: Locally installed.");
     }
