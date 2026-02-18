@@ -205,7 +205,7 @@ void ModCardPanel::Paint() {
     }
 
     int labelY = drawY + imgSize;
-    int labelH = h - labelY - (iMargin / 2);
+    int labelH = PROPVAL(26);
     vgui::surface()->DrawSetColor(0, 0, 0, 150);
     vgui::surface()->DrawFilledRect(drawX, labelY, drawX + contentW, labelY + labelH);
 }
@@ -219,11 +219,10 @@ void ModCardPanel::PerformLayout() {
     int contentW = w - iMargin;
     int drawX = iMargin / 2;
     int drawY = iMargin / 2;
-    m_pImagePanelPlaceholder->SetBounds(drawX, drawY, contentW, contentW);
-    int imgX, imgY, imgW, imgH;
-    m_pImagePanelPlaceholder->GetBounds(imgX, imgY, imgW, imgH);
-    int labelY = imgH;
-    int labelH = PROPVAL(26); // 保持这样就好
+    int imgSize = contentW;
+    m_pImagePanelPlaceholder->SetBounds(drawX, drawY, imgSize, imgSize);
+    int labelH = PROPVAL(26);
+    int labelY = drawY + imgSize;
     m_pTitle->SetBounds(drawX, labelY, contentW, labelH);
 }
 
