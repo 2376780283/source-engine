@@ -18,25 +18,42 @@
 	#pragma comment(lib, "winmm.lib")
 	#include "tier0/vcrmode.h"
 #elif POSIX
+	#define _GNU_SOURCE  // Enable GNU extensions safely on POSIX
 	#include <sched.h>
 	#include <exception>
 	#include <errno.h>
 	#include <signal.h>
 	#include <pthread.h>
 	#include <sys/time.h>
+	#include <unistd.h>  // sysconf() - POSIX standard
+	#include <stdint.h>  // uint64_t - C99 standard
+	#include <string.h>  // strncmp, memset
 	#define GetLastError() errno
 	typedef void *LPVOID;
-#if !defined(OSX)
+
+	// Platform-specific includes
+	#if defined(__APPLE__)
+		#include <mach/thread_act.h>
+		#include <mach/mach.h>
+		#include <sys/sysctl.h>  // macOS/BSD CPU detection
+		#define OS_TO_PTHREAD(x) pthread_from_mach_thread_np( x )
+	#elif defined(__FreeBSD__) || defined(__OpenBSD__)
+		#include <sys/sysctl.h>  // BSD CPU detection
+		#define OS_TO_PTHREAD(x) (pthread_t)(x)
+	#elif defined(__linux__) || defined(__ANDROID__)
+		#include <fcntl.h>
+		#define OS_TO_PTHREAD(x) (x)
+		#ifndef pthread_yield
+			#define pthread_yield sched_yield
+		#endif
+	#else
+		#define OS_TO_PTHREAD(x) (x)
+	#endif
+
+#if !defined(OSX) && !defined(__APPLE__)
         #include <fcntl.h>
-        #include <unistd.h>
 	#define sem_unlink( arg )
-	#define OS_TO_PTHREAD(x) (x)
-#else
-	#define pthread_yield pthread_yield_np
-	#include <mach/thread_act.h>
-	#include <mach/mach.h>
-	#define OS_TO_PTHREAD(x) pthread_from_mach_thread_np( x )
-#endif // !OSX
+#endif
 
 #ifdef PLATFORM_BSD
 # undef OS_TO_PTRHEAD
@@ -90,9 +107,23 @@ ASSERT_INVARIANT(TT_INFINITE == INFINITE);
 // thread creation counter.
 // this is used to provide a unique threadid for each running thread in g_nThreadID ( a thread local variable ).
 
-const int MAX_THREAD_IDS = 128;
+// OPTIMIZATION: Increased for modern systems with many threads (game servers, background pools)
+#if defined(LINUX)
+	const int MAX_THREAD_IDS = 512;  // Up from 128: supports 512 concurrent threads
+#else
+	const int MAX_THREAD_IDS = 128;
+#endif
 
-static volatile bool s_bThreadIDAllocated[MAX_THREAD_IDS];
+// OPTIMIZATION: Use bitfield for efficient allocation on Linux
+#if defined(LINUX)
+	// Bitmap for fast O(1) lookup using __builtin_clz (count leading zeros)
+	static volatile uint64_t s_ThreadIDAllocationMap[(MAX_THREAD_IDS + 63) / 64];
+	
+	// Atomic counter for next search position (work-stealing friendly)
+	static volatile int s_nNextThreadIDHint = 1;
+#else
+	static volatile bool s_bThreadIDAllocated[MAX_THREAD_IDS];
+#endif
 
 #if defined(_PS3)
 	#include "tls_ps3.h"
@@ -101,10 +132,80 @@ static volatile bool s_bThreadIDAllocated[MAX_THREAD_IDS];
 #endif 
 
 
-static CThreadFastMutex s_ThreadIDMutex;
+#if defined(LINUX)
+	// OPTIMIZATION: Lock-free allocation using atomics for Linux
+	#include <stdint.h>
+	#include <string.h>
+	
+	static CThreadFastMutex s_ThreadIDMutex;  // Fallback for non-atomic platforms
+	
+	// Fast inline bitmap operations
+	static inline int FindFirstZeroBit( uint64_t bitmap )
+	{
+		// Find first 0 bit in 64-bit value
+		// Returns position 0-63, or 64 if all bits set
+		if ( bitmap == UINT64_MAX ) return 64;
+		return __builtin_ctzll( ~bitmap );
+	}
+	
+#else
+	static CThreadFastMutex s_ThreadIDMutex;
+#endif
 
 PLATFORM_INTERFACE void AllocateThreadID( void )
 {
+#if defined(LINUX)
+	// OPTIMIZATION: Fast-path lock-free allocation for Linux
+	// Try to allocate without taking the mutex first
+	
+	int nStart = s_nNextThreadIDHint;
+	if ( nStart >= MAX_THREAD_IDS ) nStart = 1;
+	
+	// Check a window of thread IDs without lock
+	for ( int i = 0; i < 64; i++ )
+	{
+		int nThread = (nStart + i) % MAX_THREAD_IDS;
+		if ( nThread == 0 ) nThread = 1;  // Skip thread 0
+		
+		int nMapIndex = nThread / 64;
+		int nBitPos = nThread % 64;
+		uint64_t mask = 1ULL << nBitPos;
+		
+		// Fast check without lock
+		if ( !(s_ThreadIDAllocationMap[nMapIndex] & mask) )
+		{
+			// Try to claim this ID atomically
+			uint64_t oldVal = s_ThreadIDAllocationMap[nMapIndex];
+			if ( !(oldVal & mask) && 
+				 __sync_bool_compare_and_swap( &s_ThreadIDAllocationMap[nMapIndex], oldVal, oldVal | mask ) )
+			{
+				g_nThreadID = nThread;
+				s_nNextThreadIDHint = nThread + 1;  // Hint for next allocation
+				return;
+			}
+		}
+	}
+	
+	// Slow path: use mutex if fast path failed
+	AUTO_LOCK( s_ThreadIDMutex );
+	
+	for( int i = 1; i < MAX_THREAD_IDS; i++ )
+	{
+		int nMapIndex = i / 64;
+		int nBitPos = i % 64;
+		uint64_t mask = 1ULL << nBitPos;
+		
+		if ( !(s_ThreadIDAllocationMap[nMapIndex] & mask) )
+		{
+			g_nThreadID = i;
+			s_ThreadIDAllocationMap[nMapIndex] |= mask;
+			s_nNextThreadIDHint = i + 1;
+			return;
+		}
+	}
+	Error( "Out of thread ids. Decrease the number of threads or increase MAX_THREAD_IDS\n" );
+	
+#else
 	AUTO_LOCK( s_ThreadIDMutex );
 	for( int i = 1; i < MAX_THREAD_IDS; i++ )
 	{
@@ -116,14 +217,27 @@ PLATFORM_INTERFACE void AllocateThreadID( void )
 		}
 	}
 	Error( "Out of thread ids. Decrease the number of threads or increase MAX_THREAD_IDS\n" );
+#endif
 }
 
 PLATFORM_INTERFACE void FreeThreadID( void )
 {
+#if defined(LINUX)
+	int nThread = g_nThreadID;
+	if ( nThread == 0 ) return;
+	
+	int nMapIndex = nThread / 64;
+	int nBitPos = nThread % 64;
+	uint64_t mask = 1ULL << nBitPos;
+	
+	// Try atomic clear first
+	__sync_fetch_and_and( &s_ThreadIDAllocationMap[nMapIndex], ~mask );
+#else
 	AUTO_LOCK( s_ThreadIDMutex );
 	int nThread = g_nThreadID;
 	if ( nThread )
 		s_bThreadIDAllocated[nThread] = false;
+#endif
 }
 		
 

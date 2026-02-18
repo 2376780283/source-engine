@@ -234,6 +234,7 @@ bool findFileInDirCaseInsensitive( const char *file, char* output, size_t bufSiz
 	char outputFileName[ MAX_PATH ];
 	bool foundMatch = false;
 
+	// OPTIMIZATION: Early exit if exact match found
 	// Scan through the directory.
 	for ( dirent* pEntry = NULL; ( pEntry = readdir( pDir ) ); /**/ )
 	{
@@ -247,6 +248,12 @@ bool findFileInDirCaseInsensitive( const char *file, char* output, size_t bufSiz
 			{
 				foundMatch = true;
 				V_strcpy_safe( outputFileName, pEntry->d_name );
+				
+				// OPTIMIZATION: Early exit on exact case match
+				if ( strcmp( outputFileName, filePart ) == 0 )
+				{
+					break;
+				}
 			}
 		}
 	}

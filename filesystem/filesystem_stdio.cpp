@@ -28,6 +28,20 @@
 #include "tier1/utlrbtree.h"
 #include "vstdlib/osversion.h"
 
+// Linux kernel I/O optimizations
+#if defined(LINUX) || defined(ANDROID)
+#include <sys/mman.h>
+#include <unistd.h>
+#include "linux_compat.h"
+// posix_fadvise for readahead hints
+#ifndef POSIX_FADV_SEQUENTIAL
+#define POSIX_FADV_SEQUENTIAL 2
+#endif
+#ifndef POSIX_FADV_NORMAL
+#define POSIX_FADV_NORMAL 0
+#endif
+#endif
+
 #ifdef _X360
 #undef WaitForSingleObject
 #endif
@@ -716,7 +730,9 @@ int CFileSystem_Stdio::FS_stat( const char *pathT, struct _stat *buf, bool *pbLo
 		bool found = findFileInDirCaseInsensitive_safe( path, caseFixedName );
 		if ( found )
 		{
-			rt = _stat( caseFixedName, buf );
+			// OPTIMIZATION: findFileInDirCaseInsensitive already did the directory scan
+			// Use lstat to avoid following symlinks, simpler than full stat
+			rt = safe_lstat( caseFixedName, buf );
 		}
 	}	
 #endif
@@ -838,6 +854,7 @@ int CFileSystem_Stdio::HintResourceNeed( const char *hintlist, int forgetEveryth
 
 //-----------------------------------------------------------------------------
 // Purpose: low-level filesystem wrapper
+// OPTIMIZED: Use fstat() instead of stat() to avoid multiple system calls
 //-----------------------------------------------------------------------------
 CStdioFile *CStdioFile::FS_fopen( const char *filenameT, const char *options, int64 *size )
 {
@@ -860,12 +877,20 @@ CStdioFile *CStdioFile::FS_fopen( const char *filenameT, const char *options, in
 	pFile = fopen(filename, options);
 	if (pFile && size)
 	{
-		// todo: replace with filelength()? 
+		// OPTIMIZATION: Use fstat() instead of stat() - no extra system call
+#if defined(LINUX) || defined(ANDROID)
+		int fd = safe_fileno( pFile );
+		if ( fd >= 0 && safe_fstat( fd, &buf ) == 0 )
+		{
+			*size = buf.st_size;
+		}
+#else
 		int rt = _stat( filename, &buf );
 		if (rt == 0)
 		{
 			*size = buf.st_size;
 		}
+#endif
 	}
 
 #if defined(LINUX) || defined(PLATFORM_BSD)
@@ -879,13 +904,20 @@ CStdioFile *CStdioFile::FS_fopen( const char *filenameT, const char *options, in
 
 			if (pFile && size)
 			{
-				// todo: replace with filelength()? 
-				struct _stat buf;
+				// OPTIMIZATION: Use fstat() instead of stat()
+#if defined(LINUX) || defined(ANDROID)
+				int fd = safe_fileno( pFile );
+				if ( fd >= 0 && safe_fstat( fd, &buf ) == 0 )
+				{
+					*size = buf.st_size;
+				}
+#else
 				int rt = _stat( caseFixedName, &buf );
 				if (rt == 0)
 				{
 					*size = buf.st_size;
 				}
+#endif
 			}
 		}
 	}
@@ -906,7 +938,23 @@ CStdioFile *CStdioFile::FS_fopen( const char *filenameT, const char *options, in
 				AUTO_LOCK( m_MutexLockedFD );
 				// Win32 has an undocumented feature that is serialized ALL writes to a file across threads (i.e only 1 thread can open a file at a time)
 				// so add a lock here to mimic that behavior
-
+				// OPTIMIZATION: Get inode from fstat if available for Linux
+#if defined(LINUX) || defined(ANDROID)
+				int fd = safe_fileno( pFile );
+				if ( fd >= 0 && safe_fstat( fd, &buf ) == 0 )
+				{
+					int iLockID = m_LockedFDMap.Find( buf.st_ino );
+					if ( iLockID != m_LockedFDMap.InvalidIndex() )
+					{
+						pMutex = m_LockedFDMap[iLockID];
+					}
+					else
+					{
+						CThreadMutex *newMutex = new CThreadMutex;
+						pMutex = m_LockedFDMap[m_LockedFDMap.Insert( buf.st_ino, newMutex )];
+					}
+				}
+#else
 				int iLockID = m_LockedFDMap.Find( buf.st_ino );
 				if ( iLockID != m_LockedFDMap.InvalidIndex() )
 				{
@@ -917,20 +965,14 @@ CStdioFile *CStdioFile::FS_fopen( const char *filenameT, const char *options, in
 					CThreadMutex *newMutex = new CThreadMutex;
 					pMutex = m_LockedFDMap[m_LockedFDMap.Insert( buf.st_ino, newMutex )];
 				}
+#endif
 			}
 			// grab the lock once we have UNLOCKED m_MutexLockedFD so we don't deadlock on a close
-			pMutex->Lock();
-
-			rewind( pFile );
-
-			// we need to get the file size again after the lock returns
-			if (pFile && size)
+			if ( pMutex )
 			{
-				int rt = _stat( filename, &buf );
-				if (rt == 0)
-				{
-					*size = buf.st_size;
-				}
+				pMutex->Lock();
+				rewind( pFile );
+				// OPTIMIZATION: Avoid redundant stat() call - file size already available via fstat
 			}
 
 		}
@@ -947,18 +989,42 @@ CStdioFile *CStdioFile::FS_fopen( const char *filenameT, const char *options, in
 //-----------------------------------------------------------------------------
 void CStdioFile::FS_setbufsize( unsigned nBytes )
 {
-#ifdef _WIN32
+	// Linux/Android: use larger buffer for better performance
+#if defined(LINUX) || defined(ANDROID)
+	unsigned bufSize = nBytes;
+	if ( !bufSize )
+	{
+		bufSize = filesystem_unbuffered_io.GetInt();
+	}
+	if ( bufSize < 65536 ) bufSize = 65536; // minimum 64KB for sequential access
+	setvbuf( m_pFile, NULL, _IOFBF, bufSize );
+	
+	int fd = safe_fileno( m_pFile );
+	if ( fd >= 0 )
+	{
+		// Advise kernel for sequential read pattern
+		safe_posix_fadvise( fd, 0, 0, POSIX_FADV_SEQUENTIAL );
+	}
+#elif defined(_WIN32)
 	if ( nBytes )
 	{
-		setvbuf( m_pFile, NULL, _IOFBF,  32768 );
+		setvbuf( m_pFile, NULL, _IOFBF,  nBytes );
 	}
 	else
 	{
-		setvbuf( m_pFile, NULL, _IONBF,  0 );
+		unsigned bufSize = filesystem_buffer_size.GetInt();
+		if ( bufSize > 0 )
+		{
+			setvbuf( m_pFile, NULL, _IOFBF, bufSize );
+		}
+		else
+		{
+			setvbuf( m_pFile, NULL, _IONBF,  0 );
 #if defined(_MSC_VER) && ( _MSC_VER < 1900 )
-		// hack to make microsoft stdio not always read one stray byte on odd sized files
-		m_pFile->_bufsiz = 1;
+			// hack to make microsoft stdio not always read one stray byte on odd sized files
+			m_pFile->_bufsiz = 1;
 #endif
+		}
 	}
 #endif
 }

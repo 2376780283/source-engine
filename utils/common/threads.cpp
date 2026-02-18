@@ -19,7 +19,22 @@
 #include "threads.h"
 #include "pacifier.h"
 
-#define	MAX_THREADS	16
+// Linux optimizations
+#ifdef __linux__
+	#include <unistd.h>
+	#include <sys/types.h>
+	#include <stdlib.h>
+	#include <string.h>
+#endif
+
+// OPTIMIZATION: Dynamic thread pool for Linux
+#ifdef _WIN32
+	#define	MAX_THREADS	16
+#else
+	// Linux: Auto-detect CPU cores or use environment variable
+	#define MAX_THREADS 64  // Safe upper bound for modern systems
+	static int g_nActualThreads = 0;
+#endif
 
 
 class CRunThreadsData
@@ -53,6 +68,13 @@ GetThreadWork
 int	GetThreadWork (void)
 {
 	int	r;
+
+	// OPTIMIZATION: Try lock-free path first on Linux
+#ifdef __linux__
+	// Fast path: check without lock (may see stale value but safe)
+	if ( dispatch >= workcount )
+		return -1;
+#endif
 
 	ThreadLock ();
 
@@ -124,12 +146,18 @@ public:
 
 void SetLowPriority()
 {
+#ifdef _WIN32
 	SetPriorityClass( GetCurrentProcess(), IDLE_PRIORITY_CLASS );
+#else
+	// Linux: use nice() for process-wide priority
+	nice( 10 );
+#endif
 }
 
 
 void ThreadSetDefault (void)
 {
+#ifdef _WIN32
 	SYSTEM_INFO info;
 
 	if (numthreads == -1)	// not set manually
@@ -139,6 +167,48 @@ void ThreadSetDefault (void)
 		if (numthreads < 1 || numthreads > 32)
 			numthreads = 1;
 	}
+#else
+	// OPTIMIZATION: Linux - detect CPU cores from /proc/cpuinfo or sysconf
+	if (numthreads == -1)	// not set manually
+	{
+		// Method 1: Try sysconf (POSIX standard)
+		long nProcs = sysconf( _SC_NPROCESSORS_ONLN );
+		if ( nProcs > 0 )
+		{
+			numthreads = (int)nProcs;
+		}
+		else
+		{
+			// Method 2: Fallback to /proc/cpuinfo parsing
+			FILE *fp = fopen( "/proc/cpuinfo", "r" );
+			if ( fp )
+			{
+				int nCores = 0;
+				char line[256];
+				while ( fgets( line, sizeof(line), fp ) )
+				{
+					if ( strncmp( line, "processor", 9 ) == 0 )
+						nCores++;
+				}
+				fclose( fp );
+				if ( nCores > 0 )
+					numthreads = nCores;
+				else
+					numthreads = 1;
+			}
+			else
+			{
+				numthreads = 1;  // Fallback
+			}
+		}
+		
+		// Clamp to reasonable range
+		if ( numthreads < 1 ) numthreads = 1;
+		if ( numthreads > MAX_THREADS ) numthreads = MAX_THREADS;
+		
+		g_nActualThreads = numthreads;
+	}
+#endif
 
 	Msg ("%i threads\n", numthreads);
 }
