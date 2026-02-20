@@ -2361,7 +2361,13 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
 {
 	m_nNumDirtySamplers = 0;
 
-	m_bUseSamplerObjects = !CommandLine()->CheckParm("-gl_disablesamplerobjects");
+	if( gGL->m_nDriverProvider == cGLDriverProviderARM )
+		m_bUseSamplerObjects = true;
+	else
+		m_bUseSamplerObjects = false;
+
+	if ( CommandLine()->CheckParm( "-gl_enablesamplerobjects" ) )
+		m_bUseSamplerObjects = true;
 
 	// Try to get some more free memory by relying on driver host copies instead of ours.
 	//  In some cases the driver will be able to discard their own host copy and rely on GPU
