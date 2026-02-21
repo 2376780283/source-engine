@@ -205,7 +205,7 @@ void ModCardPanel::Paint() {
     }
 
     int labelY = drawY + imgSize;
-    int labelH = h - labelY - (iMargin / 2);
+    int labelH = PROPVAL(26);
     vgui::surface()->DrawSetColor(0, 0, 0, 150);
     vgui::surface()->DrawFilledRect(drawX, labelY, drawX + contentW, labelY + labelH);
 }
@@ -219,11 +219,10 @@ void ModCardPanel::PerformLayout() {
     int contentW = w - iMargin;
     int drawX = iMargin / 2;
     int drawY = iMargin / 2;
-    m_pImagePanelPlaceholder->SetBounds(drawX, drawY, contentW, contentW);
-    int imgX, imgY, imgW, imgH;
-    m_pImagePanelPlaceholder->GetBounds(imgX, imgY, imgW, imgH);
-    int labelY = imgH;
-    int labelH = PROPVAL(26); // 保持这样就好
+    int imgSize = contentW;
+    m_pImagePanelPlaceholder->SetBounds(drawX, drawY, imgSize, imgSize);
+    int labelH = PROPVAL(26);
+    int labelY = drawY + imgSize;
     m_pTitle->SetBounds(drawX, labelY, contentW, labelH);
 }
 
@@ -416,9 +415,6 @@ int ExtraListPage::CreateTextureFromPNG(const char *fullPath) {
 
 void ExtraListPage::RefreshList() {
     m_pModListPanel->DeleteAllItems();
-    // 注意：此处不主动 CleanUpTextures 以保持缓存。
-    // 如果需要强制刷新物理资源，可手动调用 CleanUpTextures。
-
     FileFindHandle_t findHandle;
     const char *pFileName = g_pFullFileSystem->FindFirst("custom/*", &findHandle);
 
@@ -502,7 +498,7 @@ void ExtraManagerPanel::OnModCardSelected(KeyValues *data) {
     if (m_pDescriptionText) {
         m_pDescriptionText->SetText("");
         m_pDescriptionText->InsertColorChange(Color(0, 255, 128, 255));
-        m_pDescriptionText->InsertString(">>> SELECTED MOD: ");
+        m_pDescriptionText->InsertString(">>> selected mod : ");
         m_pDescriptionText->InsertString(pPanelName);
         m_pDescriptionText->InsertString("\n\nStatus: Locally installed.");
     }

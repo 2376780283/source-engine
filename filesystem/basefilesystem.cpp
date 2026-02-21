@@ -122,7 +122,13 @@ CBaseFileSystem *BaseFileSystem()
 	return g_pBaseFileSystem;
 }
 
-ConVar filesystem_buffer_size( "filesystem_buffer_size", "0", 0, "Size of per file buffers. 0 for none" );
+ConVar filesystem_buffer_size( "filesystem_buffer_size", 
+#if defined(LINUX) || defined(ANDROID)
+	"262144",  // 256KB for Linux/Android
+#else
+	"0",       // Default (32KB on Windows)
+#endif
+	0, "Size of per file buffers. 0 for default" );
 
 #if defined( TRACK_BLOCKING_IO )
 

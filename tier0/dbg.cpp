@@ -107,7 +107,7 @@ void CDbgLogger::Init(const char *logfile)
 	Plat_ctime( &timeCur, szTime, sizeof(szTime) );
 
 	file = fopen(logfile, "w+");
-	if( file )
+/*	if( file )
 	{
 		fprintf(file, ">>> Engine(arch:%s) started at %s\n", GetProcessorArchName(), szTime);
 
@@ -124,7 +124,7 @@ void CDbgLogger::Init(const char *logfile)
 			delete[] pMsgs[i];
 		}
 		iMsg = 0;
-	}
+	}*/
 }
 
 CDbgLogger::~CDbgLogger()
