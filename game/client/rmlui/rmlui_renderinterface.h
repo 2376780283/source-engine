@@ -9,20 +9,6 @@
 #ifndef RMLUI_RENDERINTERFACE
 #define RMLUI_RENDERINTERFACE
 
-// Undef memory macros before including RmlUi to prevent namespace conflicts
-#ifdef realloc
-#undef realloc
-#endif
-#ifdef malloc
-#undef malloc
-#endif
-#ifdef free
-#undef free
-#endif
-#ifdef calloc
-#undef calloc
-#endif
-
 #ifdef Assert
 #undef Assert
 #endif

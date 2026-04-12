@@ -5,26 +5,24 @@
 // Feel free to use it as you want to use.
 // Major code based on open source references from Source SDK.
 // ==================================================================
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <map>
+#include <RmlUi/Core.h>
 
-// Undef memory macros BEFORE including any headers to prevent conflicts with RmlUi
-// These will be re-defined by memdbgon.h at the end of this file
-#ifdef realloc
-#undef realloc
-#endif
+// 强行解除引擎可能存在的宏污染
 #ifdef malloc
 #undef malloc
 #endif
 #ifdef free
 #undef free
 #endif
-#ifdef calloc
-#undef calloc
+#ifdef realloc
+#undef realloc
 #endif
-#ifdef new
-#undef new
-#endif
-#ifdef NULL
-#undef NULL
+#ifdef nullptr
+#undef nullptr
 #endif
 
 #include "cbase.h"

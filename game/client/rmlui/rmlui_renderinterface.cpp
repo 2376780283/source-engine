@@ -6,24 +6,23 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
-// Undef memory macros BEFORE including any headers to prevent conflicts with RmlUi
-#ifdef realloc
-#undef realloc
-#endif
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <map>
+
+// 
 #ifdef malloc
 #undef malloc
 #endif
 #ifdef free
 #undef free
 #endif
-#ifdef calloc
-#undef calloc
+#ifdef realloc
+#undef realloc
 #endif
-#ifdef new
-#undef new
-#endif
-#ifdef NULL
-#undef NULL
+#ifdef nullptr
+#undef nullptr
 #endif
 
 #include "cbase.h"
@@ -31,11 +30,11 @@
 #include "rmlui_renderinterface.h"
 #include "bitmap/tgaloader.h"
 #include "filesystem.h"
-#define STB_IMAGE_IMPLEMENTATION
+//#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
-#define STB_IMAGE_RESIZE_IMPLEMENTATION
-#include <stb_image_resize2.h>
+//#define STB_IMAGE_RESIZE_IMPLEMENTATION
+#include <stb/stb_image_resize2.h>
 
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
@@ -407,7 +406,7 @@ void RmlUIRenderInterface::RenderToClipMask(
     // Set up the stencil function to always pass.
     pRenderContext->SetStencilCompareFunction(STENCILCOMPARISONFUNCTION_ALWAYS);
 
-    // We initially set the reference to 1�this may be adjusted below.
+    // We initially set the reference to 1this may be adjusted below.
     pRenderContext->SetStencilReferenceValue(1);
     pRenderContext->SetStencilWriteMask(0xFF);
 

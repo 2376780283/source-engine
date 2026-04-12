@@ -6,6 +6,25 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <map>
+
+// 强行解除引擎可能存在的宏污染
+#ifdef malloc
+#undef malloc
+#endif
+#ifdef free
+#undef free
+#endif
+#ifdef realloc
+#undef realloc
+#endif
+#ifdef nullptr
+#undef nullptr
+#endif
+
 #include "cbase.h"
 #include "rmlui_systeminterface.h"
 #include "vgui/IInput.h"
@@ -28,27 +47,30 @@
 /// Log messages from RmlUi
 bool RmlUiSystemInterface::LogMessage(Rml::Log::Type type, const Rml::String& message)
 {
-		switch (type) {
-	        case Rml::Log::Type::LT_WARNING:
-	            Warning("[Rml Ui Warning] %s\n", message.c_str());
-	#ifdef WIN32
-	            MessageBox(NULL, message.c_str(), "RmlUi Warning", MB_OK | MB_ICONWARNING);
-	#endif
-	            break;
-			case Rml::Log::Type::LT_ERROR:
-				Warning("[Rml Ui Error] %s\n", message.c_str());
-	#ifdef WIN32
-	            MessageBox(NULL, message.c_str(), "RmlUi Error", MB_OK | MB_ICONERROR);
-	#endif
-				break;
-			case Rml::Log::Type::LT_ASSERT:
-				Msg("[Rml Ui Assert] %s\n", message.c_str());
-				Error("RmlUI : %s", message.c_str());
-				break;
-			default:
-				ConColorMsg(Color(255,220,0,255), "[Rml Ui] %s\n", message.c_str());
-				break;
-		}
+	switch (type) {
+        case Rml::Log::Type::LT_WARNING:
+            Warning("[Rml Ui Warning] %s\n", message.c_str());
+#ifdef WIN32
+//            MessageBox(NULL, message.c_str(), "RmlUi Warning", MB_OK | MB_ICONWARNING);
+#else
+// #error Add support for message boxes on other non windows systems!
+#endif
+            break;
+		case Rml::Log::Type::LT_ERROR:
+			Warning("[Rml Ui Error] %s\n", message.c_str());
+
+//            MessageBox(NULL, message.c_str(), "RmlUi Error", MB_OK | MB_ICONERROR);
+//            __debugbreak();
+			break;
+		case Rml::Log::Type::LT_ASSERT:
+			Msg("[Rml Ui Assert] %s\n", message.c_str());
+			Error("RmlUI : %s", message.c_str());
+			break;
+		default:
+			ConColorMsg(Color(255,220,0,255), "[Rml Ui] %s\n", message.c_str());
+			break;
+	}
+
 	return true;
 }
 

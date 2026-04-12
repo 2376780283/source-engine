@@ -9,21 +9,6 @@
 #ifndef RMLUIMANAGER_H
 #define RMLUIMANAGER_H
 
-// Undef memory macros before including RmlUi to prevent namespace conflicts
-// RmlUi includes standard library headers which conflict with memdbgon's realloc macro
-#ifdef realloc
-#undef realloc
-#endif
-#ifdef malloc
-#undef malloc
-#endif
-#ifdef free
-#undef free
-#endif
-#ifdef calloc
-#undef calloc
-#endif
-
 // NOTE: Source SDK's Assert breaks RmlUi
 // undef it, import RmlUi stuff
 // and redefine it back to dbg.h version

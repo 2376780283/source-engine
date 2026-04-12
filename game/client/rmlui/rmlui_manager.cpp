@@ -6,6 +6,32 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <map>
+
+#include <RmlUi/Core/EventListener.h> 
+#include <RmlUi/Core/Event.h>
+#include <RmlUi/Core/Element.h>
+
+#include <RmlUi/Core/EventListenerInstancer.h>
+#include <RmlUi/Core/Factory.h>
+
+// 强行解除引擎可能存在的宏污染
+#ifdef malloc
+#undef malloc
+#endif
+#ifdef free
+#undef free
+#endif
+#ifdef realloc
+#undef realloc
+#endif
+#ifdef nullptr
+#undef nullptr
+#endif
+
 #include "cbase.h"
 
 #include "rmlui_manager.h"
@@ -13,12 +39,17 @@
 #include "rmlui_systeminterface.h"
 #include "rmlui_filesysteminterface.h"
 #include "filesystem.h"
+
 #include "ienginevgui.h"
 #include "VGuiMatSurface/IMatSystemSurface.h"
 #include "GameUI/IGameUI.h"
 
+
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
+
+extern IVEngineClient *engine;
 
 RmlUIManager* RmlUIManager::instance = nullptr;
 RmlUIManager::RmlUIManager() {}
@@ -40,6 +71,36 @@ RmlUIManager* RmlUIManager::GetInstance()
 	return instance;
 }
 
+// 定义监听器
+class MenuEventListener : public Rml::EventListener {
+public:
+    void ProcessEvent(Rml::Event& event) override {
+        Rml::Element* element = event.GetCurrentElement();
+        if (!element) return;       
+        Rml::String command = element->GetAttribute("data-cmd")->Get<Rml::String>("");
+        
+        if (!command.empty() && engine) {
+            engine->ClientCmd_Unrestricted(command.c_str());
+        }
+    }    
+    void OnDetach(Rml::Element* element) override { 
+        delete this; 
+    } 
+};
+
+// 定义实例化器
+class MenuEventInstancer : public Rml::EventListenerInstancer {
+public:
+    Rml::EventListener* InstanceEventListener(const Rml::String& value, Rml::Element* element) override {
+        if (value == "run_command") {
+            return new MenuEventListener();
+        }
+        return nullptr;
+    }
+};
+
+static MenuEventInstancer g_MenuEventInstancer;
+
 /// Initialize RmlUi and assets
 void RmlUIManager::Init()
 {
@@ -50,7 +111,8 @@ void RmlUIManager::Init()
 
 	// Initialize RmlUi
 	Rml::Initialise();
-
+	
+    Rml::Factory::RegisterEventListenerInstancer(&g_MenuEventInstancer);
 	// Load all fonts in mod's resource folder
 	LoadFontFaces();
 
@@ -58,28 +120,32 @@ void RmlUIManager::Init()
 	// (panel used also to detect mouse input and other stuff)
 	// TODO: If there's better way than using VGUI to rely on input system
 	// let me know
-	if (g_pFullFileSystem->FileExists("rmlui/mainmenu.rml", "MOD"))
-	{
-		rmlPanel = new RmlUiPanel();
-
-		CreateInterfaceFn gameUIFactory = g_GameUI.GetFactory();
-		if (gameUIFactory)
-		{
-			IGameUI* m_pGameUI = (IGameUI*)gameUIFactory(GAMEUI_INTERFACE_VERSION, NULL);
-			m_pGameUI->SetMainMenuOverride(rmlPanel->GetVPanel());
-		}
-
-		CreateContext("main", "rmlui/mainmenu.rml");
-	}
-	
+    if (g_pFullFileSystem->FileExists("rmlui/mainmenu.rml", "MOD"))
+       {
+        rmlPanel = new RmlUiPanel();
+        CreateInterfaceFn gameUIFactory = g_GameUI.GetFactory();
+        if (gameUIFactory)
+        {
+            IGameUI* m_pGameUI = (IGameUI*)gameUIFactory(GAMEUI_INTERFACE_VERSION, NULL);
+            m_pGameUI->SetMainMenuOverride(rmlPanel->GetVPanel());
+        }
+        CreateContext("main", "rmlui/mainmenu.rml");        
+    }	
 	if (g_pFullFileSystem->FileExists("rmlui/hud.rml", "MOD"))
-		CreateContext("hud", "rmlui/hud.rml");
-}
+		CreateContext("hud", "rmlui/hud.rml");		
+}	
 
 /// Render all contexts
 void RmlUIManager::Render(const char* contextName)
 {
 	Rml::Context* context = contexts[contextName];
+
+    if ( !engine->IsInGame() && !engine->IsConnected() )
+        return;
+
+   //CMatRenderContextPtr pRenderContext(materials);
+   // if (!pRenderContext.IsValid()) 
+   //     return;
 
 	if (context)
 	{
@@ -88,8 +154,10 @@ void RmlUIManager::Render(const char* contextName)
 
 		// Render contexts
 		context->Update();
-		context->Render();
-
+		
+        for (auto& it : contexts) {
+            it.second->Render();
+       }
 		renderInterface.EndFrame();
 	}
 }

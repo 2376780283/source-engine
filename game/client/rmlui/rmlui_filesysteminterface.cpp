@@ -6,6 +6,25 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <map>
+
+// 强行解除引擎可能存在的宏污染
+#ifdef malloc
+#undef malloc
+#endif
+#ifdef free
+#undef free
+#endif
+#ifdef realloc
+#undef realloc
+#endif
+#ifdef nullptr
+#undef nullptr
+#endif
+
 #include "cbase.h"
 #include "filesystem.h"
 
