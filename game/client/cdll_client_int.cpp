@@ -176,6 +176,10 @@ extern vgui::IInputInternal *g_InputInternal;
 #include "sixense/in_sixense.h"
 #endif
 
+#ifdef RMLUI
+#include <rmlui/rmlui_manager.h>
+#endif
+
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -1168,6 +1172,10 @@ void CHLClient::PostInit()
 	}
 #endif
 
+#ifdef RMLUI
+	RmlUIManager::GetInstance()->Init();
+#endif
+
 #ifndef PORTAL
 #if defined(GAMEPADUI)
     if (IsGamepadUI())
@@ -1255,7 +1263,6 @@ void CHLClient::PostInit()
     }
 #endif // GAMEPADUI
 #endif
-
 }
 
 //-----------------------------------------------------------------------------
@@ -1331,7 +1338,11 @@ void CHLClient::Shutdown( void )
 #if defined( WIN32 ) && !defined( _X360 )
 	// NVNT Disconnect haptics system
 	DisconnectHaptics();
-#endif    
+#endif  
+
+#ifdef RMLUI
+	RmlUIManager::GetInstance()->Shutdown();
+#endif  
 }
 
 

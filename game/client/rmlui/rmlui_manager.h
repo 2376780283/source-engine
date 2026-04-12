@@ -1,0 +1,86 @@
+// ==================================================================
+// Den Urakolouy AKA URAKOLOUY5
+// 2025
+// 
+// Feel free to use it as you want to use.
+// Major code based on open source references from Source SDK.
+// ==================================================================
+
+#ifndef RMLUIMANAGER_H
+#define RMLUIMANAGER_H
+
+// Undef memory macros before including RmlUi to prevent namespace conflicts
+// RmlUi includes standard library headers which conflict with memdbgon's realloc macro
+#ifdef realloc
+#undef realloc
+#endif
+#ifdef malloc
+#undef malloc
+#endif
+#ifdef free
+#undef free
+#endif
+#ifdef calloc
+#undef calloc
+#endif
+
+// NOTE: Source SDK's Assert breaks RmlUi
+// undef it, import RmlUi stuff
+// and redefine it back to dbg.h version
+#ifdef Assert
+#undef Assert
+#endif
+
+#include <RmlUi/Core/Core.h>
+#include <RmlUi/Core/ElementDocument.h>
+#include <RmlUi/Core/Context.h>
+#include <RmlUi/Debugger.h>
+
+#ifdef DBGFLAG_ASSERT
+#define  Assert( _exp )           							_AssertMsg( _exp, _T("Assertion Failed: ") _T(#_exp), ((void)0), false )
+#else
+#define  Assert( _exp )										((void)0)
+#endif
+
+#include "kbutton.h"
+#include <vgui_controls/Controls.h>
+#include <vgui/IInput.h>
+
+#include "rmlui_panel.h"
+
+class RmlUIManager {
+private:
+    static RmlUIManager* instance;
+    RmlUiPanel* rmlPanel;
+    
+    RmlUIManager();
+    void LoadFontFaces();
+    std::map<const char*, Rml::Context*> contexts;
+
+public:
+    RmlUIManager(const RmlUIManager&) = delete;
+    RmlUIManager& operator=(const RmlUIManager&) = delete;
+    ~RmlUIManager();
+
+    static RmlUIManager* GetInstance();
+    void Init();
+    void Render(const char* contextName);
+    void Shutdown();
+    
+    Rml::Context* CreateContext(const char* contextName, Rml::String documentName);
+    Rml::Context* GetContext(const char* contextName);
+
+    void OnScreenSizeChanged(int iOldWide, int iOldTall);
+    void OnCursorMoved(int x, int y);
+    void OnMousePressed(vgui::MouseCode code);
+    void OnMouseDoublePressed(vgui::MouseCode code);
+    void OnMouseReleased(vgui::MouseCode code);
+    void OnMouseWheeled(int delta);
+    void OnKeyCodePressed(ButtonCode_t keynum);
+    void OnKeyCodeReleased(ButtonCode_t keynum);
+    void OnKeyTyped(wchar_t unichar);
+    void SetInputEnabled(bool state);
+    
+};
+
+#endif // RMLUIMANAGER_H

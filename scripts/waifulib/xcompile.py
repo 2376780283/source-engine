@@ -89,6 +89,11 @@ class Android:
 			self.api = ANDROID_64BIT_API_MIN
 			Logs.warn('API level for 64-bit target automatically was set to %d' % self.api)
 
+		ndk_bin = os.path.join(self.gen_gcc_toolchain_path(), 'bin')
+		if ndk_bin not in os.environ['PATH']:
+			os.environ['PATH'] = ndk_bin + os.pathsep + os.environ['PATH']
+			self.ctx.environ['PATH'] = os.environ['PATH']
+
 	def is_host(self):
 		'''
 		Checks if we using host compiler(implies clang)
@@ -413,7 +418,7 @@ def post_compiler_cxx_configure(conf):
 	conf.msg('Target binfmt', conf.env.DEST_BINFMT)
 
 	if conf.options.ANDROID_OPTS:
-		if conf.android.ndk_rev == 19:
+		if conf.android.ndk_rev >= 19:
 			conf.env.CXXFLAGS_cxxshlib += ['-static-libstdc++']
 			conf.env.LDFLAGS_cxxshlib += ['-static-libstdc++']
 	return

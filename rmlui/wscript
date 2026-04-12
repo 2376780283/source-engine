@@ -1,0 +1,59 @@
+#! /usr/bin/env python
+# encoding: utf-8
+
+from waflib import Utils
+import os
+
+top = '.'
+PROJECT_NAME = 'rmlui'
+
+def options(opt):
+	# stub
+	return
+
+def configure(conf):
+	return
+
+def build(bld):	
+	rml_core_dir = bld.path.find_dir('Source/Core')
+	rml_debug_dir = bld.path.find_dir('Source/Debugger')    
+	rml_cpp_files = []
+	if rml_core_dir:
+		rml_cpp_files += [f.path_from(bld.path) for f in rml_core_dir.ant_glob('**/*.cpp')]
+	if rml_debug_dir:
+		rml_cpp_files += [f.path_from(bld.path) for f in rml_debug_dir.ant_glob('**/*.cpp')]
+		   
+	source = rml_cpp_files
+	#bld.to_log("Found RmlUi sources: %r\n" % rml_cpp_files) 
+
+	bld.env.append_unique('CXXFLAGS', ['-frtti'])
+
+	includes = [
+		'.',
+		'../public',
+		'../public/tier0',
+		'../public/tier1',
+		'../common',
+		'../../thirdparty/',
+		'../../thirdparty/freetype/include/',
+		
+	]
+
+	defines = ['RMLUI_FONT_ENGINE_FREETYPE']
+
+	libs = [
+		'FT2'
+	]
+
+	bld.stlib(
+		source   = rml_cpp_files,
+		target   = PROJECT_NAME,
+		name     = PROJECT_NAME,
+		features = 'c cxx',
+		includes = includes,
+		defines  = defines,
+		use      = libs,
+		subsystem = bld.env.MSVC_SUBSYSTEM,
+		idx      = bld.get_taskgen_count()
+	)
+

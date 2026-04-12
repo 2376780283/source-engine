@@ -94,6 +94,7 @@ projects={
 		'utils/vtex',
 		'unicode',
 		'video',
+		'rmlui',
         'game/gamepadui',
 	],
 	'tests': [
@@ -411,6 +412,7 @@ def check_deps(conf):
 		conf.check(lib='png', uselib_store='PNG', define_name='HAVE_PNG')
 		conf.check(lib='curl', uselib_store='CURL', define_name='HAVE_CURL')
 		conf.check(lib='z', uselib_store='ZLIB', define_name='HAVE_ZLIB')
+		conf.check(lib='rmlui', uselib_store='RMLUI')
 		#bug 
 		if conf.env.DEST_CPU != 'aarch64':
 			conf.check(lib='unwind', uselib_store='UNWIND')
@@ -516,7 +518,13 @@ def configure(conf):
 			'-I'+os.path.abspath('.')+'/thirdparty/fontconfig',
 			'-I'+os.path.abspath('.')+'/thirdparty/freetype/include',
 			'-llog',
-			'-lz'
+			'-lz',
+			'-Wno-error=int-conversion',
+			'-Wno-int-conversion',
+			'-Wno-narrowing',
+			'-D_LIBCPP_DISABLE_DEPRECATION_WARNINGS',
+			'-DNO_STD_REGEX=1',
+			'-Wno-error',
 		]
 
 		flags += ['-funwind-tables', '-g']
