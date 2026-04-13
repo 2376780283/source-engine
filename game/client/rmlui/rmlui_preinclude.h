@@ -6,10 +6,14 @@
 #ifndef RMLUI_PREINCLUDE_H
 #define RMLUI_PREINCLUDE_H
 
-// Include RmlUI config first to ensure consistent Vector definitions
-#include "RmlUi/Config/Config.h"
+// CRITICAL: Define NULL as nullptr BEFORE anything that includes <algorithm>
+// This prevents type mismatches in std::vector templates used by RmlUI
+#ifdef NULL
+#undef NULL
+#endif
+#define NULL nullptr
 
-// Fix NULL macro conflict from Source SDK - use standard nullptr
-// This must be done AFTER basetypes.h is included, so we'll do it in the implementation files
+// Include RmlUI config 
+#include "RmlUi/Config/Config.h"
 
 #endif // RMLUI_PREINCLUDE_H

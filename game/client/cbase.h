@@ -16,6 +16,13 @@ struct studiohdr_t;
 #include <stdio.h>
 #include <stdlib.h>
 
+// Fix NULL macro BEFORE including anything that uses std:: (like utlvector)
+// This prevents type mismatches in C++ stdlib templates like std::vector
+#ifdef NULL
+#undef NULL
+#endif
+#define NULL nullptr
+
 #include <tier0/platform.h>
 #include <tier0/dbg.h>
 

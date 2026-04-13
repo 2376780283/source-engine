@@ -6,6 +6,14 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
+// CRITICAL: Define NULL as nullptr BEFORE including cbase.h
+// This ensures all std:: template instantiations (like std::vector in RmlUI)
+// see NULL as nullptr, not as an integer
+#ifdef NULL
+#undef NULL
+#endif
+#define NULL nullptr
+
 // Include pre-include header to fix NULL macro conflicts
 #include "rmlui_preinclude.h"
 
@@ -16,12 +24,6 @@
 #include <cstddef>
 
 #include "cbase.h"
-
-// Fix NULL macro after basetypes.h has been included
-#ifdef NULL
-#undef NULL
-#endif
-#define NULL nullptr
 
 #include "rmlui_systeminterface.h"
 #include "vgui/IInput.h"
