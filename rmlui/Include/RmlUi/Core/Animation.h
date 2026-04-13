@@ -1,5 +1,11 @@
 #pragma once
 
+// --- 强制移除干扰现代编译器的宏 ---
+#ifdef nullptr
+#undef nullptr
+#endif
+// ------------------------------------------
+
 #include "ID.h"
 #include "Tween.h"
 #include "Types.h"
