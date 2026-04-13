@@ -40,7 +40,7 @@ private:
     
     RmlUIManager();
     void LoadFontFaces();
-    std::map<const char*, Rml::Context*> contexts;
+    std::map<std::string, Rml::Context*> contexts;
 
 public:
     RmlUIManager(const RmlUIManager&) = delete;

@@ -6,10 +6,8 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
-#include <vector>
-#include <string>
-#include <algorithm>
-#include <map>
+// Include pre-include header to fix NULL macro conflicts
+#include "rmlui_preinclude.h"
 
 // 
 #ifdef malloc
@@ -21,11 +19,14 @@
 #ifdef realloc
 #undef realloc
 #endif
-#ifdef nullptr
-#undef nullptr
-#endif
 
 #include "cbase.h"
+
+// Fix NULL macro after basetypes.h has been included - override with 0 for RmlUI compatibility
+#ifdef NULL
+#undef NULL
+#endif
+#define NULL 0
 
 #include "rmlui_renderinterface.h"
 #include "bitmap/tgaloader.h"
@@ -599,7 +600,7 @@ void RmlUIRenderInterface::BeginFrame()
     pRenderContext->MatrixMode(MATERIAL_PROJECTION);
     pRenderContext->PushMatrix();
     pRenderContext->LoadIdentity();
-    pRenderContext->Ortho(0, ScreenHeight(), ScreenWidth(), 0, -1000, 1000);
+    pRenderContext->Ortho(0, ScreenWidth(), ScreenHeight(), 0, -1000, 1000);
 }
 
 void RmlUIRenderInterface::EndFrame()

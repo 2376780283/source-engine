@@ -5,10 +5,11 @@
 // Feel free to use it as you want to use.
 // Major code based on open source references from Source SDK.
 // ==================================================================
-#include <vector>
-#include <string>
-#include <algorithm>
-#include <map>
+
+// Include pre-include header to fix NULL macro conflicts
+#include "rmlui_preinclude.h"
+
+// Include RmlUI headers first to prevent Vector namespace conflicts
 #include <RmlUi/Core.h>
 
 // 强行解除引擎可能存在的宏污染
@@ -21,11 +22,14 @@
 #ifdef realloc
 #undef realloc
 #endif
-#ifdef nullptr
-#undef nullptr
-#endif
 
 #include "cbase.h"
+
+// Fix NULL macro after basetypes.h has been included - override with 0 for RmlUI compatibility
+#ifdef NULL
+#undef NULL
+#endif
+#define NULL 0
 #include "rmlui_panel.h"
 #include "rmlui_manager.h"
 #include "ienginevgui.h"

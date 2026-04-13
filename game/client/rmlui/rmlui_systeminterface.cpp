@@ -6,26 +6,23 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
+// Include pre-include header to fix NULL macro conflicts
+#include "rmlui_preinclude.h"
+
 #include <vector>
 #include <string>
 #include <algorithm>
 #include <map>
-
-// 强行解除引擎可能存在的宏污染
-#ifdef malloc
-#undef malloc
-#endif
-#ifdef free
-#undef free
-#endif
-#ifdef realloc
-#undef realloc
-#endif
-#ifdef nullptr
-#undef nullptr
-#endif
+#include <cstddef>
 
 #include "cbase.h"
+
+// Fix NULL macro after basetypes.h has been included - override with 0 for RmlUI compatibility
+#ifdef NULL
+#undef NULL
+#endif
+#define NULL 0
+
 #include "rmlui_systeminterface.h"
 #include "vgui/IInput.h"
 #include "vgui/Cursor.h"
@@ -39,6 +36,17 @@
 #pragma warning(disable: 4005)
 #include <Windows.h>
 #pragma warning(pop)
+#endif
+
+// 强行解除引擎可能存在的宏污染
+#ifdef malloc
+#undef malloc
+#endif
+#ifdef free
+#undef free
+#endif
+#ifdef realloc
+#undef realloc
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
