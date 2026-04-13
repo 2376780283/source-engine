@@ -22,11 +22,11 @@
 
 #include "cbase.h"
 
-// Fix NULL macro after basetypes.h has been included - override with 0 for RmlUI compatibility
+// Fix NULL macro after basetypes.h has been included
 #ifdef NULL
 #undef NULL
 #endif
-#define NULL 0
+#define NULL nullptr
 
 #include "rmlui_renderinterface.h"
 #include "bitmap/tgaloader.h"
@@ -197,7 +197,7 @@ Rml::TextureHandle RmlUIRenderInterface::GenerateTexture(
     // Cool hash name out of source
     uint32_t hash = CRC32_ProcessSingleBuffer(source.data(), source.size());
     char pName[16];
-    Q_snprintf(pName, 16, "__rml_%08X%2", hash);
+    Q_snprintf(pName, 16, "__rml_%08X", hash);
 
     // Setup texture
     ITexture* pTexture = materials->CreateProceduralTexture(

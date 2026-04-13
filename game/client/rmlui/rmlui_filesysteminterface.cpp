@@ -22,11 +22,11 @@
 
 #include "cbase.h"
 
-// Fix NULL macro after basetypes.h has been included - override with 0 for RmlUI compatibility
+// Fix NULL macro after basetypes.h has been included
 #ifdef NULL
 #undef NULL
 #endif
-#define NULL 0
+#define NULL nullptr
 #include "filesystem.h"
 
 #include "rmlui_filesysteminterface.h"
