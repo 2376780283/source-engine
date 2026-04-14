@@ -8,11 +8,6 @@
  * define) to the path of that file.
  */
 
-// Undef NULL to prevent conflicts with std::nullptr in C++11 and later
-#ifdef NULL
-#undef NULL
-#endif
-
 #ifdef RMLUI_CUSTOM_CONFIGURATION_FILE
 	#include RMLUI_CUSTOM_CONFIGURATION_FILE
 #else

@@ -255,10 +255,8 @@ public:
 	/// The returned constructor can be used to bind data variables. Elements can bind to the model using the attribute 'data-model="name"'.
 	/// @param[in] name The name of the data model.
 	/// @param[in] data_type_register The data type register to use for the data model, or null to use the default register.
-	/// @param[in] allow_missing_variables If true, allows variables to be bound after document load. Views referencing
-	///            not-yet-bound variables will silently produce default values until the variable is bound and dirtied.
 	/// @return A constructor for the data model, or empty if it could not be created.
-	DataModelConstructor CreateDataModel(const String& name, DataTypeRegister* data_type_register = nullptr, bool allow_missing_variables = false);
+	DataModelConstructor CreateDataModel(const String& name, DataTypeRegister* data_type_register = nullptr);
 	/// Retrieves the constructor for an existing data model.
 	/// The returned constructor can be used to add additional bindings to an existing model.
 	/// @param[in] name The name of the data model.
@@ -429,13 +427,21 @@ private:
 
 	// Helper method to lookup TouchState by touch id.
 	TouchState* LookupTouch(TouchId identifier);
-	// Process a single touch movement for this context.
+	/// Process single touch movement for this context.
+	/// @param[in] touch Touch data: identifier and coordinates.
+	/// @return True if touch point is not interacting with any elements in the context, otherwise false.
 	bool ProcessTouchMove(const Touch& touch, int key_modifier_state);
-	// Process a single touch press for this context.
+	/// Process single touch press for this context.
+	/// @param[in] touch Touch data: identifier and coordinates.
+	/// @return True if touch point is not interacting with any elements in the context, otherwise false.
 	bool ProcessTouchStart(const Touch& touch, int key_modifier_state);
-	// Process a single touch release for this context.
+	/// Process single touch release for this context.
+	/// @param[in] touch Touch data: identifier and coordinates.
+	/// @return True if touch point is not interacting with any elements in the context, otherwise false.
 	bool ProcessTouchEnd(const Touch& touch, int key_modifier_state);
-	// Cancel processing a touch for this context.
+	/// Cancel processing touch for this context.
+	/// @param[in] touch Touch data: identifier and coordinates.
+	/// @return True if touch point is not interacting with any elements in the context, otherwise false.
 	bool ProcessTouchCancel(const Touch& touch);
 
 	// Sends the specified event to all elements in new_items that don't appear in old_items.

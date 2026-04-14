@@ -7,10 +7,8 @@
 
 #define GLFW_HAS_EXTRA_CURSORS (GLFW_VERSION_MAJOR >= 3 && GLFW_VERSION_MINOR >= 4)
 
-SystemInterface_GLFW::SystemInterface_GLFW(GLFWwindow* window) : window(window)
+SystemInterface_GLFW::SystemInterface_GLFW()
 {
-	RMLUI_ASSERTMSG(window, "Please provide a valid SDL window to the SDL system interface");
-
 	cursor_pointer = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
 	cursor_cross = glfwCreateStandardCursor(GLFW_CROSSHAIR_CURSOR);
 	cursor_text = glfwCreateStandardCursor(GLFW_IBEAM_CURSOR);
@@ -35,6 +33,11 @@ SystemInterface_GLFW::~SystemInterface_GLFW()
 	glfwDestroyCursor(cursor_resize);
 	glfwDestroyCursor(cursor_unavailable);
 #endif
+}
+
+void SystemInterface_GLFW::SetWindow(GLFWwindow* in_window)
+{
+	window = in_window;
 }
 
 double SystemInterface_GLFW::GetElapsedTime()
@@ -63,23 +66,30 @@ void SystemInterface_GLFW::SetMouseCursor(const Rml::String& cursor_name)
 	else if (Rml::StringUtilities::StartsWith(cursor_name, "rmlui-scroll"))
 		cursor = cursor_move;
 
-	glfwSetCursor(window, cursor);
+	if (window)
+		glfwSetCursor(window, cursor);
 }
 
 void SystemInterface_GLFW::SetClipboardText(const Rml::String& text_utf8)
 {
-	glfwSetClipboardString(window, text_utf8.c_str());
+	if (window)
+		glfwSetClipboardString(window, text_utf8.c_str());
 }
 
 void SystemInterface_GLFW::GetClipboardText(Rml::String& text)
 {
-	if (const char* clipboard = glfwGetClipboardString(window))
+	if (window)
 	{
-		text = Rml::String(clipboard);
-	}
-	else
-	{
-		text.clear();
+		const char* clipboard = glfwGetClipboardString(window);
+
+		if (clipboard != nullptr)
+		{
+			text = Rml::String(clipboard);
+		}
+		else
+		{
+			text.clear();
+		}
 	}
 }
 

@@ -44,32 +44,32 @@ using DataAddress = Vector<DataAddressEntry>;
 
 template <class T>
 struct PointerTraits {
-	static constexpr bool is_pointer_v = std::false_type::value;
+	using is_pointer = std::false_type;
 	using element_type = T;
 	static void* Dereference(void* ptr) { return ptr; }
 };
 template <class T>
 struct PointerTraits<T*> {
-	static constexpr bool is_pointer_v = std::true_type::value;
+	using is_pointer = std::true_type;
 	using element_type = T;
 	static void* Dereference(void* ptr) { return static_cast<void*>(*static_cast<T**>(ptr)); }
 };
 template <class T>
 struct PointerTraits<UniquePtr<T>> {
-	static constexpr bool is_pointer_v = std::true_type::value;
+	using is_pointer = std::true_type;
 	using element_type = T;
 	static void* Dereference(void* ptr) { return static_cast<void*>(static_cast<UniquePtr<T>*>(ptr)->get()); }
 };
 template <class T>
 struct PointerTraits<SharedPtr<T>> {
-	static constexpr bool is_pointer_v = std::true_type::value;
+	using is_pointer = std::true_type;
 	using element_type = T;
 	static void* Dereference(void* ptr) { return static_cast<void*>(static_cast<SharedPtr<T>*>(ptr)->get()); }
 };
 
 struct VoidMemberFunc {};
 template <typename T>
-constexpr bool IsVoidMemberFunc = std::is_same_v<T, VoidMemberFunc>;
+using IsVoidMemberFunc = std::is_same<T, VoidMemberFunc>;
 
 #define RMLUI_LOG_TYPE_ERROR(T, msg) RMLUI_ERRORMSG((String(msg) + String("\nT: ") + String(rmlui_type_name<T>())).c_str())
 #define RMLUI_LOG_TYPE_ERROR_ASSERT(T, val, msg) RMLUI_ASSERTMSG((val), (String(msg) + String("\nT: ") + String(rmlui_type_name<T>())).c_str())

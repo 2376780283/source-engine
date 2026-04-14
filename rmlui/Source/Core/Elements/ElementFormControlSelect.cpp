@@ -146,9 +146,8 @@ void ElementFormControlSelect::MoveChildren()
 
 bool ElementFormControlSelect::GetIntrinsicDimensions(Vector2f& intrinsic_dimensions, float& /*ratio*/)
 {
-	intrinsic_dimensions.x = 128 * ElementUtilities::GetDensityIndependentPixelRatio(this);
-	intrinsic_dimensions.y = GetLineHeight();
-
+	intrinsic_dimensions.x = 128;
+	intrinsic_dimensions.y = 16;
 	return true;
 }
 

@@ -95,8 +95,6 @@ public:
     Lifetime governed by the calls to Backend::Initialize() and Backend::Shutdown().
  */
 struct BackendData {
-	BackendData(SDL_Window* window) : system_interface(window) {}
-
 	SystemInterface_SDL system_interface;
 	RenderInterface_GL2_SDL render_interface;
 
@@ -184,11 +182,12 @@ bool Backend::Initialize(const char* window_name, int width, int height, bool al
 	SDL_GL_MakeCurrent(window, glcontext);
 	SDL_GL_SetSwapInterval(1);
 
-	data = Rml::MakeUnique<BackendData>(window);
+	data = Rml::MakeUnique<BackendData>();
 
 	data->window = window;
 	data->glcontext = glcontext;
 
+	data->system_interface.SetWindow(window);
 	data->render_interface.SetViewport(width, height);
 
 	return true;

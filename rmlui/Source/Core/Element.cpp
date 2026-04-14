@@ -435,9 +435,6 @@ void Element::SetBox(const Box& box)
 		meta->background_border.DirtyBackground();
 		meta->background_border.DirtyBorder();
 		meta->effects.DirtyEffectsData();
-
-		if (transform_state)
-			DirtyTransformState(true, true);
 	}
 }
 

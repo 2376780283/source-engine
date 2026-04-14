@@ -315,9 +315,9 @@ void RenderInterface_GL2::SetTransform(const Rml::Matrix4f* transform)
 
 	if (transform)
 	{
-		if (std::is_same_v<Rml::Matrix4f, Rml::ColumnMajorMatrix4f>)
+		if (std::is_same<Rml::Matrix4f, Rml::ColumnMajorMatrix4f>::value)
 			glLoadMatrixf(transform->data());
-		else if (std::is_same_v<Rml::Matrix4f, Rml::RowMajorMatrix4f>)
+		else if (std::is_same<Rml::Matrix4f, Rml::RowMajorMatrix4f>::value)
 			glLoadMatrixf(transform->Transpose().data());
 	}
 	else

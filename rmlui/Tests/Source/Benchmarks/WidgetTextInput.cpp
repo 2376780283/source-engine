@@ -108,7 +108,6 @@ TEST_CASE("WidgetTextInput")
 				context->ProcessKeyDown(Input::KI_END, 0);
 				context->ProcessKeyUp(Input::KI_END, 0);
 				context->Update();
-				context->Render();
 
 				bench.complexityN(num_character_repeats).epochs(1).epochIterations(num_character_repeats >= 100 ? 1 : 0).run(test_case.name, [&] {
 					context->ProcessMouseMove(250, 50, 0);
@@ -117,7 +116,6 @@ TEST_CASE("WidgetTextInput")
 					context->ProcessMouseButtonUp(0, 0);
 					IncrementTime();
 					context->Update();
-					context->Render();
 				});
 
 				// Sanity check that the above produces a selection as intended.

@@ -96,7 +96,7 @@ void ElementFormControlTextArea::SetCompositionRange(int range_start, int range_
 bool ElementFormControlTextArea::GetIntrinsicDimensions(Vector2f& dimensions, float& /*ratio*/)
 {
 	dimensions.x = (float)(GetNumColumns() * ElementUtilities::GetStringWidth(this, "m"));
-	dimensions.y = GetNumRows() * GetLineHeight();
+	dimensions.y = (float)GetNumRows() * Math::Round(GetLineHeight());
 
 	return true;
 }
@@ -137,11 +137,7 @@ void ElementFormControlTextArea::OnAttributeChange(const ElementAttributes& chan
 
 	it = changed_attributes.find("value");
 	if (it != changed_attributes.end())
-		widget->OnValueAttributeChanged(it->second.Get<String>());
-
-	it = changed_attributes.find("placeholder");
-	if (it != changed_attributes.end())
-		widget->OnPlaceholderAttributeChanged(it->second.Get<String>());
+		widget->SetValue(it->second.Get<String>());
 }
 
 void ElementFormControlTextArea::OnPropertyChange(const PropertyIdSet& changed_properties)

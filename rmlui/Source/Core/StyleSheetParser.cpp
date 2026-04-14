@@ -914,13 +914,6 @@ StyleSheetNode* StyleSheetParser::ImportProperties(StyleSheetNode* node, const S
 			{
 				int parenthesis_count = 0;
 
-				if (rule[start_index] == ':')
-				{
-					// Parse pseudo-element ::A as pseudo-class with name :A
-					if (end_index < rule.size() && rule[end_index] == ':')
-						end_index += 1;
-				}
-
 				// Read until we hit the next identifier. Don't match inside parenthesis in case of structural selectors.
 				for (; end_index < rule.size(); end_index++)
 				{
@@ -1063,8 +1056,6 @@ bool StyleSheetParser::ReadCharacter(char& buffer)
 
 					if (parse_buffer[parse_buffer_pos] == '/')
 						comment = false;
-					else
-						parse_buffer_pos--;
 				}
 			}
 			else

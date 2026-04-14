@@ -7,8 +7,11 @@
 
 class SystemInterface_GLFW : public Rml::SystemInterface {
 public:
-	SystemInterface_GLFW(GLFWwindow* window);
+	SystemInterface_GLFW();
 	~SystemInterface_GLFW();
+
+	// Optionally, provide or change the window to be used for setting the mouse cursors and clipboard text.
+	void SetWindow(GLFWwindow* window);
 
 	// -- Inherited from Rml::SystemInterface  --
 

@@ -92,8 +92,7 @@ static String DataAddressToString(const DataAddress& address)
 	return result;
 }
 
-DataModel::DataModel(DataTypeRegister* data_type_register, bool allow_missing_variables) :
-	data_type_register(data_type_register), allow_missing_variables(allow_missing_variables)
+DataModel::DataModel(DataTypeRegister* data_type_register) : data_type_register(data_type_register)
 {
 	views = MakeUnique<DataViews>();
 	controllers = MakeUnique<DataControllers>();
@@ -211,14 +210,14 @@ void DataModel::CopyAliases(Element* from_element, Element* to_element)
 {
 	if (from_element == to_element)
 		return;
-
 	auto existing_map = aliases.find(from_element);
+
 	if (existing_map != aliases.end())
 	{
 		// Need to create a copy to prevent errors during concurrent modification for 3rd party containers
-		SmallUnorderedMap<String, DataAddress> copy = existing_map->second;
-		for (auto& [name, address] : copy)
-			aliases[to_element][name] = std::move(address);
+		auto copy = existing_map->second;
+		for (auto const& it : copy)
+			aliases[to_element][it.first] = std::move(it.second);
 	}
 }
 
@@ -263,9 +262,6 @@ DataAddress DataModel::ResolveAddress(const String& address_str, Element* elemen
 
 		ancestor = ancestor->GetParentNode();
 	}
-
-	if (allow_missing_variables)
-		return address;
 
 	Log::Message(Log::LT_WARNING, "Could not find variable name '%s' in data model.", address_str.c_str());
 
@@ -317,7 +313,7 @@ bool DataModel::GetVariableInto(const DataAddress& address, Variant& out_value) 
 {
 	DataVariable variable = GetVariable(address);
 	bool result = (variable && variable.Get(out_value));
-	if (!result && !allow_missing_variables)
+	if (!result)
 		Log::Message(Log::LT_WARNING, "Could not get value from data variable '%s'.", DataAddressToString(address).c_str());
 	return result;
 }
@@ -325,8 +321,7 @@ bool DataModel::GetVariableInto(const DataAddress& address, Variant& out_value) 
 void DataModel::DirtyVariable(const String& variable_name)
 {
 	RMLUI_ASSERTMSG(LegalVariableName(variable_name) == nullptr, "Illegal variable name provided. Only top-level variables can be dirtied.");
-	RMLUI_ASSERTMSG(allow_missing_variables || variables.count(variable_name) == 1,
-		"In DirtyVariable: Variable name not found among added variables.");
+	RMLUI_ASSERTMSG(variables.count(variable_name) == 1, "In DirtyVariable: Variable name not found among added variables.");
 	dirty_variables.emplace(variable_name);
 }
 

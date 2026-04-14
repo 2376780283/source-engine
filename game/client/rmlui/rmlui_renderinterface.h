@@ -121,21 +121,6 @@ public:
 
 	/// Called by RmlUi when it wants to release (destroy) created shader.
 	void ReleaseShader(Rml::CompiledShaderHandle shader) override;
-
-	// ------------------------------ Filters ------------------------------
-
-	/// Called by RmlUi when it wants to compile a new filter.
-	/// @param[in] name The name of the filter.
-	/// @param[in] parameters The list of name-value parameters specified for the filter.
-	/// @return An application-specified handle representing the compiled filter.
-	Rml::CompiledFilterHandle CompileFilter(
-		const Rml::String& name,
-		const Rml::Dictionary& parameters
-	) override;
-
-	/// Called by RmlUi when it no longer needs a previously compiled filter.
-	/// @param[in] filter The handle to a previously compiled filter.
-	void ReleaseFilter(Rml::CompiledFilterHandle filter) override;
 };
 #endif
 

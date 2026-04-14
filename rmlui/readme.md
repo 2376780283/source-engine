@@ -8,11 +8,10 @@ RmlUi - now with added boosters taking control of the rocket, targeting *your* g
 
 [![Chat on Gitter](https://badges.gitter.im/RmlUi/community.svg)](https://gitter.im/RmlUi/community?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
 [![Build](https://github.com/mikke89/RmlUi/actions/workflows/build.yml/badge.svg)](https://github.com/mikke89/RmlUi/actions/workflows/build.yml)
-[![Build status](https://ci.appveyor.com/api/projects/status/x95oi8mrb001pqhh/branch/master?svg=true)](https://ci.appveyor.com/project/mikke89/rmlui/branch/master)
 
-RmlUi is the C++ user interface package based on the HTML and CSS standards, designed as a complete solution for any project's interface needs. It is a fork of the [libRocket](https://github.com/libRocket/libRocket) project, introducing new features, bug fixes, and performance improvements.
+RmlUi is the C++ user interface package based on the HTML and CSS standards, designed as a complete solution for any project's interface needs. It is a fork of the [libRocket](https://github.com/libRocket/libRocket) project, introducing new features, bug fixes, and performance improvements. 
 
-RmlUi aims at being a light-weight and performant library with its own layout engine and few dependencies. In essence, RmlUi takes your HTML/CSS-like source files and turns them into vertices, indices and draw commands, and then you bring your own renderer to draw them. And of course there is full access to the element hierarchy/DOM, event handling, and all the interactivity and customizability you would expect. All of this directly from C++, or optionally from scripting languages using plugins. The core library compiles down to fractions of the size it takes to integrate a fully fledged web browser. 
+RmlUi aims at being a light-weight and performant library with its own layouting engine and few dependencies. In essence, RmlUi takes your HTML/CSS-like source files and turns them into vertices, indices and draw commands, and then you bring your own renderer to draw them. And of course there is full access to the element hierarchy/DOM, event handling, and all the interactivity and customizability you would expect. All of this directly from C++, or optionally from scripting languages using plugins. The core library compiles down to fractions of the size it takes to integrate a fully fledged web browser. 
 
 RmlUi is based around the XHTML1 and CSS2 standards while integrating features from HTML5 and CSS3, and extends them with features suited towards real-time applications. Take a look at the [conformance](#conformance) and [enhancements](#enhancements) sections below for details.
 
@@ -79,18 +78,14 @@ RmlUi adds features and enhancements over CSS and HTML where it makes sense, mos
 - [FreeType](https://www.freetype.org/). However, it can be fully replaced by a custom [font engine](https://mikke89.github.io/RmlUiDoc/pages/cpp_manual/interfaces/font_engine.html).
 - The standard library.
 
-In addition, a C++17 compatible compiler is required.
+In addition, a C++14 compatible compiler is required.
 
 
 ## Building RmlUi
 
-### CMake
+RmlUi is built using CMake and your favorite compiler, see the [building documentation](https://mikke89.github.io/RmlUiDoc/pages/cpp_manual/building_with_cmake.html) for all the details and options. Windows binaries are also available for the [latest release](https://github.com/mikke89/RmlUi/releases/latest). Most conveniently, it is possible to fetch the library using a dependency manager such as [vcpkg](https://vcpkg.io/en/getting-started.html) or [Conan](https://conan.io/).
 
-RmlUi can be built using CMake and your favorite compiler, see the [building documentation](https://mikke89.github.io/RmlUiDoc/pages/cpp_manual/building_with_cmake.html) for details and all the options. Windows binaries are also available for the [latest release](https://github.com/mikke89/RmlUi/releases/latest).
-
-### vcpkg
-
-RmlUi can also be fetched from a dependency manager such as [vcpkg](https://vcpkg.io/en/getting-started.html).
+#### vcpkg
 
 ```
 vcpkg install rmlui
@@ -107,9 +102,14 @@ cd RmlUi
 cmake -B Build -S . --preset samples -DRMLUI_BACKEND=GLFW_GL3 -DCMAKE_TOOLCHAIN_FILE="<path-to-vcpkg>/scripts/buildsystems/vcpkg.cmake"
 cmake --build Build
 ```
-Make sure to replace `<path-to-vcpkg>` as appropriate. This example uses the `GLFW_GL3` backend, other backends are available as shown below. When this completes, feel free to test the freshly built samples, such as the `invaders` sample (`rmlui_sample_invaders` target), and enjoy! The executables should be located somewhere in the `Build` directory.
+Make sure to replace the path to vcpkg. This example uses the `GLFW_GL3` backend, other backends are available as shown below. When this completes, feel free to test the freshly built samples, such as the `invaders` sample (`rmlui_sample_invaders` target), and enjoy! The executables should be located somewhere in the `Build` directory.
 
 To make all the samples available, you can additionally install `lua lunasvg rlottie harfbuzz` and pass `--preset samples-all` during CMake configuration.
+
+#### Conan
+
+RmlUi is readily available from [ConanCenter](https://conan.io/center/recipes/rmlui).
+
 
 ## Integrating RmlUi
 
@@ -140,14 +140,11 @@ The provided backends on the other hand are not intended to be used directly by 
 
 | Renderer features | Basic rendering | Transforms | Clip masks | Filters | Shaders | Built-in image support                                            |
 |-------------------|:---------------:|:----------:|:----------:|:-------:|:-------:|-------------------------------------------------------------------|
-| OpenGL 3 (GL3)*   |       ✔️        |     ✔️     |     ✔️     |    ✔️    |    ✔️    | Uncompressed TGA                                                  |
 | OpenGL 2 (GL2)    |       ✔️        |     ✔️     |     ✔️     |    ❌    |    ❌    | Uncompressed TGA                                                  |
+| OpenGL 3 (GL3)    |       ✔️        |     ✔️     |     ✔️     |    ✔️    |    ✔️    | Uncompressed TGA                                                  |
 | Vulkan (VK)       |       ✔️        |     ✔️     |     ❌     |    ❌    |    ❌    | Uncompressed TGA                                                  |
 | SDL GPU           |       ✔️        |     ✔️     |     ❌     |    ❌    |    ❌    | Based on [SDL_image](https://wiki.libsdl.org/SDL_image/FrontPage) |
 | SDLrenderer       |       ✔️        |     ❌     |     ❌     |    ❌    |    ❌    | Based on [SDL_image](https://wiki.libsdl.org/SDL_image/FrontPage) |
-| DirectX 12        |       ✔️        |     ✔️     |     ✔️     |    ✔️    |    ✔️    | Uncompressed TGA                                                  |
-
-*\* Reference implementation*
 
 **Basic rendering**: Render geometry with colors, textures, and rectangular clipping (scissoring). Sufficient for basic 2D layouts.\
 **Transforms**: Enables the `transform` and `perspective` properties to take effect.\
@@ -168,18 +165,18 @@ The provided backends on the other hand are not intended to be used directly by 
 
 **Basic windowing**: Open windows, react to resize events, submit inputs to the RmlUi context.\
 **Clipboard**: Read from and write to the system clipboard.\
-**High DPI**: Scale the [dp-ratio](https://mikke89.github.io/RmlUiDoc/pages/rcss/syntax.html#dp-unit) of RmlUi contexts based on the monitor's DPI settings. React to DPI-changes, either because of changed settings or when moving the window to another monitor. \
+**High DPI**: Scale the [dp-ratio](https://mikke89.github.io/RmlUiDoc/pages/rcss/syntax#dp-unit) of RmlUi contexts based on the monitor's DPI settings. React to DPI-changes, either because of changed settings or when moving the window to another monitor. \
 **Touch**: Process touch events, enable dragging and inertial scrolling with touch movement.
 
 ### Backends
 
-| Platform \ Renderer |     OpenGL 2      |     OpenGL 3     |      Vulkan      |     SDL GPU     |       SDLrenderer       |     DirectX 12     |
-|---------------------|:-----------------:|:----------------:|:----------------:|:---------------:|:-----------------------:|:------------------:|
-| Win32               | ✔️<br>`Win32_GL2` |                  | ✔️<br>`Win32_VK` |                 |                         | ✔️<br>`Win32_DX12` |
-| X11                 |  ✔️<br>`X11_GL2`  |                  |                  |                 |                         |                    |
-| SFML                | ✔️<br>`SFML_GL2`  |                  |                  |                 |                         |                    |
-| GLFW                | ✔️<br>`GLFW_GL2`  | ✔️<br>`GLFW_GL3` | ✔️<br>`GLFW_VK`  |                 |                         | ✔️<br>`GLFW_DX12`  |
-| SDL¹                |  ✔️<br>`SDL_GL2`  | ✔️²<br>`SDL_GL3` |  ✔️<br>`SDL_VK`  | ✔️<br>`SDL_GPU` | ✔️<br>`SDL_SDLrenderer` |  ✔️<br>`SDL_DX12`  |
+| Platform \ Renderer | OpenGL 2       | OpenGL 3      | Vulkan        | SDL GPU      | SDLrenderer          |
+|---------------------|:----------------:|:---------------:|:---------------:|:--------------:|:----------------------:|
+| Win32               | ✔️<br>`Win32_GL2` |               | ✔️<br>`Win32_VK` |              |                      |
+| X11                 | ✔️<br>`X11_GL2`   |               |               |              |                      |
+| SFML                | ✔️<br>`SFML_GL2`  |               |               |              |                      |
+| GLFW                | ✔️<br>`GLFW_GL2`  | ✔️<br>`GLFW_GL3` | ✔️<br>`GLFW_VK`  |              |                      |
+| SDL¹                | ✔️<br>`SDL_GL2`   | ✔️²<br>`SDL_GL3` | ✔️<br>`SDL_VK`   | ✔️<br>`SDL_GPU` | ✔️<br>`SDL_SDLrenderer` |
 
 ¹ SDL backends extend their respective renderers to provide image support based on SDL_image.\
 ² Supports Emscripten compilation target.
@@ -270,7 +267,7 @@ class MyRenderInterface : public Rml::RenderInterface
     // RmlUi sends vertices, indices and draw commands through this interface for your
     // application to render how you'd like.
     /* ... */
-};
+}
 
 struct ApplicationData {
     bool show_text = true;
@@ -423,12 +420,6 @@ https://github.com/user-attachments/assets/c336e19b-3448-4d92-ad4a-72cf7ec7185c
 
 ![Unvanquished 0.54 collage](https://user-images.githubusercontent.com/5490330/230487771-5108a273-8b76-4216-8324-d9e5af102622.jpg)
 
-### vkQuake + RmlUi 
-
-[vkQuake + RmlUi](https://github.com/bradenleague/vkQuake-RmlUi). A vkQuake fork that replaces Quake's menu and HUD systems with RmlUi. \[[teaser trailer](https://youtu.be/vEAeOuetTQ0)\]
-
-<img width="2247" height="1228" alt="vkQuake + RmlUi" src="https://github.com/user-attachments/assets/0ef7f033-6852-490b-9fe4-14100995b6a7" />
-
 ### alt:V installer
 
 [alt:V](https://altv.mp/) installer. A multiplayer client for GTA V.
@@ -556,13 +547,9 @@ See
 
 See [Backends/RmlUi_Vulkan/LICENSE.txt](Backends/RmlUi_Vulkan/LICENSE.txt) - MIT license.
 
-#### Library included with the DirectX 12 backend *(in Backends/RmlUi_DirectX/)*
-
-See [Backends/RmlUi_DirectX/LICENSE.txt](Backends/RmlUi_DirectX/LICENSE.txt) - MIT license.
-
 #### Library included with the SDL GPU backend *(in Backends/RmlUi_SDL_GPU/)*
 
-See [Backends/RmlUi_SDL_GPU/SDL_shadercross/LICENSE.txt](Backends/RmlUi_SDL_GPU/SDL_shadercross/LICENSE.txt) - Zlib license.
+See [Backends/RmlUi_SDL_GPU/LICENSE.txt](Backends/RmlUi_SDL_GPU/LICENSE.txt) - Zlib license.
 
 #### Libraries included with the test suite *(in Tests/Dependencies/)*
 

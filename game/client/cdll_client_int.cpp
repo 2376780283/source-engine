@@ -4,6 +4,15 @@
 //
 // $NoKeywords: $
 //===========================================================================//
+
+#include <vector>
+#include <string>
+#include <algorithm>
+
+#ifdef RMLUI
+#include <rmlui/rmlui_manager.h>
+#endif
+
 #include "cbase.h"
 #include <crtmemdebug.h>
 #include "vgui_int.h"
@@ -174,10 +183,6 @@ extern vgui::IInputInternal *g_InputInternal;
 
 #ifdef SIXENSE
 #include "sixense/in_sixense.h"
-#endif
-
-#ifdef RMLUI
-#include <rmlui/rmlui_manager.h>
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!
@@ -1172,10 +1177,6 @@ void CHLClient::PostInit()
 	}
 #endif
 
-#ifdef RMLUI
-	RmlUIManager::GetInstance()->Init();
-#endif
-
 #ifndef PORTAL
 #if defined(GAMEPADUI)
     if (IsGamepadUI())
@@ -1263,6 +1264,11 @@ void CHLClient::PostInit()
     }
 #endif // GAMEPADUI
 #endif
+
+#ifdef RMLUI
+	RmlUIManager::GetInstance()->Init();
+#endif
+
 }
 
 //-----------------------------------------------------------------------------
@@ -1343,6 +1349,7 @@ void CHLClient::Shutdown( void )
 #ifdef RMLUI
 	RmlUIManager::GetInstance()->Shutdown();
 #endif  
+
 }
 
 
