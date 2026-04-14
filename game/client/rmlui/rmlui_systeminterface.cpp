@@ -6,25 +6,31 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
-// CRITICAL: Define NULL as nullptr BEFORE including cbase.h
-// This ensures all std:: template instantiations (like std::vector in RmlUI)
-// see NULL as nullptr, not as an integer
 #ifdef NULL
 #undef NULL
 #endif
 #define NULL nullptr
 
-// Include pre-include header to fix NULL macro conflicts
-#include "rmlui_preinclude.h"
-
 #include <vector>
 #include <string>
 #include <algorithm>
 #include <map>
-#include <cstddef>
+
+// 强行解除引擎可能存在的宏污染
+#ifdef malloc
+#undef malloc
+#endif
+#ifdef free
+#undef free
+#endif
+#ifdef realloc
+#undef realloc
+#endif
+#ifdef nullptr
+#undef nullptr
+#endif
 
 #include "cbase.h"
-
 #include "rmlui_systeminterface.h"
 #include "vgui/IInput.h"
 #include "vgui/Cursor.h"
@@ -38,17 +44,6 @@
 #pragma warning(disable: 4005)
 #include <Windows.h>
 #pragma warning(pop)
-#endif
-
-// 强行解除引擎可能存在的宏污染
-#ifdef malloc
-#undef malloc
-#endif
-#ifdef free
-#undef free
-#endif
-#ifdef realloc
-#undef realloc
 #endif
 
 // memdbgon must be the last include file in a .cpp file!!!

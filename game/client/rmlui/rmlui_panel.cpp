@@ -6,18 +6,15 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
-// CRITICAL: Define NULL as nullptr BEFORE including cbase.h
-// This ensures all std:: template instantiations (like std::vector in RmlUI)
-// see NULL as nullptr, not as an integer
 #ifdef NULL
 #undef NULL
 #endif
 #define NULL nullptr
 
-// Include pre-include header to fix NULL macro conflicts
-#include "rmlui_preinclude.h"
-
-// Include RmlUI headers first to prevent Vector namespace conflicts
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <map>
 #include <RmlUi/Core.h>
 
 // 强行解除引擎可能存在的宏污染
@@ -30,10 +27,11 @@
 #ifdef realloc
 #undef realloc
 #endif
+#ifdef nullptr
+#undef nullptr
+#endif
 
 #include "cbase.h"
-
-#define NULL nullptr
 #include "rmlui_panel.h"
 #include "rmlui_manager.h"
 #include "ienginevgui.h"
@@ -43,7 +41,9 @@
 
 RmlUiPanel::RmlUiPanel()
 {    
-    SetParent(enginevgui->GetPanel(PANEL_INGAMESCREENS));
+    // 使用 PANEL_ROOT 确保面板在所有情况下都能显示，包括主菜单
+    // PANEL_INGAMESCREENS 只在游戏内有效，主菜单时会被隐藏
+    SetParent(enginevgui->GetPanel(PANEL_ROOT));
 
     // Set panel to full screen.
     int screenWide, screenTall;

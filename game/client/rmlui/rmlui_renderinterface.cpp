@@ -6,18 +6,10 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
-// CRITICAL: Define NULL as nullptr BEFORE including cbase.h
-// This ensures all std:: template instantiations (like std::vector in RmlUI)
-// see NULL as nullptr, not as an integer
-#ifdef NULL
-#undef NULL
-#endif
-#define NULL nullptr
-
-// Include pre-include header to fix NULL macro conflicts
-#include "rmlui_preinclude.h"
-
-// 
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <map>
 #ifdef malloc
 #undef malloc
 #endif
@@ -27,7 +19,14 @@
 #ifdef realloc
 #undef realloc
 #endif
+#ifdef nullptr
+#undef nullptr
+#endif
 
+#ifdef NULL
+#undef NULL
+#endif
+#define NULL nullptr
 #include "cbase.h"
 
 #include "rmlui_renderinterface.h"
@@ -199,7 +198,7 @@ Rml::TextureHandle RmlUIRenderInterface::GenerateTexture(
     // Cool hash name out of source
     uint32_t hash = CRC32_ProcessSingleBuffer(source.data(), source.size());
     char pName[16];
-    Q_snprintf(pName, 16, "__rml_%08X", hash);
+    Q_snprintf(pName, 16, "__rml_%08X%2", hash);
 
     // Setup texture
     ITexture* pTexture = materials->CreateProceduralTexture(
@@ -556,6 +555,25 @@ Rml::CompiledShaderHandle RmlUIRenderInterface::CompileShader(
     return reinterpret_cast<Rml::CompiledShaderHandle>(shaderHandle);
 }
 
+Rml::CompiledFilterHandle RmlUIRenderInterface::CompileFilter(
+    const Rml::String& /*name*/,
+    const Rml::Dictionary& /*parameters*/
+)
+{
+    // Filters are not supported in this renderer
+    // Return empty handle to indicate filter is not compiled
+    return Rml::CompiledFilterHandle{};
+}
+
+void RmlUIRenderInterface::ReleaseFilter(
+    Rml::CompiledFilterHandle /*filter*/
+)
+{
+    // No-op: we don't allocate any resources for filters
+}
+
+
+
 void RmlUIRenderInterface::RenderShader(
     Rml::CompiledShaderHandle shader,
     Rml::CompiledGeometryHandle geometry,
@@ -602,7 +620,7 @@ void RmlUIRenderInterface::BeginFrame()
     pRenderContext->MatrixMode(MATERIAL_PROJECTION);
     pRenderContext->PushMatrix();
     pRenderContext->LoadIdentity();
-    pRenderContext->Ortho(0, ScreenWidth(), ScreenHeight(), 0, -1000, 1000);
+    pRenderContext->Ortho(0, ScreenHeight(), ScreenWidth(), 0, -1000, 1000);
 }
 
 void RmlUIRenderInterface::EndFrame()

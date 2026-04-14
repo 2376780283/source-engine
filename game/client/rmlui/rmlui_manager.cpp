@@ -6,21 +6,20 @@
 // Major code based on open source references from Source SDK.
 // ==================================================================
 
-// CRITICAL: Define NULL as nullptr BEFORE including cbase.h
-// This ensures all std:: template instantiations (like std::vector in RmlUI)
-// see NULL as nullptr, not as an integer
 #ifdef NULL
 #undef NULL
 #endif
 #define NULL nullptr
 
-// Include pre-include header to fix NULL macro conflicts
-#include "rmlui_preinclude.h"
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <map>
 
-// Include RmlUI headers first to prevent Vector namespace conflicts
 #include <RmlUi/Core/EventListener.h> 
 #include <RmlUi/Core/Event.h>
 #include <RmlUi/Core/Element.h>
+
 #include <RmlUi/Core/EventListenerInstancer.h>
 #include <RmlUi/Core/Factory.h>
 
@@ -33,6 +32,9 @@
 #endif
 #ifdef realloc
 #undef realloc
+#endif
+#ifdef nullptr
+#undef nullptr
 #endif
 
 #include "cbase.h"
@@ -79,12 +81,8 @@ class MenuEventListener : public Rml::EventListener {
 public:
     void ProcessEvent(Rml::Event& event) override {
         Rml::Element* element = event.GetCurrentElement();
-        if (!element) return;
-        
-        Rml::Variant* attr = element->GetAttribute("data-cmd");
-        if (!attr) return;
-        
-        Rml::String command = attr->Get<Rml::String>("");
+        if (!element) return;       
+        Rml::String command = element->GetAttribute("data-cmd")->Get<Rml::String>("");
         
         if (!command.empty() && engine) {
             engine->ClientCmd_Unrestricted(command.c_str());
@@ -145,12 +143,11 @@ void RmlUIManager::Init()
 /// Render all contexts
 void RmlUIManager::Render(const char* contextName)
 {
-	if (!contextName)
-		return;
-
 	Rml::Context* context = contexts[contextName];
 
-    if ( !engine->IsInGame() && !engine->IsConnected() )
+    // main 上下文是主菜单，不需要检查游戏状态
+    // hud 上下文需要检查游戏状态
+    if (contextName != "main" && !engine->IsInGame() && !engine->IsConnected())
         return;
 
    //CMatRenderContextPtr pRenderContext(materials);
@@ -166,8 +163,7 @@ void RmlUIManager::Render(const char* contextName)
 		context->Update();
 		
         for (auto& it : contexts) {
-            if (it.second)
-                it.second->Render();
+            it.second->Render();
        }
 		renderInterface.EndFrame();
 	}

@@ -771,7 +771,15 @@ void CBaseViewport::Paint()
 	}
 	
 #ifdef RMLUI
-	if (!engine->IsLevelMainMenuBackground() && !engine->IsPaused())
+	if (engine->IsLevelMainMenuBackground())
+	{
+		// 主菜单时渲染 main 上下文
+		RmlUIManager::GetInstance()->Render("main");
+	}
+	else if (!engine->IsPaused())
+	{
+		// 游戏内时渲染 hud 上下文
 		RmlUIManager::GetInstance()->Render("hud");
+	}
 #endif
 }

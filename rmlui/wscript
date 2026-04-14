@@ -24,7 +24,7 @@ def build(bld):
 		rml_cpp_files += [f.path_from(bld.path) for f in rml_debug_dir.ant_glob('**/*.cpp')]
 		   
 	source = rml_cpp_files
-	#bld.to_log("Found RmlUi sources: %r\n" % rml_cpp_files) 
+	bld.to_log("Found RmlUi sources: %r\n" % rml_cpp_files) 
 
 	bld.env.append_unique('CXXFLAGS', ['-frtti'])
 
@@ -39,10 +39,11 @@ def build(bld):
 		
 	]
 
-	defines = ['RMLUI_FONT_ENGINE_FREETYPE', 'RMLUI', 'RMLUI_NO_THIRDPARTY_CONTAINERS']
+	defines = ['RMLUI_FONT_ENGINE_FREETYPE']
 
 	libs = [
-		'FT2'
+		'FT2',
+		'RMLUI',
 	]
 
 	bld.stlib(
