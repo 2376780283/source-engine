@@ -39,7 +39,7 @@ def build(bld):
 		
 	]
 
-	defines = ['RMLUI_FONT_ENGINE_FREETYPE']
+	defines = ['RMLUI_FONT_ENGINE_FREETYPE', 'RMLUI', 'RMLUI_NO_THIRDPARTY_CONTAINERS']
 
 	libs = [
 		'FT2'

@@ -583,6 +583,23 @@ void RmlUIRenderInterface::ReleaseShader(
     ReleaseTexture(textureHandle);
 }
 
+Rml::CompiledFilterHandle RmlUIRenderInterface::CompileFilter(
+    const Rml::String& /*name*/,
+    const Rml::Dictionary& /*parameters*/
+)
+{
+    // Filters are not supported in this renderer
+    // Return empty handle to indicate filter is not compiled
+    return Rml::CompiledFilterHandle{};
+}
+
+void RmlUIRenderInterface::ReleaseFilter(
+    Rml::CompiledFilterHandle /*filter*/
+)
+{
+    // No-op: we don't allocate any resources for filters
+}
+
 void RmlUIRenderInterface::BeginFrame()
 {
     transformEnabled = false;
