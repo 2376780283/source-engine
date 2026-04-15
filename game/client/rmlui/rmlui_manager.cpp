@@ -136,11 +136,12 @@ void RmlUIManager::Init()
         }
         CreateContext("main", "rmlui/mainmenu.rml");        
     }	
-	if (g_pFullFileSystem->FileExists("rmlui/hud.rml", "MOD"))
-		CreateContext("hud", "rmlui/hud.rml");		
+	/*if (g_pFullFileSystem->FileExists("rmlui/hud.rml", "MOD"))
+		CreateContext("hud", "rmlui/hud.rml");	*/	
 }	
 
 /// Render all contexts
+// BUG：全局上下文管理问题 在进入游戏map里就崩溃的问题
 void RmlUIManager::Render(const char* contextName)
 {
 	Rml::Context* context = contexts[contextName];
@@ -162,9 +163,10 @@ void RmlUIManager::Render(const char* contextName)
 		// Render contexts
 		context->Update();
 		
-        for (auto& it : contexts) {
+   /*     for (auto& it : contexts) {
             it.second->Render();
-       }
+       }*/
+        context->Render();
 		renderInterface.EndFrame();
 	}
 }
@@ -177,13 +179,13 @@ void RmlUIManager::OnScreenSizeChanged(int iOldWide, int iOldTall)
 
 	// Update resolution only for menu and hud contexts
 	Rml::Context* menuContext = GetContext("main");
-	Rml::Context* hudContext = GetContext("hud");
+	//Rml::Context* hudContext = GetContext("hud");
 
 	if (menuContext)
 		menuContext->SetDimensions(Rml::Vector2i(w, h));
 
-	if (hudContext)
-		hudContext->SetDimensions(Rml::Vector2i(w, h));
+	/*if (hudContext)
+		hudContext->SetDimensions(Rml::Vector2i(w, h));*/
 }
 
 static Rml::Input::KeyIdentifier ConvertKeyCodeTo(ButtonCode_t keynum)
