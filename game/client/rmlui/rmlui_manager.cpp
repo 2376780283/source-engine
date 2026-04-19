@@ -57,7 +57,7 @@
 extern IVEngineClient *engine;
 
 RmlUIManager* RmlUIManager::instance = nullptr;
-RmlUIManager::RmlUIManager() {}
+RmlUIManager::RmlUIManager() : mainContext(nullptr) {}
 
 static RmlUIRenderInterface renderInterface;
 static RmlUiSystemInterface systemInterface;
@@ -121,54 +121,41 @@ void RmlUIManager::Init()
 	// Load all fonts in mod's resource folder
 	LoadFontFaces();
 
-	// Create VGUI panel for main menuat
-	// (panel used also to detect mouse input and other stuff)
-	// TODO: If there's better way than using VGUI to rely on input system
-	// let me know
-    if (g_pFullFileSystem->FileExists("rmlui/mainmenu.rml", "MOD"))
-       {
-        rmlPanel = new RmlUiPanel();
-        CreateInterfaceFn gameUIFactory = g_GameUI.GetFactory();
-        if (gameUIFactory)
-        {
-            IGameUI* m_pGameUI = (IGameUI*)gameUIFactory(GAMEUI_INTERFACE_VERSION, NULL);
-            m_pGameUI->SetMainMenuOverride(rmlPanel->GetVPanel());
-        }
-        CreateContext("main", "rmlui/mainmenu.rml");        
-    }	
-	/*if (g_pFullFileSystem->FileExists("rmlui/hud.rml", "MOD"))
-		CreateContext("hud", "rmlui/hud.rml");	*/	
+	// Create VGUI panel for main menu
+	if (g_pFullFileSystem->FileExists("rmlui/mainmenu.rml", "MOD"))
+	{
+		rmlPanel = new RmlUiPanel();
+		CreateInterfaceFn gameUIFactory = g_GameUI.GetFactory();
+		if (gameUIFactory)
+		{
+			IGameUI* m_pGameUI = (IGameUI*)gameUIFactory(GAMEUI_INTERFACE_VERSION, NULL);
+			m_pGameUI->SetMainMenuOverride(rmlPanel->GetVPanel());
+		}
+		mainContext = Rml::CreateContext("main", Rml::Vector2i(ScreenWidth(), ScreenHeight()));
+		if (mainContext)
+		{
+			Rml::ElementDocument* document = mainContext->LoadDocument("rmlui/mainmenu.rml");
+			if (document)
+			{
+				document->Show();
+			}
+		}
+	}	
 }	
 
 /// Render all contexts
-// BUG：全局上下文管理问题 在进入游戏map里就崩溃的问题
-void RmlUIManager::Render(const char* contextName)
+void RmlUIManager::Render()
 {
-	Rml::Context* context = contexts[contextName];
+	if (!mainContext)
+		return;
 
-    // main 上下文是主菜单，不需要检查游戏状态
-    // hud 上下文需要检查游戏状态
-    if (contextName != "main" && !engine->IsInGame() && !engine->IsConnected())
-        return;
+	// Disable previous transform
+	renderInterface.BeginFrame();
 
-   //CMatRenderContextPtr pRenderContext(materials);
-   // if (!pRenderContext.IsValid()) 
-   //     return;
-
-	if (context)
-	{
-		// Disable previous transform
-		renderInterface.BeginFrame();
-
-		// Render contexts
-		context->Update();
-		
-   /*     for (auto& it : contexts) {
-            it.second->Render();
-       }*/
-        context->Render();
-		renderInterface.EndFrame();
-	}
+	// Render context
+	mainContext->Update();
+	mainContext->Render();
+	renderInterface.EndFrame();
 }
 
 /// Called when resolution changes
@@ -177,15 +164,8 @@ void RmlUIManager::OnScreenSizeChanged(int iOldWide, int iOldTall)
 	int w = ScreenWidth();
 	int h = ScreenHeight();
 
-	// Update resolution only for menu and hud contexts
-	Rml::Context* menuContext = GetContext("main");
-	//Rml::Context* hudContext = GetContext("hud");
-
-	if (menuContext)
-		menuContext->SetDimensions(Rml::Vector2i(w, h));
-
-	/*if (hudContext)
-		hudContext->SetDimensions(Rml::Vector2i(w, h));*/
+	if (mainContext)
+		mainContext->SetDimensions(Rml::Vector2i(w, h));
 }
 
 static Rml::Input::KeyIdentifier ConvertKeyCodeTo(ButtonCode_t keynum)
@@ -307,32 +287,29 @@ static int GetMouseButtonIndex(vgui::MouseCode code)
 /// Called when key code pressed
 void RmlUIManager::OnKeyCodePressed(ButtonCode_t keynum)
 {
-	Rml::Context* context = GetContext("main");
-	if (!context)
+	if (!mainContext)
 		return;
 
-	context->ProcessKeyDown(ConvertKeyCodeTo(keynum), GetKeyModifiers());
+	mainContext->ProcessKeyDown(ConvertKeyCodeTo(keynum), GetKeyModifiers());
 }
 
 /// Called when key code released
 void RmlUIManager::OnKeyCodeReleased(ButtonCode_t keynum)
 {
-	Rml::Context* context = GetContext("main");
-	if (!context)
+	if (!mainContext)
 		return;
 	
-	context->ProcessKeyUp(ConvertKeyCodeTo(keynum), GetKeyModifiers());
+	mainContext->ProcessKeyUp(ConvertKeyCodeTo(keynum), GetKeyModifiers());
 }
 
 void RmlUIManager::OnKeyTyped(wchar_t unichar)
 {
-	Rml::Context* context = GetContext("main");
-	if (!context)
+	if (!mainContext)
 		return;
 	
 	// Ignore backspace
 	if (unichar != 8)
-		context->ProcessTextInput(static_cast<Rml::Character>(unichar));
+		mainContext->ProcessTextInput(static_cast<Rml::Character>(unichar));
 }
 
 void RmlUIManager::SetInputEnabled(bool state)
@@ -343,20 +320,18 @@ void RmlUIManager::SetInputEnabled(bool state)
 
 void RmlUIManager::OnCursorMoved(int x, int y)
 {
-	Rml::Context* context = GetContext("main");
-	if (!context)
+	if (!mainContext)
 		return;
 
-	context->ProcessMouseMove(x, y, GetKeyModifiers());
+	mainContext->ProcessMouseMove(x, y, GetKeyModifiers());
 }
 
 void RmlUIManager::OnMousePressed(vgui::MouseCode code)
 {
-	Rml::Context* context = GetContext("main");
-	if (!context)
+	if (!mainContext)
 		return;
 
-	context->ProcessMouseButtonDown(GetMouseButtonIndex(code), GetKeyModifiers());
+	mainContext->ProcessMouseButtonDown(GetMouseButtonIndex(code), GetKeyModifiers());
 }
 
 void RmlUIManager::OnMouseDoublePressed(vgui::MouseCode code)
@@ -365,22 +340,19 @@ void RmlUIManager::OnMouseDoublePressed(vgui::MouseCode code)
 
 void RmlUIManager::OnMouseReleased(vgui::MouseCode code)
 {
-	Rml::Context* context = GetContext("main");
-	if (!context)
+	if (!mainContext)
 		return;
 	
-	context->ProcessMouseButtonUp(GetMouseButtonIndex(code), GetKeyModifiers());
+	mainContext->ProcessMouseButtonUp(GetMouseButtonIndex(code), GetKeyModifiers());
 }
 
 void RmlUIManager::OnMouseWheeled(int delta)
 {
-	Rml::Context* context = GetContext("main");
-	if (!context)
+	if (!mainContext)
 		return;
 
-	// Apply vertical delta
-	// Invert delta to scroll properly
-	context->ProcessMouseWheel(Rml::Vector2f(0, -delta), GetKeyModifiers());
+	// Apply vertical delta, invert delta to scroll properly
+	mainContext->ProcessMouseWheel(Rml::Vector2f(0, -delta), GetKeyModifiers());
 }
 
 /// Shutdown
@@ -393,6 +365,12 @@ void RmlUIManager::Shutdown()
 		m_pGameUI->SetMainMenuOverride(NULL);
 	}
 
+	if (mainContext)
+	{
+		Rml::RemoveContext("main");
+		mainContext = nullptr;
+	}
+
 	Rml::Shutdown();
 
 	if (rmlPanel)
@@ -402,36 +380,6 @@ void RmlUIManager::Shutdown()
 	}
 }
 
-/// Load the document and attach it to specified vgui panel
-/// and create new context for it
-Rml::Context* RmlUIManager::CreateContext(const char* contextName, Rml::String documentName)
-{
-	if (contexts[contextName])
-	{
-		Rml::Log::Message(Rml::Log::LT_ERROR, "Context with name %s already exists", contextName);
-		return nullptr;
-	}
-
-	Rml::Context* newContext = Rml::CreateContext(contextName, Rml::Vector2i(ScreenWidth(), ScreenHeight()));
-	Rml::ElementDocument* document = newContext->LoadDocument(documentName);
-	document->Show();
-
-	contexts[contextName] = newContext;
-
-	return newContext;
-}
-
-/// Retrieve context by name if found
-Rml::Context* RmlUIManager::GetContext(const char* contextName)
-{
-	if (contexts[contextName])
-	{
-		Rml::Context* context = contexts[contextName];
-		return context;
-	}
-
-	return nullptr;
-}
 
 /// Load all font files in mod
 void RmlUIManager::LoadFontFaces()

@@ -5,6 +5,7 @@
 //=============================================================================
 
 
+#include "bitmap/imageformat.h"
 #include "filesystem.h"
 #include "tier1/strtools.h"
 #include "tier1/utllinkedlist.h"
@@ -18,7 +19,7 @@
 #include "tier3/tier3.h"
 #include "platform.h"
 #include "bink_material.h"
-#include "tier0/memdbgon.h"
+// #include "tier0/memdbgon.h"
 
 extern "C" {
 #include "yuv_rgb.h"
@@ -145,7 +146,11 @@ void CBinkMaterialRGBTextureRegenerator::RegenerateTextureBits( ITexture *pTextu
 	}*/
 
 	// Verify the destination texture is set up correctly
-	Assert( pVTFTexture->Format() == IMAGE_FORMAT_RGB888 );
+#ifdef ANDROID
+	Assert( pVTFTexture->Format() == IMAGE_FORMAT_BGR888);
+#else
+	Assert( pVTFTexture->Format() == IMAGE_FORMAT_RGB888);
+#endif
 	Assert( pVTFTexture->RowSizeInBytes( 0 ) >= pVTFTexture->Width() * 4 );
 	Assert( pVTFTexture->Width() >= m_nSourceWidth );
 	Assert( pVTFTexture->Height() >= m_nSourceHeight );
@@ -230,7 +235,7 @@ void CBinkMaterial::Reset()
 	m_VideoFrameWidth = 0;
 	m_VideoFrameHeight = 0;
 
-	m_AVPixFormat = 0;
+	m_AVPixFormat = AV_PIX_FMT_YUV420P;
 	m_PlaybackFlags = VideoPlaybackFlags::NO_PLAYBACK_OPTIONS;
 
 	m_bMovieInitialized = false;
@@ -614,69 +619,74 @@ bool CBinkMaterial::StopVideo()
 //-----------------------------------------------------------------------------
 bool CBinkMaterial::Update( void )
 {
-	AssertExitF( m_bMoviePlaying );
+    AssertExitF( m_bMoviePlaying );
 
 
 	// are we paused? can't update if so...
-	if ( m_bMoviePaused )
+    if ( m_bMoviePaused )
 		return true;			// reuse the last frame
 
 	// Get current time in the movie
 	float curMovieTime; // = GetMovieTime( m_QTMovie, nullptr );
 
-	if( m_NextInterestingTimeToPlay > Plat_FloatTime() )
-		return true;
+    if( m_NextInterestingTimeToPlay > Plat_FloatTime() )
+        return true;
 
-	m_NextInterestingTimeToPlay += m_MovieFrameDuration;
+    m_NextInterestingTimeToPlay += m_MovieFrameDuration;
 
 	/* read frames from the file */
 
-	int ret;
-	while( (ret = av_read_frame(m_AVFmtCtx, m_AVPkt)) >= 0 )
-	{
-		if (m_AVPkt->stream_index == m_AVVideoStreamID)
-		{
-			avcodec_send_packet(m_AVVideoDecCtx, m_AVPkt);
+    int ret;
+    while( (ret = av_read_frame(m_AVFmtCtx, m_AVPkt)) >= 0 )
+    {
+        if (m_AVPkt->stream_index == m_AVVideoStreamID)
+        {
+            avcodec_send_packet(m_AVVideoDecCtx, m_AVPkt);
 
-			ret = avcodec_receive_frame(m_AVVideoDecCtx, m_AVFrame);
-			if (ret < 0)
-			{
-				av_packet_unref(m_AVPkt);
-				return true;
-			}
+            ret = avcodec_receive_frame(m_AVVideoDecCtx, m_AVFrame);
+            if (ret < 0)
+            {
+                av_packet_unref(m_AVPkt);
+                return true;
+            }
 
 			// write the frame data to output file
 			if (m_AVVideoDecCtx->codec->type == AVMEDIA_TYPE_VIDEO)
 			{
-				av_image_copy(m_AVVideoData, m_AVVideoLinesize, (const uint8_t **)(m_AVFrame->data), m_AVFrame->linesize, m_AVPixFormat, m_VideoFrameWidth, m_VideoFrameHeight);
+            av_image_copy(m_AVVideoData, m_AVVideoLinesize, (const uint8_t **)(m_AVFrame->data), m_AVFrame->linesize, m_AVPixFormat, m_VideoFrameWidth, m_VideoFrameHeight);
 			}
 
-			av_frame_unref(m_AVFrame);
-			break;
-		}
+            av_frame_unref(m_AVFrame);
+            break;
+        }
 
-		av_packet_unref(m_AVPkt);
-	}
-
-
-	if( ret < 0 )
-	{
-		StopVideo();
-		return false;
-	}
+        av_packet_unref(m_AVPkt);
+    }
 
 
+    if( ret < 0 && m_bLoopMovie )
+    {
+        av_seek_frame(m_AVFmtCtx, m_AVVideoStreamID, 0, AVSEEK_FLAG_BACKWARD);
+        return true;
+    }
+    else if( ret < 0 )
+    {
+        StopVideo();
+        return false;
+    }
 
-	yuv420_rgb24_std( m_VideoFrameWidth, m_VideoFrameHeight, m_AVVideoData[0],
-			m_AVVideoData[0]+m_VideoFrameHeight*m_VideoFrameWidth,
-			m_AVVideoData[0]+m_VideoFrameWidth*m_VideoFrameHeight+((m_VideoFrameWidth+1)/2)*((m_VideoFrameHeight+1)/2),
-			m_VideoFrameWidth, (m_VideoFrameWidth+1)/2, m_RGBData, m_VideoFrameWidth*3, YCBCR_601
-		);
+    
 
-	m_Texture->Download();
+    yuv420_rgb24_std( m_VideoFrameWidth, m_VideoFrameHeight, m_AVVideoData[0],
+            m_AVVideoData[0]+m_VideoFrameHeight*m_VideoFrameWidth,
+            m_AVVideoData[0]+m_VideoFrameWidth*m_VideoFrameHeight+((m_VideoFrameWidth+1)/2)*((m_VideoFrameHeight+1)/2),
+            m_VideoFrameWidth, (m_VideoFrameWidth+1)/2, m_RGBData, m_VideoFrameWidth*3, YCBCR_601
+        );
 
-	SetResult( VideoResult::SUCCESS );
-	return true;
+    m_Texture->Download();
+
+    SetResult( VideoResult::SUCCESS );
+    return true;
 }
 
 
@@ -820,10 +830,9 @@ void CBinkMaterial::CreateProceduralTexture( const char *pTextureName )
 	int nHeight = ( actualSizeTexture ) ? ALIGN_VALUE( m_VideoFrameHeight, TEXTURE_SIZE_ALIGNMENT ) : ComputeGreaterPowerOfTwo( m_VideoFrameHeight ); 
 
 	// initialize the procedural texture as 32-it RGBA, w/o mipmaps
-	m_Texture.InitProceduralTexture( pTextureName, "VideoCacheTextures", nWidth, nHeight, 
-				IMAGE_FORMAT_RGB888, TEXTUREFLAGS_CLAMPS | TEXTUREFLAGS_CLAMPT | TEXTUREFLAGS_NOMIP |
-				TEXTUREFLAGS_PROCEDURAL | TEXTUREFLAGS_SINGLECOPY | TEXTUREFLAGS_NOLOD );
-
+	m_Texture.InitProceduralTexture( pTextureName, "VideoCacheTextures", nWidth, nHeight,
+			 IMAGE_FORMAT_RGB888, TEXTUREFLAGS_CLAMPS | TEXTUREFLAGS_CLAMPT | TEXTUREFLAGS_NOMIP |
+			 TEXTUREFLAGS_PROCEDURAL | TEXTUREFLAGS_SINGLECOPY | TEXTUREFLAGS_NOLOD );
 	// Use this to get the updated frame from the remote connection	
 	m_Texture->SetTextureRegenerator( &m_TextureRegen /* , false */ );
 
@@ -934,7 +943,7 @@ void CBinkMaterial::OpenMovie( const char *theMovieFileName )
 		size_t size = av_image_alloc(m_AVVideoData, m_AVVideoLinesize,
 							m_VideoFrameWidth, m_VideoFrameHeight, m_AVPixFormat, 1);
 
-		m_RGBData = calloc( m_VideoFrameWidth*m_VideoFrameHeight*3, 1 );
+		m_RGBData = (uint8_t*)calloc(m_VideoFrameWidth * m_VideoFrameHeight * 3, 1);
 
 		printf("m_AVVideoData size = %zu\nm_VideoFrameWidth=%d\nm_VideoFrameHeight=%d\n", size, m_VideoFrameWidth, m_VideoFrameHeight);
 

@@ -107,7 +107,7 @@ void RmlUiPanel::OnKeyTyped(wchar_t unichar)
 void RmlUiPanel::Paint()
 {
     // Render our rmlui here for this time
-    RmlUIManager::GetInstance()->Render("main");
+    RmlUIManager::GetInstance()->Render();
 }
 
 void RmlUiPanel::PaintBackground()

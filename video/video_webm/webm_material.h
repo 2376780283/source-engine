@@ -1,221 +1,199 @@
 //========= Copyright Valve Corporation, All rights reserved. ============//
 //
-// Purpose: 
+// Purpose: WebM Video Material
 //
 //=============================================================================
 
-
-#ifndef QUICKTIME_MATERIAL_H
-#define QUICKTIME_MATERIAL_H
+#ifndef WEBM_MATERIAL_H
+#define WEBM_MATERIAL_H
 
 #ifdef _WIN32
 #pragma once
 #endif
-
 
 //-----------------------------------------------------------------------------
 // Forward declarations
 //-----------------------------------------------------------------------------
 class IFileSystem;
 class IMaterialSystem;
-class CQuickTimeMaterial;
+class CWebMMaterial;
 
 //-----------------------------------------------------------------------------
-// Global interfaces - you already did the needed includes, right?
+// Global interfaces
 //-----------------------------------------------------------------------------
-extern IFileSystem		*g_pFileSystem;
-extern IMaterialSystem	*materials;
+extern IFileSystem *g_pFileSystem;
+extern IMaterialSystem *materials;
 
 //-----------------------------------------------------------------------------
-// Quicktime includes
+// WebM includes
 //-----------------------------------------------------------------------------
-#if defined ( OSX )
-	#include <quicktime/QTML.h>
-	#include <quicktime/Movies.h>
-	#include <quicktime/MediaHandlers.h>
-#elif defined ( WIN32 )
-	#include <QTML.h>
-	#include <Movies.h>
-	#include <windows.h>
-	#include <MediaHandlers.h>
-#elif
-    #error "Quicktime not supported on this target platform"	
-#endif
+extern "C" {
+#include <libavutil/imgutils.h>
+#include <libavutil/samplefmt.h>
+#include <libavutil/timestamp.h>
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+}
 
+#include "mkvparser/mkvreader.h"
+#include "mkvparser/mkvparser.h"
 
 #include "video/ivideoservices.h"
-
 #include "video_macros.h"
-#include "quicktime_common.h"
 
 #include "materialsystem/itexture.h"
 #include "materialsystem/imaterialsystem.h"
 #include "materialsystem/MaterialSystemUtil.h"
 
+#include "tier1/utlvector.h"
 
 // -----------------------------------------------------------------------------
 // Texture regenerator - callback to get new movie pixels into the texture
 // -----------------------------------------------------------------------------
-class CQuicktimeMaterialRGBTextureRegenerator : public ITextureRegenerator
+class CWebMMaterialRGBTextureRegenerator : public ITextureRegenerator
 {
-	public:
-		CQuicktimeMaterialRGBTextureRegenerator();
-		~CQuicktimeMaterialRGBTextureRegenerator();
-	
-		void				SetSourceGWorld( GWorldPtr theGWorld, int nWidth, int nHeight );
+public:
+    CWebMMaterialRGBTextureRegenerator();
+    ~CWebMMaterialRGBTextureRegenerator();
 
-		// Inherited from ITextureRegenerator
-		virtual void		RegenerateTextureBits( ITexture *pTexture, IVTFTexture *pVTFTexture, Rect_t *pRect );
-		virtual void		Release();
+    void SetSourceImage(uint8_t *SrcImage, int nWidth, int nHeight);
 
-	private:
-		GWorldPtr			m_SrcGWorld;
-		int					m_nSourceWidth;
-		int					m_nSourceHeight;
+    virtual void RegenerateTextureBits(ITexture *pTexture, IVTFTexture *pVTFTexture, Rect_t *pRect);
+    virtual void Release();
+
+private:
+    uint8_t *m_SrcImage;
+    int m_nSourceWidth;
+    int m_nSourceHeight;
 };
 
-
-
 // -----------------------------------------------------------------------------
-// Class used to play a QuickTime video onto a texture 
+// Class used to play a WebM video onto a texture
 // -----------------------------------------------------------------------------
-class CQuickTimeMaterial : public IVideoMaterial
+class CWebMMaterial : public IVideoMaterial
 {
-	public:
-		CQuickTimeMaterial();
-		~CQuickTimeMaterial();
-		
-		static const int			MAX_QT_FILENAME_LEN = 255;
-		static const int			MAX_MATERIAL_NAME_LEN = 255;	
-		static const int			TEXTURE_SIZE_ALIGNMENT = 8;
+public:
+    CWebMMaterial();
+    ~CWebMMaterial();
 
-		// Initializes, shuts down the material
-		bool						Init( const char *pMaterialName, const char *pFileName, VideoPlaybackFlags_t flags );
-		void						Shutdown();
+    static const int MAX_FILENAME_LEN = 255;
+    static const int MAX_MATERIAL_NAME_LEN = 255;
+    static const int TEXTURE_SIZE_ALIGNMENT = 8;
 
-		// Video information functions		
-		virtual const char		   *GetVideoFileName();									// Gets the file name of the video this material is playing
-		virtual VideoResult_t		GetLastResult();									// Gets detailed info on the last operation
-		
-		virtual VideoFrameRate_t   &GetVideoFrameRate();								// Returns the frame rate of the associated video in FPS
+    bool Init(const char *pMaterialName, const char *pFileName, VideoPlaybackFlags_t flags);
+    void Shutdown();
 
-		// Audio Functions
-		virtual bool				HasAudio();											// Query if the video has an audio track
-		
-		virtual bool				SetVolume( float fVolume );							// Adjust the playback volume
-		virtual float				GetVolume();										// Query the current volume
-		virtual void				SetMuted( bool bMuteState );						// Mute/UnMutes the audio playback
-		virtual bool				IsMuted();											// Query muted status
-		
-		virtual VideoResult_t		SoundDeviceCommand( VideoSoundDeviceOperation_t operation, void *pDevice = nullptr, void *pData = nullptr );		// Assign Sound Device for this Video Material
-		
-		// Video playback state functions
-		virtual bool				IsVideoReadyToPlay();								// Queries if the video material was initialized successfully and is ready for playback, but not playing or finished
-		virtual bool				IsVideoPlaying();									// Is the video currently playing (and needs update calls, etc)
-		virtual bool				IsNewFrameReady();									// Do we have a new frame to get & display?
-		virtual bool				IsFinishedPlaying();								// Have we reached the end of the movie
+    virtual const char *GetVideoFileName();
+    virtual VideoResult_t GetLastResult();
 
-		virtual bool				StartVideo();										// Starts the video playing
-		virtual bool				StopVideo();										// Terminates the video playing
+    virtual VideoFrameRate_t &GetVideoFrameRate();
 
-		virtual void				SetLooping( bool bLoopVideo );						// Sets the video to loop (or not)
-		virtual bool				IsLooping();										// Queries if the video is looping
-		
-		virtual void				SetPaused( bool bPauseState );						// Pauses or Unpauses video playback
-		virtual bool				IsPaused();											// Queries if the video is paused
+    virtual bool HasAudio();
 
-		// Position in playback functions
-		virtual float				GetVideoDuration();									// Returns the duration of the associated video in seconds
-		virtual int					GetFrameCount();									// Returns the total number of (unique) frames in the video
-		
-		virtual bool				SetFrame( int FrameNum );							// Sets the current frame # in the video to play next 
-		virtual int					GetCurrentFrame();									// Gets the current frame # for the video playback, 0 Based
-		
-		virtual bool				SetTime( float flTime );							// Sets the video playback to specified time (in seconds)
-		virtual float				GetCurrentVideoTime();								// Gets the current time in the video playback
-		
-		// Update function
-		virtual bool				Update();											// Updates the video frame to reflect the time passed, true = new frame available
+    virtual bool SetVolume(float fVolume);
+    virtual float GetVolume();
+    virtual void SetMuted(bool bMuteState);
+    virtual bool IsMuted();
 
-		// Material / Texture Info functions
-		virtual IMaterial		   *GetMaterial();										// Gets the IMaterial associated with an video material
+    virtual VideoResult_t SoundDeviceCommand(VideoSoundDeviceOperation_t operation, void *pDevice = nullptr, void *pData = nullptr);
 
-		virtual void				GetVideoTexCoordRange( float *pMaxU, float *pMaxV ) ;		// Returns the max texture coordinate of the video portion of the material surface ( 0.0, 0.0 to U, V )
-		virtual void				GetVideoImageSize( int *pWidth, int *pHeight );				// Returns the frame size of the Video Image Frame in pixels ( the stored in a subrect of the material itself)
-		
+    virtual bool IsVideoReadyToPlay();
+    virtual bool IsVideoPlaying();
+    virtual bool IsNewFrameReady();
+    virtual bool IsFinishedPlaying();
 
+    virtual bool StartVideo();
+    virtual bool StopVideo();
 
-	private:
-		friend class CQuicktimeMaterialRGBTextureRegenerator;
+    virtual void SetLooping(bool bLoopVideo);
+    virtual bool IsLooping();
 
-		void 						Reset();											// clears internal state
-		void 						SetQTFileName( const char *theQTMovieFileName );
-		VideoResult_t				SetResult( VideoResult_t status );
-		
-		// Initializes, shuts down the video stream
-		void 						OpenQTMovie( const char *theQTMovieFileName );
-		void 						CloseQTFile();
+    virtual void SetPaused(bool bPauseState);
+    virtual bool IsPaused();
 
-		// Initializes, shuts down the procedural texture
-		void						CreateProceduralTexture( const char *pTextureName );
-		void						DestroyProceduralTexture();
+    virtual float GetVideoDuration();
+    virtual int GetFrameCount();
 
-		// Initializes, shuts down the procedural material
-		void 						CreateProceduralMaterial( const char *pMaterialName );
-		void 						DestroyProceduralMaterial();
+    virtual bool SetFrame(int FrameNum);
+    virtual int GetCurrentFrame();
 
-		CQuicktimeMaterialRGBTextureRegenerator	m_TextureRegen;
+    virtual bool SetTime(float flTime);
+    virtual float GetCurrentVideoTime();
 
-		VideoResult_t				m_LastResult;
-		
-		CMaterialReference			m_Material;						// Ref to Material used for rendering the video frame
-		CTextureReference			m_Texture;						// Ref to the renderable texture which contains the most recent video frame (in a sub-rect)
+    virtual bool Update();
 
-		float						m_TexCordU;						// Max U texture coordinate of the texture sub-rect which holds the video frame
-		float						m_TexCordV;						// Max V texture coordinate of the texture sub-rect which holds the video frame
+    virtual IMaterial *GetMaterial();
 
-		int							m_VideoFrameWidth;				// Size of the movie frame in pixels
-		int							m_VideoFrameHeight;
+    virtual void GetVideoTexCoordRange(float *pMaxU, float *pMaxV);
+    virtual void GetVideoImageSize(int *pWidth, int *pHeight);
 
-		char					   *m_pFileName;					// resolved filename of the movie being played
-		VideoPlaybackFlags_t		m_PlaybackFlags;				// option flags user supplied
+private:
+    friend class CWebMMaterialRGBTextureRegenerator;
 
-		bool						m_bInitCalled;
-		bool						m_bMovieInitialized;
-		bool						m_bMoviePlaying;
-		bool						m_bMovieFinishedPlaying;
-		bool						m_bMoviePaused;
-		bool						m_bLoopMovie;
-		
-		bool						m_bHasAudio;
-		bool						m_bMuted;
-		
-		float						m_CurrentVolume;
-		
-		// QuickTime Stuff
-		Movie						m_QTMovie;
-		
-		TimeScale					m_QTMovieTimeScale;				// Units per second
-		TimeValue					m_QTMovieDuration;				// movie duration in TimeScale Units Per Second
-		float						m_QTMovieDurationinSec;			// movie duration in seconds
-		VideoFrameRate_t			m_QTMovieFrameRate;				// Frame Rate of movie
-		int							m_QTMovieFrameCount;
-		
-		Rect						m_QTMovieRect;
-		GWorldPtr					m_MovieGWorld;
+    void Reset();
+    void SetWebMFileName(const char *pWebMFileName);
+    VideoResult_t SetResult(VideoResult_t status);
 
-		QTAudioContextRef			m_AudioContext;
+    bool OpenWebMMovie(const char *pWebMFileName);
+    void CloseWebMFile();
 
-		TimeValue					m_MovieFirstFrameTime;
-		TimeValue					m_NextInterestingTimeToPlay;
-		TimeValue					m_MoviePauseTime; 
+    bool CreateProceduralTexture(const char *pTextureName);
+    void DestroyProceduralTexture();
 
+    bool CreateProceduralMaterial(const char *pMaterialName);
+    void DestroyProceduralMaterial();
+
+    bool DecodeNextFrame();
+
+    CWebMMaterialRGBTextureRegenerator m_TextureRegen;
+
+    VideoResult_t m_LastResult;
+
+    CMaterialReference m_Material;
+    CTextureReference m_Texture;
+
+    float m_TexCordU;
+    float m_TexCordV;
+
+    int m_VideoFrameWidth;
+    int m_VideoFrameHeight;
+
+    char *m_pFileName;
+    VideoPlaybackFlags_t m_PlaybackFlags;
+
+    bool m_bInitCalled;
+    bool m_bMovieInitialized;
+    bool m_bMoviePlaying;
+    bool m_bMovieFinishedPlaying;
+    bool m_bMoviePaused;
+    bool m_bLoopMovie;
+
+    bool m_bHasAudio;
+    bool m_bMuted;
+
+    float m_CurrentVolume;
+
+    // WebM/FFmpeg stuff
+    mkvparser::MkvReader *m_pMkvReader;
+    mkvparser::Segment *m_pSegment;
+    mkvparser::VideoTrack *m_pVideoTrack;
+
+    AVFormatContext *m_pFormatContext;
+    AVCodecContext *m_pCodecContext;
+    AVPacket *m_pPacket;
+    AVFrame *m_pFrame;
+    AVFrame *m_pRGBFrame;
+
+    int m_VideoStreamIndex;
+    int64_t m_StartTime;
+    double m_Duration;
+    VideoFrameRate_t m_FrameRate;
+    int m_FrameCount;
+
+    int64_t m_CurrentFrameTimestamp;
+    int m_CurrentFrameNumber;
+
+    uint8_t *m_pRGBBuffer;
 };
 
-
-
-
-
-
-
-#endif // QUICKTIME_MATERIAL_H
+#endif // WEBM_MATERIAL_H
