@@ -213,51 +213,9 @@ void CAppSystemGroup::RemoveAllSystems()
 //-----------------------------------------------------------------------------
 bool CAppSystemGroup::AddSystems( AppSystemInfo_t *pSystemList )
 {
-	// Preload critical modules in parallel to reduce startup time
-	// On Android, dlopen symbol relocation is a major bottleneck
-	CUtlVector<AppModule_t> preloadedModules;
-	
 	while ( pSystemList->m_pModuleName[0] )
 	{
-		// Check if we've already loaded this module to avoid redundant dlopen
-		bool bAlreadyLoaded = false;
-		for ( int i = 0; i < preloadedModules.Count(); ++i )
-		{
-			if ( preloadedModules[i] != APP_MODULE_INVALID )
-			{
-				if ( m_Modules[preloadedModules[i]].m_pModuleName &&
-					 !Q_stricmp( m_Modules[preloadedModules[i]].m_pModuleName, pSystemList->m_pModuleName ) )
-				{
-					bAlreadyLoaded = true;
-					break;
-				}
-			}
-		}
-		
-		// Only load module once for multiple interfaces from same DLL
-		AppModule_t module = APP_MODULE_INVALID;
-		if ( !bAlreadyLoaded )
-		{
-			module = LoadModule( pSystemList->m_pModuleName );
-		}
-		else
-		{
-			// Reuse previously loaded module
-			for ( int i = m_Modules.Count(); --i >= 0; )
-			{
-				if ( m_Modules[i].m_pModuleName )
-				{
-					if ( !Q_stricmp( pSystemList->m_pModuleName, m_Modules[i].m_pModuleName ) )
-					{
-						module = i;
-						break;
-					}
-				}
-			}
-		}
-		
-		preloadedModules.AddToTail( module );
-		
+		AppModule_t module = LoadModule( pSystemList->m_pModuleName );
 		IAppSystem *pSystem = AddSystem( module, pSystemList->m_pInterfaceName );
 		if ( !pSystem )
 		{
@@ -347,9 +305,6 @@ void CAppSystemGroup::DisconnectSystems()
 //-----------------------------------------------------------------------------
 InitReturnVal_t CAppSystemGroup::InitSystems()
 {
-	// Initialize systems sequentially with proper dependency order
-	// Critical systems (engine, material system) must initialize first
-	// Non-blocking systems can be deferred to reduce critical path
 	for (int i = 0; i < m_Systems.Count(); ++i )
 	{
 		InitReturnVal_t nRetVal = m_Systems[i]->Init();
