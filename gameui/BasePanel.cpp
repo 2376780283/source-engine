@@ -2770,7 +2770,9 @@ void CBasePanel::ShowExtraManager() {
 }
 
 void CC_ShowExtraManager(const CCommand &args) {
-    if (g_pBasePanel) { g_pBasePanel->ShowExtraManager(); }
+    vgui::MessageBox *pMessageBox = new vgui::MessageBox("Workshop pubilsh","is not supposed", NULL );
+    pMessageBox->DoModal();
+   return;
 }
 
 static ConCommand Extra_manager("workshop_publish", CC_ShowExtraManager, "Open Extra Manager dialog", FCVAR_NONE);
