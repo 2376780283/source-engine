@@ -77,7 +77,6 @@ projects={
 		'soundemittersystem',
 		'studiorender',
 		'stub_steam',
-		'avi',
 		'video/video_bink',
 		'video/video_webm',
 		'tier0',
