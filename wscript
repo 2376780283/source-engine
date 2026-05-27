@@ -77,6 +77,8 @@ projects={
 		'soundemittersystem',
 		'studiorender',
 		'stub_steam',
+		'video/video_bink',
+		'video/video_webm',
 		'tier0',
 		'tier1',
 		'tier2',
