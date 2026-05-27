@@ -16,6 +16,7 @@
 
 #include "KeyValues.h"
 #include "filesystem.h"
+#include "GameUI/IBonusMapsDatabase.h"
 
 #include "tier0/memdbgon.h"
 
@@ -97,6 +98,7 @@ public:
 
     void BuildMapsList();
     void LayoutBonusButtons();
+    void RefreshCompletionPercentage();
     void Paint() OVERRIDE;
     void ApplySchemeSettings(vgui::IScheme* pScheme) OVERRIDE;
 
@@ -115,10 +117,19 @@ private:
     GAMEPADUI_PANEL_PROPERTY( float, m_flFooterMedalSize, "FooterMedal.Current.Size", "0", SchemeValueTypes::ProportionalFloat );
     GAMEPADUI_PANEL_PROPERTY( float, m_flFooterMedalNextSize, "FooterMedal.Next.Size", "0", SchemeValueTypes::ProportionalFloat );
 
+    GAMEPADUI_PANEL_PROPERTY( Color, m_colPercentageBarColor, "PercentageBar.Color", "255 255 255 255", SchemeValueTypes::Color );
+    GAMEPADUI_PANEL_PROPERTY( Color, m_colPercentageBarBackgroundColor, "PercentageBar.BackgroundColor", "0 0 0 64", SchemeValueTypes::Color );
+
+    GAMEPADUI_PANEL_PROPERTY( float, m_flPercentageBarOffsetX, "PercentageBar.OffsetX", "0", SchemeValueTypes::ProportionalFloat );
+    GAMEPADUI_PANEL_PROPERTY( float, m_flPercentageBarOffsetY, "PercentageBar.OffsetY", "0", SchemeValueTypes::ProportionalFloat );
+    GAMEPADUI_PANEL_PROPERTY( float, m_flPercentageBarWidth,   "PercentageBar.Width",   "0", SchemeValueTypes::ProportionalFloat );
+    GAMEPADUI_PANEL_PROPERTY( float, m_flPercentageBarHeight,  "PercentageBar.Height",  "0", SchemeValueTypes::ProportionalFloat );
+
     vgui::HFont m_hGoalFont = vgui::INVALID_FONT;
+    vgui::HFont m_hCommentFont = vgui::INVALID_FONT;
 
     GamepadUIImage m_CachedMedals[2];
-    char m_szCachedMedalNames[256][2];
+    char m_szCachedMedalNames[2][256];
 };
 
 class GamepadUIBonusButton : public GamepadUIButton
@@ -204,9 +215,10 @@ public:
     {
         BaseClass::ApplySchemeSettings( pScheme );
 
-        if (GamepadUI::GetInstance().GetScreenRatio() != 1.0f)
+        float flX, flY;
+        if (GamepadUI::GetInstance().GetScreenRatio( flX, flY ))
         {
-            float flScreenRatio = GamepadUI::GetInstance().GetScreenRatio();
+            float flScreenRatio = flX;
 
             // For now, undo the scaling from base class
             m_flWidth /= flScreenRatio;
@@ -297,6 +309,8 @@ GamepadUIBonusMapsPanel::GamepadUIBonusMapsPanel( vgui::Panel *pParent, const ch
     vgui::HScheme hScheme = vgui::scheme()->LoadSchemeFromFile( GAMEPADUI_DEFAULT_PANEL_SCHEME, "SchemePanel" );
     SetScheme( hScheme );
 
+    V_memset( m_szCachedMedalNames, 0, sizeof( m_szCachedMedalNames ) );
+
     FooterButtonMask buttons = FooterButtons::Back | FooterButtons::Select;
     SetFooterButtons( buttons, FooterButtons::Select );
 
@@ -325,18 +339,18 @@ void GamepadUIBonusMapsPanel::ApplySchemeSettings( vgui::IScheme* pScheme )
 {
     BaseClass::ApplySchemeSettings( pScheme );
     m_hGoalFont = pScheme->GetFont( "Goal.Font", true );
+    m_hCommentFont = pScheme->GetFont( "Comment.Font", true );
 
-    if (GamepadUI::GetInstance().GetScreenRatio() != 1.0f)
+    float flX, flY;
+    if (GamepadUI::GetInstance().GetScreenRatio( flX, flY ))
     {
-        float flScreenRatio = GamepadUI::GetInstance().GetScreenRatio();
+        float flScreenRatio = flX;
         m_BonusOffsetX *= flScreenRatio;
     }
 }
 
 void GamepadUIBonusMapsPanel::OnGamepadUIButtonNavigatedTo( vgui::VPANEL button )
 {
-    // TODO: Scroll
-#if 0
     GamepadUIButton *pButton = dynamic_cast< GamepadUIButton * >( vgui::ipanel()->GetPanel( button, GetModuleName() ) );
     if ( pButton )
     {
@@ -345,28 +359,23 @@ void GamepadUIBonusMapsPanel::OnGamepadUIButtonNavigatedTo( vgui::VPANEL button 
 
         int nX, nY;
         pButton->GetPos( nX, nY );
-        if ( nX + pButton->m_flWidth > nParentW || nX < 0 )
+        if ( nY + pButton->GetTall() > nParentH - m_BonusOffsetY || nY < m_BonusOffsetY )
         {
-            int nTargetX = pButton->GetPriority() * (pButton->m_flWidth + m_BonusSpacing);
+            int nTargetY = nY + m_ScrollState.GetScrollProgress();
 
-            if ( nX < nParentW / 2 )
+            if ( nY < nParentH / 2 )
             {
-                nTargetX += nParentW - m_BonusOffsetX;
-                // Add a bit of spacing to make this more visually appealing :)
-                nTargetX -= m_BonusSpacing;
+                nTargetY -= m_BonusOffsetY;
             }
             else
             {
-                nTargetX += pButton->m_flWidth;
-                // Add a bit of spacing to make this more visually appealing :)
-                nTargetX += (pButton->m_flWidth / 2) + m_BonusSpacing;
+                nTargetY += pButton->GetTall();
+                nTargetY -= ( nParentH - m_BonusOffsetY );
             }
 
-
-            m_ScrollState.SetScrollTarget( nTargetX - ( nParentW - m_BonusOffsetX ), GamepadUI::GetInstance().GetTime() );
+            m_ScrollState.SetScrollTarget( nTargetY, GamepadUI::GetInstance().GetTime() );
         }
     }
-#endif
 }
 
 #define MAX_LISTED_BONUS_MAPS 128
@@ -383,7 +392,7 @@ void GamepadUIBonusMapsPanel::BuildMapsList()
 
     //bool bIsRoot = !Q_strcmp( GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->GetPath(), "." );
     //if ( bIsRoot )
-        GetFrameTitle() = GamepadUIString( "#GameUI_BonusMaps" );
+        GetFrameTitle() = GamepadUIString( "#GameUI_BonusMaps" " Fucking Dick Game" );
     //else
     //    GetFrameTitle() = GamepadUIString( szDisplayPath );
 
@@ -405,7 +414,7 @@ void GamepadUIBonusMapsPanel::BuildMapsList()
         GamepadUIBonusButton *pChapterButton = new GamepadUIBonusButton(
             this, this,
             GAMEPADUI_BONUS_SCHEME, "action_map",
-            pDesc->szMapName, NULL, /*pDesc->szComment*/ szImage);
+            pDesc->szMapName, pDesc->szComment, szImage);
         pChapterButton->SetPriority( iMapIndex );
         pChapterButton->SetEnabled( !pDesc->bLocked );
         pChapterButton->SetForwardToParent( true );
@@ -428,6 +437,13 @@ void GamepadUIBonusMapsPanel::BuildMapsList()
     if (bHasChallenges)
         buttons |= FooterButtons::Challenge;
     SetFooterButtons( buttons, FooterButtons::Select );
+
+    RefreshCompletionPercentage();
+}
+
+void GamepadUIBonusMapsPanel::RefreshCompletionPercentage()
+{
+    GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->RefreshMapData();
 }
 
 void GamepadUIBonusMapsPanel::LayoutBonusButtons()
@@ -447,7 +463,7 @@ void GamepadUIBonusMapsPanel::LayoutBonusButtons()
     m_ScrollState.UpdateScrollBounds( 0.0f, flScrollClamp );
 
     int x = m_BonusOffsetX;
-    int y = m_BonusOffsetY;
+    int y = m_BonusOffsetY - m_ScrollState.GetScrollProgress();
     CUtlVector< CUtlVector< GamepadUIBonusButton* > > pButtonRows;
     int j = 0;
     for ( int i = 0; i < m_pBonusButtons.Count(); i++ )
@@ -600,11 +616,49 @@ void GamepadUIBonusMapsPanel::Paint()
 {
     BaseClass::Paint();
 
+    float fPercentage = GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->GetCompletionPercentage();
+    if ( fPercentage > 0.0f )
+    {
+        vgui::surface()->DrawSetColor( m_colPercentageBarBackgroundColor );
+        vgui::surface()->DrawFilledRect( m_flPercentageBarOffsetX, m_flPercentageBarOffsetY, m_flPercentageBarOffsetX + m_flPercentageBarWidth, m_flPercentageBarOffsetY + m_flPercentageBarHeight );
+
+        Color cProgressBar = Color( static_cast<float>( m_colPercentageBarBackgroundColor.r() ) * ( 1.0f - fPercentage ) + static_cast<float>( m_colPercentageBarColor.r() ) * fPercentage,
+                                    static_cast<float>( m_colPercentageBarBackgroundColor.g() ) * ( 1.0f - fPercentage ) + static_cast<float>( m_colPercentageBarColor.g() ) * fPercentage,
+                                    static_cast<float>( m_colPercentageBarBackgroundColor.b() ) * ( 1.0f - fPercentage ) + static_cast<float>( m_colPercentageBarColor.b() ) * fPercentage,
+                                    static_cast<float>( m_colPercentageBarBackgroundColor.a() ) * ( 1.0f - fPercentage ) + static_cast<float>( m_colPercentageBarColor.a() ) * fPercentage );
+
+        vgui::surface()->DrawSetColor( cProgressBar );
+        vgui::surface()->DrawFilledRect( m_flPercentageBarOffsetX, m_flPercentageBarOffsetY, m_flPercentageBarOffsetX + m_flPercentageBarWidth * fPercentage, m_flPercentageBarOffsetY + m_flPercentageBarHeight );
+    }
+
     GamepadUIBonusButton* pButton = GamepadUIBonusButton::GetLastBonusButton();
     if ( !pButton )
         return;
 
     const BonusMapDescription_t& desc = pButton->GetBonusMapDescription();
+
+    if ( desc.szComment[0] )
+    {
+        wchar_t szWideBuff[1024];
+        if ( desc.szComment[0] == '#' )
+        {
+            wchar_t *pszLocalized = g_pVGuiLocalize->Find( desc.szComment );
+            if ( pszLocalized )
+                V_wcsncpy( szWideBuff, pszLocalized, sizeof( szWideBuff ) );
+            else
+                g_pVGuiLocalize->ConvertANSIToUnicode( desc.szComment, szWideBuff, sizeof( szWideBuff ) );
+        }
+        else
+        {
+            g_pVGuiLocalize->ConvertANSIToUnicode( desc.szComment, szWideBuff, sizeof( szWideBuff ) );
+        }
+
+        vgui::surface()->DrawSetTextColor( Color( 255, 255, 255, 255 ) );
+        vgui::surface()->DrawSetTextFont( m_hCommentFont );
+        vgui::surface()->DrawSetTextPos( m_flPercentageBarOffsetX, m_flPercentageBarOffsetY + m_flPercentageBarHeight + m_BonusSpacing );
+        vgui::surface()->DrawPrintText( szWideBuff, V_wcslen( szWideBuff ) );
+    }
+
     if ( !desc.m_pChallenges )
         return;
 
@@ -727,8 +781,7 @@ void GamepadUIBonusMapsPanel::Paint()
 
 void GamepadUIBonusMapsPanel::OnMouseWheeled( int nDelta )
 {
-    // TODO: Scroll
-    //m_ScrollState.OnMouseWheeled( nDelta * m_BonusSpacing * 20.0f, GamepadUI::GetInstance().GetTime() );
+    m_ScrollState.OnMouseWheeled( nDelta * 160.0f, GamepadUI::GetInstance().GetTime() );
 }
 
 CON_COMMAND( gamepadui_openbonusmapsdialog, "" )
