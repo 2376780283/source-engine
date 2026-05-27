@@ -392,7 +392,7 @@ void GamepadUIBonusMapsPanel::BuildMapsList()
 
     //bool bIsRoot = !Q_strcmp( GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->GetPath(), "." );
     //if ( bIsRoot )
-        GetFrameTitle() = GamepadUIString( "#GameUI_BonusMaps" " Fucking Dick Game" );
+        GetFrameTitle() = GamepadUIString( "#GameUI_BonusMaps" );
     //else
     //    GetFrameTitle() = GamepadUIString( szDisplayPath );
 
