@@ -595,7 +595,6 @@ FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
 			FileSystem_AddLoadedSearchPath( initInfo, "GAME", vecPaths[idxExtraPath], false );
 		}
 	}
-	// 新增环境变量 EXTRAS_VPK_PATH_TOUCH
     const char *ExtraVpkPathsTouch = getenv("EXTRAS_VPK_PATH_TOUCH");
     if (ExtraVpkPathsTouch)
     {
@@ -609,6 +608,29 @@ FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
             FileSystem_AddLoadedSearchPath(initInfo, "GAME", vecPathsTouch[idxExtraPath], false);
         }
     }
+
+	const char *pszExtraPaths = getenv( "EXTRAS_PATH" );
+	if ( pszExtraPaths )
+	{
+		CUtlStringList vecPaths;
+		V_SplitString( pszExtraPaths, ",", vecPaths );
+		FOR_EACH_VEC( vecPaths, idxExtraPath )
+		{
+			char szAbsSearchPath[MAX_PATH];
+			Q_StripPrecedingAndTrailingWhitespace( vecPaths[ idxExtraPath ] );
+			V_MakeAbsolutePath( szAbsSearchPath, sizeof( szAbsSearchPath ), vecPaths[ idxExtraPath ], baseDir );
+			V_FixSlashes( szAbsSearchPath );
+			if ( !V_RemoveDotSlashes( szAbsSearchPath ) )
+			{
+				Warning( "Bad extra path - Can't resolve pathname for '%s'\n", szAbsSearchPath );
+				continue; // 如果路径非法，跳过该路径继续处理下一个
+			}
+			V_StripTrailingSlash( szAbsSearchPath );
+			FileSystem_AddLoadedSearchPath( initInfo, "GAME", szAbsSearchPath, false );
+			FileSystem_AddLoadedSearchPath( initInfo, "MOD", szAbsSearchPath, false );		
+			Msg( "[SourceApp：] The extra path Mounted: %s\n", szAbsSearchPath );
+		}
+	}
 
 	bool bLowViolence = initInfo.m_bLowViolence;
 	for ( KeyValues *pCur=pSearchPaths->GetFirstValue(); pCur; pCur=pCur->GetNextValue() )
