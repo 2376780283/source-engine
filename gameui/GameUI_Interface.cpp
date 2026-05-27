@@ -238,6 +238,11 @@ void CGameUI::SetLoadingBackgroundDialog( vgui::VPANEL panel )
 	g_hLoadingBackgroundDialog = panel;
 }
 
+IBonusMapsDatabase *CGameUI::GetBonusMapsDatabase()
+{
+	return BonusMapsDatabase();
+}
+
 void CGameUI::BonusMapUnlock( const char *pchFileName, const char *pchMapName )
 {
 	if ( !pchFileName || pchFileName[ 0 ] == '\0' || 
