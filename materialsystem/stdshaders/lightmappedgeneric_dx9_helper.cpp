@@ -582,6 +582,17 @@ void DrawLightmappedGenericFlashlight_DX9_Internal( CBaseVSShader *pShader, IMat
 		ITexture *pFlashlightDepthTexture;
 		FlashlightState_t flashlightState = pShaderAPI->GetFlashlightStateEx( worldToTexture, &pFlashlightDepthTexture );
 
+		if ( pFlashlightDepthTexture == NULL )
+		{
+			const int iFlashlightShadowIndex = ( flashlightState.m_nShadowQuality >> 16 ) - 1;
+
+			if ( iFlashlightShadowIndex >= 0
+				&& iFlashlightShadowIndex <= ( INT_FLASHLIGHT_DEPTHTEXTURE_FALLBACK_LAST - INT_FLASHLIGHT_DEPTHTEXTURE_FALLBACK_FIRST ) )
+			{
+				pFlashlightDepthTexture = (ITexture*)pShaderAPI->GetIntRenderingParameter( INT_FLASHLIGHT_DEPTHTEXTURE_FALLBACK_FIRST + iFlashlightShadowIndex );
+			}
+		}
+
 		SetFlashLightColorFromState( flashlightState, pShaderAPI );
 
 		pShader->BindTexture( SHADER_SAMPLER0, flashlightState.m_pSpotlightTexture, flashlightState.m_nSpotlightTextureFrame );
@@ -794,8 +805,8 @@ void DrawLightmappedGeneric_DX9_Internal(CBaseVSShader *pShader, IMaterialVar** 
 			(params[info.m_nBlendModulateTexture]->IsTexture() );
 		bool hasNormalMapAlphaEnvmapMask = IS_FLAG_SET( MATERIAL_VAR_NORMALMAPALPHAENVMAPMASK );
 #ifdef PARALLAX_CORRECTED_CUBEMAPS
-		// Parallax cubemaps
-		bool hasParallaxCorrection = params[info.m_nEnvmapParallax]->GetIntValue() > 0;
+		// Parallax cubemaps. Check for envmap because if we don't, white splotchs can appear at certain viewing angles when mat_specular is 0.
+		bool hasParallaxCorrection = params[info.m_nEnvmap]->IsDefined() && params[info.m_nEnvmapParallax]->GetIntValue() > 0;
 #endif
 
 		if ( hasFlashlight && !IsX360() )				
