@@ -175,7 +175,7 @@ void CGameUI::Initialize( CreateInterfaceFn factory )
 
 	vgui::VGui_InitInterfacesList( "GameUI", &factory, 1 );
 	vgui::VGui_InitMatSysInterfacesList( "GameUI", &factory, 1 );
-
+	 
 	// load localization file
 	g_pVGuiLocalize->AddFile( "Resource/gameui_%language%.txt", "GAME", true );
 
@@ -236,6 +236,11 @@ void CGameUI::PostInit()
 void CGameUI::SetLoadingBackgroundDialog( vgui::VPANEL panel )
 {
 	g_hLoadingBackgroundDialog = panel;
+}
+
+IBonusMapsDatabase *CGameUI::GetBonusMapsDatabase()
+{
+	return BonusMapsDatabase();
 }
 
 void CGameUI::BonusMapUnlock( const char *pchFileName, const char *pchMapName )
@@ -507,7 +512,6 @@ void CGameUI::PlayGameStartupSound()
 			engine->ClientCmd_Unrestricted( found );
 		}
 
-		// fileNames.PurgeAndDeleteElements();
 		fileNames.PurgeAndDeleteElementsArray();
 	}
 }

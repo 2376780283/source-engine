@@ -46,6 +46,7 @@ public:
 	virtual void SetLoadingBackgroundDialog( vgui::VPANEL panel );
 
 	// Bonus maps interfaces
+	virtual class IBonusMapsDatabase *GetBonusMapsDatabase();
 	virtual void BonusMapUnlock( const char *pchFileName = NULL, const char *pchMapName = NULL );
 	virtual void BonusMapComplete( const char *pchFileName = NULL, const char *pchMapName = NULL );
 	virtual void BonusMapChallengeUpdate( const char *pchFileName, const char *pchMapName, const char *pchChallengeName, int iBest );

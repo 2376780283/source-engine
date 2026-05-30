@@ -25,7 +25,9 @@
 #define SDK_2013_HACKS MAPBASE
 
 #if SDK_2013_HACKS
-struct ChallengeDescription_t
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
+struct GamepadUI_ChallengeDescription_t
 {
     int iBest;
     int iGold;
@@ -36,7 +38,7 @@ struct ChallengeDescription_t
     int iType;
 };
 
-struct BonusMapDescription_t
+struct GamepadUI_BonusMapDescription_t
 {
     char szMapName[128];
     char szMapFileName[128];
@@ -137,6 +139,8 @@ public:
     void OnMouseWheeled( int delta ) OVERRIDE;
 
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
     void ScanBonusMaps();
     void ScanBonusMapSubDir( const char *pszDir, BonusMapDescription_t *pParent );
     void LoadBonusMapDir( const char *pszDir, BonusMapDescription_t *pParent = NULL, BonusMapDescription_t **ppFolder = NULL );
@@ -335,6 +339,8 @@ public:
         m_BonusMapDesc = *pDesc;
 
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
         if ( m_BonusMapDesc.m_Challenges.Count() == 0 )
 #else
         if ( !m_BonusMapDesc.m_pChallenges )
@@ -343,6 +349,8 @@ public:
 
         int nNumChallenges = 0;
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
         for ( ChallengeDescription_t& challenge : m_BonusMapDesc.m_Challenges )
 #else
         for ( ChallengeDescription_t& challenge : *m_BonusMapDesc.m_pChallenges )
@@ -489,6 +497,8 @@ void GamepadUIBonusMapsPanel::BuildMapsList()
     m_pBonusButtons.PurgeAndDeleteElements();
 
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
     ClearBonusMapsList();
     ScanBonusMaps();
 #else
@@ -510,6 +520,8 @@ void GamepadUIBonusMapsPanel::BuildMapsList()
     m_bHasChallenges = false;
 
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
 
     // add to the list
 	for ( int iMapIndex = 0; iMapIndex < m_Bonuses.Count() && iMapIndex < MAX_LISTED_BONUS_MAPS; ++iMapIndex)
@@ -737,6 +749,8 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
     if ( !V_strcmp( pCommand, "action_back" ) )
     {
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
         bool bIsRoot = GetCurrentFolder() == NULL;
 #else
         bool bIsRoot = !Q_strcmp( GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->GetPath(), "." );
@@ -746,6 +760,8 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
         else
         {
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
             BackFolder();
 #else
             GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->BackPath();
@@ -765,12 +781,16 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
         {
 		    int mapIndex = pButton->GetPriority();
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
 		    if ( IsValidIndex( mapIndex ) )
 #else
 		    if ( GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->IsValidIndex( mapIndex ) )
 #endif
 		    {
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
                 BonusMapDescription_t *pBonusMap = GetBonusData( mapIndex );
 #else
 			    BonusMapDescription_t *pBonusMap = GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->GetBonusData( mapIndex );
@@ -781,6 +801,8 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
 				    return;
 
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
                 const char *shortName = pBonusMap->szFileName;
 #else
                 const char *shortName = pBonusMap->szShortName;
@@ -790,6 +812,8 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
 				    if ( pBonusMap->bIsFolder )
 				    {
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
                         EnterFolder( pBonusMap );
 #else
 					    GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->AppendPath( shortName );
@@ -810,6 +834,8 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
                         {
                             const BonusMapDescription_t& desc = pButton->GetBonusMapDescription();
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
                             if ( desc.m_Challenges.Count() > 0 )
 #else
                             if ( desc.m_pChallenges )
@@ -832,6 +858,8 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
 						    GamepadUI::GetInstance().GetEngineClient()->ClientCmd_Unrestricted(sz);
 
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
                             ChallengeDescription_t *pChallengeDescription = &pBonusMap->m_Challenges[iChallenge - 1];
 #else
 						    ChallengeDescription_t *pChallengeDescription = &((*pBonusMap->m_pChallenges)[ iChallenge - 1 ]);
@@ -839,6 +867,8 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
 
 						    // Set up medal goals
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
                             SetCurrentChallengeObjectives( pChallengeDescription->iBronze, pChallengeDescription->iSilver, pChallengeDescription->iGold );
                             SetCurrentChallengeNames( pBonusMap->szFileName, pBonusMap->szMapName, pChallengeDescription->szName );
 #else
@@ -854,6 +884,8 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
 					    else
 					    {
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
                             const char *pchSubDir = Q_strnchr( pBonusMap->szFileName, '/', Q_strlen( pBonusMap->szFileName ) );
 #else
 						    const char *pchSubDir = Q_strnchr( GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->GetPath(), '/', Q_strlen( GamepadUI::GetInstance().GetGameUI()->GetBonusMapsDatabase()->GetPath() ) );
@@ -940,6 +972,8 @@ void GamepadUIBonusMapsPanel::Paint()
     }
 
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
     if (desc.m_Challenges.Count() == 0)
 #else
     if ( !desc.m_pChallenges )
@@ -981,6 +1015,8 @@ void GamepadUIBonusMapsPanel::Paint()
 
     int nNumChallenges = 0;
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
     for (const ChallengeDescription_t& challenge : desc.m_Challenges)
 #else
     for (ChallengeDescription_t& challenge : *desc.m_pChallenges)
@@ -1116,6 +1152,8 @@ void GamepadUIBonusMapsPanel::OnMouseWheeled( int nDelta )
 }
 
 #if SDK_2013_HACKS
+#define ChallengeDescription_t GamepadUI_ChallengeDescription_t
+#define BonusMapDescription_t GamepadUI_BonusMapDescription_t
 void GamepadUIBonusMapsPanel::ScanBonusMaps()
 {
     if (GetCurrentFolder() == NULL)

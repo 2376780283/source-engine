@@ -13,6 +13,7 @@
 
 #include "interface.h"
 #include "vgui/IPanel.h"
+#include "IBonusMapsDatabase.h"
 
 #if !defined( _X360 )
 #include "xbox/xboxstubs.h"
@@ -86,6 +87,7 @@ public:
 	virtual void SetLoadingBackgroundDialog( vgui::VPANEL panel ) = 0;
 
 	// Bonus maps interfaces
+	virtual class IBonusMapsDatabase *GetBonusMapsDatabase() = 0;
 	virtual void BonusMapUnlock( const char *pchFileName = NULL, const char *pchMapName = NULL ) = 0;
 	virtual void BonusMapComplete( const char *pchFileName = NULL, const char *pchMapName = NULL ) = 0;
 	virtual void BonusMapChallengeUpdate( const char *pchFileName, const char *pchMapName, const char *pchChallengeName, int iBest ) = 0;
