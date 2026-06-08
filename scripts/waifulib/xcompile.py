@@ -18,9 +18,10 @@ from waflib.Tools import c_config
 from collections import OrderedDict
 import os
 import sys
+import platform
 
 ANDROID_NDK_ENVVARS = ['ANDROID_NDK_HOME', 'ANDROID_NDK']
-ANDROID_NDK_SUPPORTED = [10, 16, 19, 20, 28]
+ANDROID_NDK_SUPPORTED = [10, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28]
 ANDROID_NDK_HARDFP_MAX = 11 # latest version that supports hardfp
 ANDROID_NDK_GCC_MAX = 17 # latest NDK that ships with GCC
 ANDROID_NDK_UNIFIED_SYSROOT_MIN = 15
@@ -166,13 +167,17 @@ class Android:
 			osname = 'windows'
 		elif sys.platform.startswith('darwin'):
 			osname = 'darwin'
-		elif sys.platform.startswith('linux'):
+		elif sys.platform.startswith('linux') or sys.platform.startswith('android'):
 			osname = 'linux'
 		else:
 			self.ctx.fatal('Unsupported by NDK host platform')
 
 		if sys.maxsize > 2**32:
-			arch = 'x86_64'
+			machine = platform.machine()
+			if machine in ['aarch64', 'arm64']:
+				arch = 'arm64'
+			else:
+				arch = 'x86_64'
 		else: arch = 'x86'
 
 		return '%s-%s' % (osname, arch)
@@ -214,7 +219,7 @@ class Android:
 		return self.gen_toolchain_path() + ('clang++' if self.is_clang() else 'g++')
 
 	def strip(self):
-		if self.is_host():
+		if self.is_host() or self.ndk_rev >= 23:
 			return 'llvm-strip'
 		return os.path.join(self.gen_binutils_path(), 'strip')
 
@@ -239,8 +244,8 @@ class Android:
 		return os.path.abspath(os.path.join(self.ndk_home, path))
 
 	def sysroot(self):
-		if self.ndk_rev >= 28:
-			# NDK r28+ removed top-level sysroot/; it's inside the LLVM toolchain
+		if self.ndk_rev >= 23:
+			# NDK r23+ moved sysroot inside the LLVM toolchain
 			return os.path.join(self.gen_gcc_toolchain_path(), 'sysroot')
 		elif self.ndk_rev >= ANDROID_NDK_UNIFIED_SYSROOT_MIN:
 			return os.path.abspath(os.path.join(self.ndk_home, 'sysroot'))
@@ -252,15 +257,9 @@ class Android:
 
 		if self.ndk_rev <= ANDROID_NDK_SYSROOT_FLAG_MAX:
 			cflags += ['--sysroot=%s' % (self.sysroot())]
-		elif self.is_host():
-			if self.ndk_rev >= 28:
-				# NDK r28+: sysroot is inside the LLVM toolchain, --sysroot alone suffices
-				cflags += ['--sysroot=%s' % (self.sysroot())]
-			else:
-				cflags += [
-					'--sysroot=%s/sysroot' % (self.gen_gcc_toolchain_path()),
-					'-isystem', '%s/usr/include/' % (self.sysroot())
-				]
+		elif self.is_host() or self.ndk_rev >= 23:
+			# NDK r23+ or host: sysroot is inside the LLVM toolchain
+			cflags += ['--sysroot=%s' % (self.sysroot())]
 
 		cflags += ['-I%s'%i for i in self.system_stl()]+['-DANDROID', '-D__ANDROID__']
 
@@ -299,16 +298,9 @@ class Android:
 	# they go before object list
 	def linkflags(self):
 		linkflags = []
-		if self.is_host():
-			if self.ndk_rev >= 28:
-				# NDK r28+: no separate GCC toolchain; skip --gcc-toolchain
-				pass
-			else:
-				linkflags += ['--gcc-toolchain=%s' % self.gen_gcc_toolchain_path()]
-
-		if self.ndk_rev <= ANDROID_NDK_SYSROOT_FLAG_MAX:
+		if self.is_host() or self.ndk_rev >= 23:
 			linkflags += ['--sysroot=%s' % (self.sysroot())]
-		elif self.is_host():
+		elif self.ndk_rev <= ANDROID_NDK_SYSROOT_FLAG_MAX:
 			linkflags += ['--sysroot=%s' % (self.sysroot())]
 
 		if self.is_clang() or self.is_host():
@@ -323,8 +315,8 @@ class Android:
 			ldflags += ['-lgcc']
 
 		if self.is_clang() or self.is_host():
-			# NDK r28+ uses libc++ by default, older NDKs use libstdc++
-			if self.ndk_rev >= 28:
+			# NDK r18+ uses libc++ by default. GNU libstdc++ was removed in r18.
+			if self.ndk_rev >= 18:
 				ldflags += ['-stdlib=libc++']
 			else:
 				ldflags += ['-stdlib=libstdc++']
@@ -340,10 +332,9 @@ class Android:
 			else:
 				ldflags += ['-march=armv5te']
 		elif self.is_arm64():
-			if self.ndk_rev >= 28:
-				# NDK r28+ uses unified toolchain, no standalone GCC or platforms/ dirs
+			if self.ndk_rev >= 21:
+				# NDK r21+ uses unified toolchain and wrappers handle paths.
 				ldflags += ['-L' + os.path.abspath('.') + '/lib/android/aarch64']
-				#pass
 			else:
 				ldflags += ['-L' + (os.path.join(self.ndk_home, 'toolchains', 'aarch64-linux-android-4.9', 'prebuilt', self.gen_host_toolchain(), 'lib', 'gcc', 'aarch64-linux-android', '4.9.x'))]
 				ldflags += ['-L' + (os.path.join(self.ndk_home, 'platforms', 'android-%d' % (self.api), 'arch-arm64', 'usr', 'lib'))]
@@ -380,8 +371,8 @@ def configure(conf):
 		conf.env.LINKFLAGS += android.linkflags()
 		conf.env.LDFLAGS += android.ldflags()
 
-		if android.ndk_rev >= 28:
-			# NDK r28+ uses libc++ (no gnu-libstdc++), STL headers are in the toolchain sysroot
+		if android.ndk_rev >= 18:
+			# NDK r18+ uses libc++ (no gnu-libstdc++), STL headers are handled by clang wrapper
 			pass
 		else:
 			conf.env.INCLUDES += [
