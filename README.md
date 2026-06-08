@@ -1,6 +1,3 @@
-# Warm this tree is support mapbase
-- thanks developer @ItzVladik ， zzhlife and gamepadui developer
-
 ## Features:
 - Modern toolchains support
 - Fixed many undefined behaviours
@@ -12,14 +9,9 @@
 - Removed useless/unnecessary dependencies
 - Achivement system working without steam
 - Fixed many bugs
-- add mapbase and gamepadui
 
 ## Current tasks
 - Rewrite materialsystem for OpenGL render
 - dxvk-native support
 - Elbrus port
-- Bink audio support( for video_bink )
-- fix gamepadui s bug
-- fix SetProportiona() s bug
-- change the Android api to 28 (android 9)
-- try to add lua module
+
