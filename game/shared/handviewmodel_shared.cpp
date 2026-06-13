@@ -13,7 +13,8 @@
 #endif
 
 #ifdef CLIENT_DLL
-ConVar c_handmodel( "c_handmodel", "default", FCVAR_USERINFO | FCVAR_ARCHIVE | FCVAR_CLIENTDLL );
+ConVar c_hand( "c_hand", "models/weapons/c_arms_hev.mdl", FCVAR_USERINFO | FCVAR_ARCHIVE | FCVAR_CLIENTDLL );
+ConVar c_handskin( "c_handskin", "0", FCVAR_USERINFO | FCVAR_ARCHIVE | FCVAR_CLIENTDLL );
 #endif
 
 class CHandViewModel : public CBaseViewModel
