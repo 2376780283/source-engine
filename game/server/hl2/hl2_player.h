@@ -283,6 +283,13 @@ public:
 
 	CSoundPatch *m_sndLeeches;
 	CSoundPatch *m_sndWaterSplashes;
+	
+public:
+    char m_szCurrentHandModelName[256];
+    const char *pszHandSkin = nullptr;
+    CBaseViewModel *pHandVM;
+    const char *pszDesiredModel = nullptr;
+    const char* pszEnabled = nullptr;
 
 protected:
 	virtual void		PreThink( void );

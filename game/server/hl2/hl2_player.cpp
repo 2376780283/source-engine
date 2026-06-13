@@ -900,8 +900,30 @@ void CHL2_Player::PostThink( void )
 
 	if ( !g_fGameOver && !IsPlayerLockedInPlace() && IsAlive() )
 	{
-		 HandleAdmireGlovesAnimation();
+		HandleAdmireGlovesAnimation();
 	}
+	
+	if (pszEnabled && pszEnabled[0] == '0')
+	    return;
+    if ( !pHandVM )
+    {
+        pHandVM = GetViewModel( 1 );
+        m_szCurrentHandModelName[0] = '\0';
+    }    
+    if ( !pHandVM )
+        return;
+    pszDesiredModel = engine->GetClientConVarValue( engine->IndexOfEdict( edict() ), "c_hand" );
+    pszHandSkin  = engine->GetClientConVarValue( ENTINDEX( edict() ), "c_handskin" );
+    if ( !pszDesiredModel || !pszDesiredModel[0] )
+        return;
+    if ( Q_stricmp( m_szCurrentHandModelName, pszDesiredModel ) != 0 )
+    {
+        PrecacheModel( pszDesiredModel );
+        Q_strncpy( m_szCurrentHandModelName, pszDesiredModel, sizeof(m_szCurrentHandModelName) );
+        pHandVM->SetModel( m_szCurrentHandModelName );        
+        pHandVM->m_nSkin = atoi(pszHandSkin);
+
+    }
 }
 
 void CHL2_Player::StartAdmireGlovesAnimation( void )
@@ -1142,6 +1164,11 @@ void CHL2_Player::Spawn(void)
 	GetPlayerProxy();
 
 	SetFlashlightPowerDrainScale( 1.0f );
+	
+	CreateHandModel( 1, 0 );
+	
+	pHandVM = GetViewModel( 1 );
+	pszEnabled = engine->GetClientConVarValue( ENTINDEX( edict() ), "c_hand_enabled" );
 }
 
 //-----------------------------------------------------------------------------

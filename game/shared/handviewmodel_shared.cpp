@@ -15,6 +15,7 @@
 #ifdef CLIENT_DLL
 ConVar c_hand( "c_hand", "models/weapons/c_arms_hev.mdl", FCVAR_USERINFO | FCVAR_ARCHIVE | FCVAR_CLIENTDLL );
 ConVar c_handskin( "c_handskin", "0", FCVAR_USERINFO | FCVAR_ARCHIVE | FCVAR_CLIENTDLL );
+static ConVar c_hand_enabled( "c_hand_enabled", "1", FCVAR_ARCHIVE | FCVAR_USERINFO | FCVAR_CLIENTDLL, "Toggle hand model (1=Enabled, 0=Disabled)" );
 #endif
 
 class CHandViewModel : public CBaseViewModel
