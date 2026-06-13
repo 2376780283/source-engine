@@ -513,6 +513,28 @@ void CBasePlayer::CreateViewModel( int index /*=0*/ )
 //-----------------------------------------------------------------------------
 // Purpose: 
 //-----------------------------------------------------------------------------
+void CBasePlayer::CreateHandModel( int index, int iOtherVm )
+{
+	Assert( index >= 0 && index < MAX_VIEWMODELS && iOtherVm >= 0 && iOtherVm < MAX_VIEWMODELS );
+
+	if ( GetViewModel( index ) )
+		return;
+
+	CBaseViewModel *vm = (CBaseViewModel *)CreateEntityByName( "hand_viewmodel" );
+	if ( vm )
+	{
+		vm->SetAbsOrigin( GetAbsOrigin() );
+		vm->SetOwner( this );
+		vm->SetIndex( index );
+		DispatchSpawn( vm );
+		vm->FollowEntity( GetViewModel( iOtherVm ), true );
+		m_hViewModel.Set( index, vm );
+	}
+}
+
+//-----------------------------------------------------------------------------
+// Purpose: 
+//-----------------------------------------------------------------------------
 void CBasePlayer::DestroyViewModels( void )
 {
 	int i;
@@ -4576,6 +4598,7 @@ void CBasePlayer::PostThink()
 				SetAnimation( PLAYER_WALK );
 			else if (GetWaterLevel() > 1)
 				SetAnimation( PLAYER_WALK );
+
 		}
 
 		// Don't allow bogus sequence on player
@@ -4927,7 +4950,7 @@ void CBasePlayer::Spawn( void )
 	m_AirFinished	= gpGlobals->curtime + AIRTIME;
 	m_nDrownDmgRate	= DROWNING_DAMAGE_INITIAL;
 	
- // only preserve the shadow flag
+    // only preserve the shadow flag
 	int effects = GetEffects() & EF_NOSHADOW;
 	SetEffects( effects );
 
