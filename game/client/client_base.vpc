@@ -205,6 +205,7 @@ $Project
 		$File	"$SRCDIR\game\shared\baseprojectile.cpp"
 		$File	"$SRCDIR\game\shared\baseprojectile.h"
 		$File	"$SRCDIR\game\shared\baseviewmodel_shared.cpp"
+		$File	"$SRCDIR\game\shared\handviewmodel_shared.cpp"
 		$File	"beamdraw.cpp"
 		$File	"$SRCDIR\game\shared\beam_shared.cpp"
 		$File	"$SRCDIR\public\bone_accessor.cpp"
