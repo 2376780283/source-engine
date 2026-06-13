@@ -1291,15 +1291,18 @@ bool CBaseCombatWeapon::UsesSecondaryAmmo( void )
 //-----------------------------------------------------------------------------
 // Purpose: Show/hide weapon and corresponding view model if any
 // Input  : visible - 
+// Note  : hm是handModel，后期需要完善
 //-----------------------------------------------------------------------------
 void CBaseCombatWeapon::SetWeaponVisible( bool visible )
 {
 	CBaseViewModel *vm = NULL;
+	CBaseViewModel* hm = NULL;
 
 	CBasePlayer *pOwner = ToBasePlayer( GetOwner() );
 	if ( pOwner )
 	{
 		vm = pOwner->GetViewModel( m_nViewModelIndex );
+		hm = pOwner->GetViewModel(1); // TODO：需要确切的viewmodel的index，不要猜！
 	}
 
 	if ( visible )
@@ -1309,6 +1312,10 @@ void CBaseCombatWeapon::SetWeaponVisible( bool visible )
 		{
 			vm->RemoveEffects( EF_NODRAW );
 		}
+		if ( hm )
+		{
+			hm->RemoveEffects( EF_NODRAW );
+		}
 	}
 	else
 	{
@@ -1316,6 +1323,10 @@ void CBaseCombatWeapon::SetWeaponVisible( bool visible )
 		if ( vm )
 		{
 			vm->AddEffects( EF_NODRAW );
+		}
+		if ( hm )
+		{
+			hm->AddEffects( EF_NODRAW );
 		}
 	}
 }
