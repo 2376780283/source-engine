@@ -19,7 +19,8 @@ games = {
 	'portal': ['gamepadui_base.vpc', 'gamepadui_portal.vpc'],
 	'hl1mp': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'], 
 	'cstrike': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
-	'dod': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc']
+	'dod': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
+	'nh2': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
 }
 
 def configure(conf):
