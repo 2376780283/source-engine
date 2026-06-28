@@ -21,7 +21,7 @@
 #include "tier0/memdbgon.h"
 
 //=========================================================
-// Configuraci�n
+// Configuracin
 //=========================================================
 
 #define LESSON_PRIORITY_MAX 1000
