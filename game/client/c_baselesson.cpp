@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ============//
+//========= Copyright  1996-2008, Valve Corporation, All rights reserved. ============//
 //
 // Purpose:		Client handler implementations for instruction players how to play
 //
@@ -21,7 +21,7 @@
 #include "tier0/memdbgon.h"
 
 //=========================================================
-// Configuración
+// Configuracin
 //=========================================================
 
 #define LESSON_PRIORITY_MAX 1000
@@ -3336,7 +3336,7 @@ bool CScriptedIconLesson::ProcessElementAction(int iAction, bool bNot, const cha
 
         // Check if the ammo is full
         int iAmmoType = pBaseCombatWeapon->GetPrimaryAmmoType();
-        int iMaxAmmo = GetAmmoDef()->MaxCarry(iAmmoType, pBasePlayer);
+        int iMaxAmmo = GetAmmoDef()->MaxCarry(iAmmoType);
         int iPlayerAmmo = pBasePlayer->GetAmmoCount(iAmmoType);
 
         bool bAmmoLow = (iPlayerAmmo < (iMaxAmmo / 3));
@@ -3409,7 +3409,7 @@ bool CScriptedIconLesson::ProcessElementAction(int iAction, bool bNot, const cha
 
         // Check if the ammo is full
         int iAmmoType = pBaseCombatWeapon->GetPrimaryAmmoType();
-        int iMaxAmmo = GetAmmoDef()->MaxCarry(iAmmoType, pBasePlayer);
+        int iMaxAmmo = GetAmmoDef()->MaxCarry(iAmmoType);
         int iPlayerAmmo = pBasePlayer->GetAmmoCount(iAmmoType);
 
         bool bAmmoFull = (iPlayerAmmo >= iMaxAmmo);
