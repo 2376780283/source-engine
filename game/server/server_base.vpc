@@ -322,6 +322,7 @@ $Project
 		$File	"env_projectedtexture.cpp"
 		$File	"env_screenoverlay.cpp"
 		$File	"env_texturetoggle.cpp"
+		$File	"env_instructor_hint.cpp"
 		$File	"env_tonemap_controller.cpp"
 		$File	"$SRCDIR\game\shared\env_wind_shared.cpp"
 		$File	"$SRCDIR\game\shared\env_wind_shared.h"
