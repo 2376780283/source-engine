@@ -99,7 +99,7 @@ projects={
 		'unicode',
 		'video',
 		'rmlui',
-        'game/gamepadui',
+		'game/gamepadui',
 	],
 	'tests': [
 		'appframework',
@@ -416,7 +416,7 @@ def check_deps(conf):
 		conf.check(lib='png', uselib_store='PNG', define_name='HAVE_PNG')
 		conf.check(lib='curl', uselib_store='CURL', define_name='HAVE_CURL')
 		conf.check(lib='z', uselib_store='ZLIB', define_name='HAVE_ZLIB')
-		conf.check(lib='rmlui', uselib_store='RMLUI')
+
 
 		if conf.env.DEST_CPU != 'aarch64':
 			conf.check(lib='unwind', uselib_store='UNWIND')
