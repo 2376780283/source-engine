@@ -1,0 +1,100 @@
+#! /usr/bin/env python
+# encoding: utf-8
+
+from waflib import Utils
+import os
+
+top = '.'
+PROJECT_NAME = 'botrix'
+
+def configure(conf):
+	pass
+
+def build(bld):
+	source = [
+		'weapon.cpp',
+		'waypoint_navigator.cpp',
+		'waypoint.cpp',
+		'type2string.cpp',
+		'source_engine.cpp',
+		'server_plugin.cpp',
+		'players.cpp',
+		'mod.cpp',
+		'item.cpp',
+		'event.cpp',
+		'console_commands.cpp',
+		'config.cpp',
+		'clients.cpp',
+		'chat.cpp',
+		'bot.cpp',
+		'mods/hl2dm/mod_hl2dm.cpp',
+		'mods/hl2dm/bot_hl2dm.cpp',
+		'mods/tf2/bot_tf2.cpp',
+		'mods/tf2/mod_tf2.cpp',
+	]
+
+	includes = [
+		'.',
+		'good/include',
+		'../../../public',
+		'../../../public/engine',
+		'../../../public/tier0',
+		'../../../public/tier1',
+		'../../../public/game/server',
+		'../../../public/mathlib',
+		'../../../public/vstdlib',
+		'../../../game/server',
+		'../../../game/server/hl2',
+		'../../../game/server/hl2mp',
+		'../../../game/shared',
+		'../../../',
+	]
+
+	defines = [
+		'COMPILER_GCC',
+		'GNUC=1',
+		'POSIX=1',
+		'LINUX=1',
+		'_LINUX=1',
+		'NO_MALLOC_OVERRIDE',
+		'BOTRIX_SOURCE_2013',
+		'BOTRIX_TF2',
+		'BOTRIX_HL2DM',
+		'BOTRIX_BOT_AIM_ERROR',
+		'GOOD_INI_ONE_KV_SEPARATOR',
+		'GOOD_INI_ONE_COMMENT_CHAR',
+		'GOOD_LOG_FLUSH',
+		'GOOD_LOG_USE_ENDL',
+		'VECTOR',
+		'GAME_DLL',
+		'HL2_DLL',
+		'HL2_MP',
+		'HL2_EPISODIC',
+		'MP_SDK',
+		'VPC',
+	]
+
+	if bld.env.DEST_OS in ['android', 'linux']:
+		libs = [
+			'good',
+			'mathlib',
+			'tier1',
+			'tier0',
+			'dl',
+		]
+	else:
+		libs = ['good', 'tier0'] 
+
+	bld.shlib(
+		source   = source,
+		target   = PROJECT_NAME,
+		name     = PROJECT_NAME,
+		features = 'c cxx',
+		includes = includes,
+		defines  = defines,
+		use      = libs,
+		cxxflags = ['-fvisibility=hidden', '-fpermissive', '-fno-rtti', '-fno-exceptions'],
+		install_path = bld.env.LIBDIR,
+		idx      = bld.get_taskgen_count()
+	)
+

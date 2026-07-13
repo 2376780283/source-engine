@@ -97,6 +97,8 @@ projects={
 		'unicode',
 		'video',
         'game/gamepadui',
+#		'game/addons/botrix/good',
+#		'game/addons/botrix', 
 	],
 	'tests': [
 		'appframework',
@@ -321,6 +323,12 @@ def options(opt):
 	# TODO(nillerusr): add wscript for opus building
 	grp.add_option('--enable-opus', action = 'store_true', dest = 'OPUS', default = False,
 		help = 'build engine with Opus voice codec [default: %default]')
+
+	grp.add_option('--legacy-32bit', action='store_true', default=False, dest='legacy_32bit',
+		help = 'Use old version of Source SDK 2013')
+
+	grp.add_option('--diii4a', action='store_true', default=False, dest='diii4a',
+		help = 'Build with DIII4A specific configurations')
 
 	grp.add_option('--sanitize', action = 'store', dest = 'SANITIZE', default = '',
 		help = 'build with sanitizers [default: %default]')
@@ -630,6 +638,9 @@ def configure(conf):
 
 def build(bld):
 	os.environ["CCACHE_DIR"] = os.path.abspath('.ccache/'+bld.env.COMPILER_CC+'/'+bld.env.DEST_OS+'/'+bld.env.DEST_CPU)
+	
+	if bld.options.GAMES in ['hl2mp', 'hl1mp']:
+		projects['game'] += ['game/addons/botrix/good', 'game/addons/botrix']
 
 	if bld.env.DEST_OS in ['win32', 'android']:
 		sdl_name = 'SDL2.dll' if bld.env.DEST_OS == 'win32' else 'libSDL2.so'
