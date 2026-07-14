@@ -617,6 +617,8 @@ def configure(conf):
 
 	check_deps( conf )
 
+	conf.env.TARGET_GAME = conf.options.GAMES
+
 	# indicate if we are packaging for Linux/BSD
 	if conf.env.DEST_OS != 'android':
 		conf.env.LIBDIR = conf.env.PREFIX+'/bin/'
@@ -639,7 +641,7 @@ def configure(conf):
 def build(bld):
 	os.environ["CCACHE_DIR"] = os.path.abspath('.ccache/'+bld.env.COMPILER_CC+'/'+bld.env.DEST_OS+'/'+bld.env.DEST_CPU)
 	
-	if bld.options.GAMES in ['hl2mp', 'hl1mp']:
+	if getattr(bld.env, 'TARGET_GAME', '') in ['hl2mp', 'hl1mp']:
 		projects['game'] += ['game/addons/botrix/good', 'game/addons/botrix']
 
 	if bld.env.DEST_OS in ['win32', 'android']:
