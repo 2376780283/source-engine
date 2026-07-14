@@ -609,6 +609,8 @@ def configure(conf):
 
 	check_deps( conf )
 
+	conf.env.TARGET_GAME = conf.options.GAMES
+
 	# indicate if we are packaging for Linux/BSD
 	if conf.env.DEST_OS != 'android':
 		conf.env.LIBDIR = conf.env.PREFIX+'/bin/'
