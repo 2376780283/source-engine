@@ -30,18 +30,18 @@ int iLastArgs = 0;
 extern void InitCrashHandler();
 DLL_EXPORT int LauncherMain( int argc, char **argv ); // from launcher.cpp
 // zzh.source.launcher.utils  GameBridge
-DLL_EXPORT int Java_zzh_source_launcher_utils_GameBridge_setenv(JNIEnv *jenv, jclass *jclass, jstring env, jstring value, jint over)
+DLL_EXPORT int Java_zzh_source_launcher_data_jni_GameBridge_setenv(JNIEnv *jenv, jclass *jclass, jstring env, jstring value, jint over)
 {
-	Msg( "Java_zzh_source_launcher_utils_GameBridge_setenv %s=%s\n", jenv->GetStringUTFChars(env, NULL), jenv->GetStringUTFChars(value, NULL) );
+	Msg( "Java_zzh_source_launcher_data_jni_GameBridge_setenv %s=%s\n", jenv->GetStringUTFChars(env, NULL), jenv->GetStringUTFChars(value, NULL) );
 	return setenv( jenv->GetStringUTFChars(env, NULL), jenv->GetStringUTFChars(value, NULL), over );
 }
 
-DLL_EXPORT void Java_zzh_source_launcher_utils_GameBridge_nativeOnActivityResult()
+DLL_EXPORT void Java_zzh_source_launcher_data_jni_GameBridge_nativeOnActivityResult()
 {
 //	Msg( "Java_com_valvesoftware_ValveActivity_nativeOnActivityResult\n" );
 }
 
-DLL_EXPORT void Java_zzh_source_launcher_utils_GameBridge_setArgs(JNIEnv *env, jclass *clazz, jstring str)
+DLL_EXPORT void Java_zzh_source_launcher_data_jni_GameBridge_setArgs(JNIEnv *env, jclass *clazz, jstring str)
 {
 	strncpy( java_args, env->GetStringUTFChars(str, NULL), sizeof java_args );
 }
