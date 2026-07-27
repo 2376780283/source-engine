@@ -651,5 +651,4 @@ def build(bld):
 			projects['game'] += ['togles']
 		elif bld.env.GL:
 			projects['game'] += ['togl']
-
 		bld.add_subproject(projects['game'])
