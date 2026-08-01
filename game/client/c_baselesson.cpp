@@ -3337,7 +3337,7 @@ bool CScriptedIconLesson::ProcessElementAction(int iAction, bool bNot, const cha
         // Check if the ammo is full
         int iAmmoType = pBaseCombatWeapon->GetPrimaryAmmoType();
 
-        int iMaxAmmo = GetAmmoDef()->MaxCarry(iAmmoType, pBasePlayer);
+        int iMaxAmmo = GetAmmoDef()->MaxCarry(iAmmoType);
 
         int iPlayerAmmo = pBasePlayer->GetAmmoCount(iAmmoType);
 
@@ -3412,7 +3412,7 @@ bool CScriptedIconLesson::ProcessElementAction(int iAction, bool bNot, const cha
         // Check if the ammo is full
         int iAmmoType = pBaseCombatWeapon->GetPrimaryAmmoType();
 
-        int iMaxAmmo = GetAmmoDef()->MaxCarry(iAmmoType, pBasePlayer);
+        int iMaxAmmo = GetAmmoDef()->MaxCarry(iAmmoType);
 
         int iPlayerAmmo = pBasePlayer->GetAmmoCount(iAmmoType);
 
