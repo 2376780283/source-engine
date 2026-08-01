@@ -56,10 +56,6 @@
 #include "replay/ienginereplay.h"
 #endif
 
-#ifdef RMLUI
-#include "rmlui/rmlui_manager.h"
-#endif
-
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -769,9 +765,4 @@ void CBaseViewport::Paint()
 		vgui::surface()->DrawLine( size, 0, size, size );
 		vgui::surface()->DrawLine( 0, size, size, size );
 	}
-	
-#ifdef RMLUI
-	// 渲染主菜单
-	RmlUIManager::GetInstance()->Render();
-#endif
 }

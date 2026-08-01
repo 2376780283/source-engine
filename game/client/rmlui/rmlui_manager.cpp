@@ -57,7 +57,7 @@
 extern IVEngineClient *engine;
 
 RmlUIManager* RmlUIManager::instance = nullptr;
-RmlUIManager::RmlUIManager() : mainContext(nullptr) {}
+RmlUIManager::RmlUIManager() : rmlPanel(nullptr), mainContext(nullptr), mainDocument(nullptr), inGame(false) {}
 
 static RmlUIRenderInterface renderInterface;
 static RmlUiSystemInterface systemInterface;
@@ -134,10 +134,10 @@ void RmlUIManager::Init()
 		mainContext = Rml::CreateContext("main", Rml::Vector2i(ScreenWidth(), ScreenHeight()));
 		if (mainContext)
 		{
-			Rml::ElementDocument* document = mainContext->LoadDocument("rmlui/mainmenu.rml");
-			if (document)
+			mainDocument = mainContext->LoadDocument("rmlui/mainmenu.rml");
+			if (mainDocument)
 			{
-				document->Show();
+				mainDocument->Show();
 			}
 		}
 	}	
@@ -146,7 +146,7 @@ void RmlUIManager::Init()
 /// Render all contexts
 void RmlUIManager::Render()
 {
-	if (!mainContext)
+	if (!mainContext || inGame)
 		return;
 
 	// Disable previous transform
@@ -166,6 +166,42 @@ void RmlUIManager::OnScreenSizeChanged(int iOldWide, int iOldTall)
 
 	if (mainContext)
 		mainContext->SetDimensions(Rml::Vector2i(w, h));
+}
+
+/// Called when entering a map (disconnect from main menu)
+void RmlUIManager::OnEnterGame()
+{
+	if (inGame)
+		return;
+
+	inGame = true;
+
+	if (mainDocument)
+		mainDocument->Hide();
+
+	if (rmlPanel)
+	{
+		rmlPanel->SetVisible(false);
+		SetInputEnabled(false);
+	}
+}
+
+/// Called when leaving a map (return to main menu)
+void RmlUIManager::OnLeaveGame()
+{
+	if (!inGame)
+		return;
+
+	inGame = false;
+
+	if (rmlPanel)
+	{
+		rmlPanel->SetVisible(true);
+		SetInputEnabled(true);
+	}
+
+	if (mainDocument)
+		mainDocument->Show();
 }
 
 static Rml::Input::KeyIdentifier ConvertKeyCodeTo(ButtonCode_t keynum)
@@ -314,6 +350,9 @@ void RmlUIManager::OnKeyTyped(wchar_t unichar)
 
 void RmlUIManager::SetInputEnabled(bool state)
 {
+	if (!rmlPanel)
+		return;
+
 	rmlPanel->SetMouseInputEnabled(state);
 	rmlPanel->SetKeyBoardInputEnabled(state);
 }
@@ -369,6 +408,7 @@ void RmlUIManager::Shutdown()
 	{
 		Rml::RemoveContext("main");
 		mainContext = nullptr;
+		mainDocument = nullptr;
 	}
 
 	Rml::Shutdown();

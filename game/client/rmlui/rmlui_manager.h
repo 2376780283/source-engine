@@ -38,7 +38,9 @@ private:
     static RmlUIManager* instance;
     RmlUiPanel* rmlPanel;
     Rml::Context* mainContext;
-    
+    Rml::ElementDocument* mainDocument;
+    bool inGame;
+
     RmlUIManager();
     void LoadFontFaces();
 
@@ -51,6 +53,9 @@ public:
     void Init();
     void Render();
     void Shutdown();
+
+    void OnEnterGame();
+    void OnLeaveGame();
 
     void OnScreenSizeChanged(int iOldWide, int iOldTall);
     void OnCursorMoved(int x, int y);

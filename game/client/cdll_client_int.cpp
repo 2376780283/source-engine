@@ -1794,6 +1794,10 @@ void CHLClient::LevelInitPreEntity( char const* pMapName )
 	if (g_pGamepadUI != nullptr)
 		g_pGamepadUI->OnLevelInitializePreEntity();
 #endif // GAMEPADUI
+
+#ifdef RMLUI
+	RmlUIManager::GetInstance()->OnEnterGame();
+#endif
 }
 
 
@@ -1880,6 +1884,10 @@ void CHLClient::LevelShutdown( void )
 	if (g_pGamepadUI != nullptr)
 		g_pGamepadUI->OnLevelShutdown();
 #endif // GAMEPADUI
+
+#ifdef RMLUI
+	RmlUIManager::GetInstance()->OnLeaveGame();
+#endif
 
 	gHUD.LevelShutdown();
 
