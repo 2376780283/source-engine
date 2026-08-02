@@ -140,6 +140,7 @@ void RmlUIManager::Init()
 				mainDocument->Show();
 			}
 		}
+		SetInputEnabled(true);
 	}	
 }	
 

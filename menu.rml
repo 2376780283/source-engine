@@ -1,0 +1,21 @@
+<rml>
+<head>
+    <title>Game Menu</title>
+    <link type="text/css" href="menu.css"/>
+</head>
+<body class="menu-body">
+    <div class="menu-container">
+        <h1>Source Engine Menu</h1>
+        <div class="menu-buttons">
+            <!-- 
+               on-click="run_command" 会触发 C++ 中的 MenuEventInstancer，
+               进而调用 MenuEventListener。
+               MenuEventListener 会读取 data-cmd 中的字符串，并发送给引擎。
+            -->
+            <button on-click="run_command" data-cmd="map de_dust2">Start Game</button>
+            <button on-click="run_command" data-cmd="echo Options clicked!">Options</button>
+            <button on-click="run_command" data-cmd="quit">Quit</button>
+        </div>
+    </div>
+</body>
+</rml>
