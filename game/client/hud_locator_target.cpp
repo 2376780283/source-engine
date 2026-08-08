@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ============//
+//========= Copyright  1996-2008, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: See header file
 //
@@ -2176,4 +2176,40 @@ void CLocatorPanel::RemoveTarget(int hTarget)
     {
         pTarget->Deactivate();
     }
+}
+
+//-----------------------------------------------------------------------------
+// hudloacator Test
+//-----------------------------------------------------------------------------
+static int s_hTestTarget = -1;
+CON_COMMAND(locator_test, "Test locator hint")
+{
+    if (s_hTestTarget != -1)
+    {
+        CLocatorTarget *pOldTarget = Locator_GetTargetFromHandle(s_hTestTarget);
+        if (pOldTarget)
+        {
+            pOldTarget->Deactivate(true);
+        }        
+        Locator_RemoveTarget(s_hTestTarget);
+        s_hTestTarget = -1;
+        Msg("Locator test removed.\n");
+        return;
+    }
+
+    s_hTestTarget = Locator_AddTarget();
+    CLocatorTarget *pTarget = Locator_GetTargetFromHandle(s_hTestTarget);
+    if (!pTarget)
+        return;
+        
+    pTarget->m_pIcon_onscreen = NULL;
+    pTarget->m_pIcon_offscreen = NULL;
+    pTarget->SetOnscreenIconTextureName("vgui/hud/icon_tip");
+    pTarget->AddIconEffects(LOCATOR_ICON_FX_STATIC | LOCATOR_ICON_FX_FORCE_CAPTION | LOCATOR_ICON_FX_ALPHA_SLOW);
+    pTarget->SetCaptionText("NO ENTITY FOLLOW", NULL);
+    pTarget->SetCaptionColor("255,255,255");
+    pTarget->SetVisible(true);
+    pTarget->Update();
+    pTarget->m_frameLastUpdated = 0x7FFFFFFF;
+    pTarget-> m_bOriginInScreenspace = true;
 }

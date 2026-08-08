@@ -623,7 +623,7 @@ FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
 			if ( !V_RemoveDotSlashes( szAbsSearchPath ) )
 			{
 				Warning( "Bad extra path - Can't resolve pathname for '%s'\n", szAbsSearchPath );
-				continue; // 如果路径非法，跳过该路径继续处理下一个
+				continue;
 			}
 			V_StripTrailingSlash( szAbsSearchPath );
 			FileSystem_AddLoadedSearchPath( initInfo, "GAME", szAbsSearchPath, false );
