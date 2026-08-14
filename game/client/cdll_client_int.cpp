@@ -1168,7 +1168,6 @@ void CHLClient::PostInit()
 	}
 #endif
 
-#ifndef PORTAL
 #if defined(GAMEPADUI)
     if (IsGamepadUI())
     {
@@ -1211,51 +1210,6 @@ void CHLClient::PostInit()
         }
     }
 #endif // GAMEPADUI
-#else
-#if defined(GAMEPADUI)
-    if (IsGamepadUI())
-    {
-        GamepadUI_Log("Attempting to load gamepadui module for Portal...\n");
-        CSysModule* pGamepadUIModule = g_pFullFileSystem->LoadModule("gamepadui", "GAMEBIN", false);
-        if (pGamepadUIModule != nullptr)
-        {
-            GamepadUI_Log("Loaded gamepadui module for Portal.\n");
-
-            CreateInterfaceFn gamepaduiFactory = Sys_GetFactory(pGamepadUIModule);
-            if (gamepaduiFactory != nullptr)
-            {
-                g_pGamepadUI = (IGamepadUI*)gamepaduiFactory(GAMEPADUI_INTERFACE_VERSION, NULL);
-                if (g_pGamepadUI != nullptr)
-                {
-                    GamepadUI_Log("Initializing IGamepadUI interface for Portal...\n");
-
-                    factorylist_t factories;
-                    FactoryList_Retrieve(factories);
-                    g_pGamepadUI->Initialize(factories.appSystemFactory);
-
-#ifdef STEAM_INPUT
-                    g_pSteamInput->SetGamepadUI(true);
-                    g_pGamepadUI->SetSteamInput(g_pSteamInput);
-#endif
-                }
-                else
-                {
-                    GamepadUI_Log("Unable to pull IGamepadUI interface for Portal.\n");
-                }
-            }
-            else
-            {
-                GamepadUI_Log("Unable to get gamepadui factory for Portal.\n");
-            }
-        }
-        else
-        {
-            GamepadUI_Log("Unable to load gamepadui module for Portal\n");
-        }
-    }
-#endif // GAMEPADUI
-#endif
-
 }
 
 //-----------------------------------------------------------------------------
@@ -1376,17 +1330,6 @@ void CHLClient::HudUpdate( bool bActive )
 #if defined( TF_CLIENT_DLL )
 	CRTime::UpdateRealTime();
 #endif
-
-/*#ifdef GAMEPADUI
-	if (IsGamepadUI())
-	{
-		if (!enginevgui->IsGameUIVisible())
-		{
-			engine->ExecuteClientCmd("gamepadui_resetfade");
-		}
-	}
-#endif // GAMEPADUI */
-
 	GetClientVoiceMgr()->Frame( frametime );
 
 	gHUD.UpdateHud( bActive );
