@@ -78,7 +78,7 @@ jobs:
             --disable-warns \
             --togles \
             --build-games=${{ inputs.build_games }}
-          python3 ./waf build
+          python3 ./waf install #do not add prefix strip
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
