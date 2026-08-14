@@ -1,12 +1,7 @@
 # Source Engine
-[![GitHub Actions Status](https://github.com/nillerusr/source-engine/actions/workflows/build.yml/badge.svg)](https://github.com/nillerusr/source-engine/actions/workflows/build.yml) [![GitHub Actions Status](https://github.com/nillerusr/source-engine/actions/workflows/tests.yml/badge.svg)](https://github.com/nillerusr/source-engine/actions/workflows/tests.yml)
 
- # ZZHfork🌐
 - Information from [wikipedia](https://wikipedia.org/wiki/Source_(game_engine)):
- # 感谢开发者 真纪会java ， ItzVladik ， ZZH ，nillerusr
-
-# ⛔禁止商业用途已及此仓库的任何分支⛔
-
+ 
 Source is a 3D game engine developed by Valve.©️
 It debuted as the successor to GoldSrc with Half-Life: Source in June 2004,
 followed by Counter-Strike: Source and Half-Life 2 later that year.
@@ -33,10 +28,5 @@ This project is using waf buildsystem. If you have waf-related questions look ht
 - Rewrite materialsystem for OpenGL render
 - dxvk-native support
 - Elbrus port
-- support webview and pngSystem
-- support Workspace
-- support hl2 20yearsupdate shader
 
-# How to Build?
-- [Building instructions(EN)](https://github.com/nillerusr/source-engine/wiki/Source-Engine-(EN))
 - [Building introduction(CN)](https://github.com/2376780283/source-engine-mod-gamepadui/wiki/Source‐Engine‐(CN))
