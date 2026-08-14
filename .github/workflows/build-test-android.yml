@@ -45,16 +45,15 @@ jobs:
         uses: actions/cache@v4
         id: ndk-cache
         with:
-          path: source-engine/android-ndk-${{ inputs.ndk_version }}
+          path: android-ndk-${{ inputs.ndk_version }}
           key: android-ndk-${{ inputs.ndk_version }}-${{ runner.os }}
 
       - name: Download Android NDK
         if: steps.ndk-cache.outputs.cache-hit != 'true'
-        working-directory: source-engine
         run: |
           NDK_VERSION="${{ inputs.ndk_version }}"
           echo "Downloading Android NDK $NDK_VERSION..."
-          wget -q "https://dl.google.com/android/repository/android-ndk-$NDK_VERSION-linux.zip" -O ndk.zip
+          curl -sSLf "https://dl.google.com/android/repository/android-ndk-$NDK_VERSION-linux.zip" -o ndk.zip
           echo "Extracting NDK..."
           unzip -q ndk.zip
           rm ndk.zip
@@ -62,9 +61,8 @@ jobs:
           ls -la android-ndk-$NDK_VERSION/
 
       - name: Configure & Build
-        working-directory: source-engine
         env:
-          ANDROID_NDK_HOME: ${{ github.workspace }}/source-engine/android-ndk-${{ inputs.ndk_version }}
+          ANDROID_NDK_HOME: ${{ github.workspace }}/android-ndk-${{ inputs.ndk_version }}
         run: |
           echo "========================================"
           echo "NDK Path: $ANDROID_NDK_HOME"
@@ -72,18 +70,19 @@ jobs:
           echo "Games: ${{ inputs.build_games }}"
           echo "Android API: ${{ inputs.android_api }}"
           echo "========================================"
-
-          python3 ./waf configure             -T ${{ inputs.build_type }}             --prefix=../android_build             --android=aarch64,llvm,${{ inputs.android_api }}             --target=android_build             --disable-warns             --togles             --build-games=${{ inputs.build_games }}
-
-          echo "========================================"
-          echo "Configuration complete, starting build..."
-          echo "========================================"
-
+          python3 ./waf configure \
+            -T ${{ inputs.build_type }} \
+            --prefix=${{ github.workspace }}/android_build \
+            --android=aarch64,llvm,${{ inputs.android_api }} \
+            --target=android_build \
+            --disable-warns \
+            --togles \
+            --build-games=${{ inputs.build_games }}
           python3 ./waf build
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: android-aarch64-${{ inputs.build_games }}-${{ inputs.build_type }}
-          path: android_build/
-          if-no-files-found: warn
+          path: ${{ github.workspace }}/android_build/
+          if-no-files-found: error
