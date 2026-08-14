@@ -17,8 +17,7 @@
 #define GAMEPADUI_MAINMENU_FILE GAMEPADUI_RESOURCE_FOLDER "mainmenu.res"
 
 // ────────────────────────────────────────────────
-//  比较函数：priority 越大，按钮排越前
-//  放在本文件顶部（或类外任何位置皆可）
+//  purpose: sort buttons
 // ────────────────────────────────────────────────
 static int CompareButtonsByPriorityDesc( GamepadUIButton * const *a,
                                          GamepadUIButton * const *b )
@@ -26,7 +25,7 @@ static int CompareButtonsByPriorityDesc( GamepadUIButton * const *a,
     int prA = (*a)->GetPriority();
     int prB = (*b)->GetPriority();
     if ( prA == prB ) return 0;
-    return ( prA > prB ) ? 1 : -1;      // 大 → 前  (降序)
+    return ( prA > prB ) ? 1 : -1;
 }
 GamepadUIMainMenu::GamepadUIMainMenu( vgui::Panel* pParent )
     : BaseClass( pParent, "MainMenu" )
@@ -111,17 +110,15 @@ void GamepadUIMainMenu::LoadMenuButtons()
     UpdateButtonVisibility();
 }
 
-
 int GamepadUIMainMenu::CompareButtonsByPriority( GamepadUIButton * const *a, GamepadUIButton * const *b )
 {
     int prA = (*a)->GetPriority();
     int prB = (*b)->GetPriority();
-    return (prA == prB) ? 0 : (prA > prB ? 1 : -1); // 降序排列
+    return (prA == prB) ? 0 : (prA > prB ? 1 : -1);
 }
 
-
 // --------------------------------------------------------
-// purpose:设置extra内容 SourceApp需要
+// purpose: 
 // --------------------------------------------------------
 void GamepadUIMainMenu::SetConsoleButtonVisibility(bool bVisible)
 {
@@ -163,7 +160,7 @@ void GamepadUIMainMenu::LayoutMainMenu()
     }
     int nParentW, nParentH;
     GetParent()->GetSize( nParentW, nParentH );
-    float buttonSpacing = 10.0f; // 两按钮间距
+    float buttonSpacing = 10.0f; // spacer between buttons
     float baseX = m_flOldUIButtonOffsetX;
     float baseY = nParentH - m_pConsoleButton->m_flHeight - m_flOldUIButtonOffsetY;
     m_pConsoleButton->SetPos(baseX, baseY);
