@@ -112,7 +112,6 @@ ConVar	spec_freeze_distance_max( "spec_freeze_distance_max", "200", FCVAR_CHEAT,
 #endif
 
 static ConVar	cl_first_person_uses_world_model ( "cl_first_person_uses_world_model", "0", FCVAR_ARCHIVE, "Causes the third person model to be drawn instead of the view model" );
-static ConVar	cl_first_person_show_arms ( "cl_first_person_show_arms", "1", FCVAR_ARCHIVE, "Determines if arms/weapons are shown in first-person when using the world model" );
 
 ConVar demo_fov_override( "demo_fov_override", "0", FCVAR_CLIENTDLL | FCVAR_DONTRECORD, "If nonzero, this value will be used to override FOV during demo playback." );
 
@@ -1887,7 +1886,7 @@ void C_BasePlayer::ThirdPersonSwitch( bool bThirdperson )
 {
 	if ( !UseVR() )
 	{
-		return !LocalPlayerInFirstPersonView() /*|| cl_first_person_uses_world_model.GetBool()*/;
+		return !LocalPlayerInFirstPersonView() || cl_first_person_uses_world_model.GetBool();
 	}
 
 	static ConVarRef vr_first_person_uses_world_model( "vr_first_person_uses_world_model" );
@@ -2851,107 +2850,118 @@ void C_BasePlayer::UpdateWearables( void )
 //-----------------------------------------------------------------------------
 void C_BasePlayer::BuildFirstPersonMeathookTransformations( CStudioHdr *hdr, Vector *pos, Quaternion q[], const matrix3x4_t& cameraTransform, int boneMask, CBoneBitList &boneComputed, const char *pchHeadBoneName )
 {
-    //
-	// 基础视角与渲染状态过滤
-	// 
-	if ( !InFirstPersonView() || IsAboutToRagdoll() || !DrawingMainView() || !ShouldDrawThisPlayer() )
+	// Handle meathook mode. If we aren't rendering, just use last frame's transforms
+	if ( !InFirstPersonView() )
 		return;
+
+	// If we're in third-person view, don't do anything special.
+	// If we're in first-person view rendering the main view and using the viewmodel, we shouldn't have even got here!
+	// If we're in first-person view rendering the main view(s), meathook and headless.
+	// If we're in first-person view rendering shadowbuffers/reflections, don't do anything special either (we could do meathook but with a head?)
+	if ( IsAboutToRagdoll() )
+	{
+		// We're re-animating specifically to set up the ragdoll.
+		// Meathook can push the player through the floor, which makes the ragdoll fall through the world, which is no good.
+		// So do nothing.
+		return;
+	}
+
+	if ( !DrawingMainView() )
+	{
+		return;
+	}
+
+	// If we aren't drawing the player anyway, don't mess with the bones. This can happen in Portal.
+	if( !ShouldDrawThisPlayer() )
+	{
+		return;
+	}
 
 	m_BoneAccessor.SetWritableBones( BONE_USED_BY_ANYTHING );
 
 	int iHead = LookupBone( pchHeadBoneName );
 	if ( iHead == -1 )
+	{
 		return;
-    //
-	// 计算第一人称机位与身体的锚点偏移 (保持原有的 Meathook VR/Aim 角度计算)
-	//
+	}
+
+	matrix3x4_t &mHeadTransform = GetBoneForWrite( iHead );
+
+	// "up" on the head bone is along the negative Y axis - not sure why.
+	//Vector vHeadTransformUp ( -mHeadTransform[0][1], -mHeadTransform[1][1], -mHeadTransform[2][1] );
+	//Vector vHeadTransformFwd ( mHeadTransform[0][1], mHeadTransform[1][1], mHeadTransform[2][1] );
+	Vector vHeadTransformTranslation ( mHeadTransform[0][3], mHeadTransform[1][3], mHeadTransform[2][3] );
+
+
+	// Find out where the player's head (driven by the HMD) is in the world.
+	// We can't move this with animations or effects without causing nausea, so we need to move
+	// the whole body so that the animated head is in the right place to match the player-controlled head.
+	Vector vHeadUp;
 	Vector vRealPivotPoint;
-	if ( UseVR() )
+	if( UseVR() )
 	{
 		VMatrix mWorldFromMideye = g_ClientVirtualReality.GetWorldFromMidEye();
+
+		// What we do here is:
+		// * Take the required eye pos+orn - the actual pose the player is controlling with the HMD.
+		// * Go downwards in that space by cl_meathook_neck_pivot_ingame_* - this is now the neck-pivot in the game world of where the player is actually looking.
+		// * Now place the body of the animated character so that the head bone is at that position.
+		// The head bone is the neck pivot point of the in-game character.
+
 		Vector vRealMidEyePos = mWorldFromMideye.GetTranslation();
 		vRealPivotPoint = vRealMidEyePos - ( mWorldFromMideye.GetUp() * cl_meathook_neck_pivot_ingame_up.GetFloat() ) - ( mWorldFromMideye.GetForward() * cl_meathook_neck_pivot_ingame_fwd.GetFloat() );
 	}
 	else
 	{
+		// figure out where to put the body from the aim angles
 		Vector vForward, vRight, vUp;
 		AngleVectors( MainViewAngles(), &vForward, &vRight, &vUp );
+		
 		vRealPivotPoint = MainViewOrigin() - ( vUp * cl_meathook_neck_pivot_ingame_up.GetFloat() ) - ( vForward * cl_meathook_neck_pivot_ingame_fwd.GetFloat() );		
 	}
 
-	matrix3x4_t &mHeadTransform = GetBoneForWrite( iHead );
-	Vector vHeadTransformTranslation ( mHeadTransform[0][3], mHeadTransform[1][3], mHeadTransform[2][3] );
 	Vector vDeltaToAdd = vRealPivotPoint - vHeadTransformTranslation;
-    //
-	// 将整个骨骼架构对齐到摄像机中心
-	//
-	for ( int i = 0; i < hdr->numbones(); i++ )
-	{
-		if ( !( hdr->boneFlags( i ) & boneMask ) )
-			continue;
 
+
+	// Now add this offset to the entire skeleton.
+	for (int i = 0; i < hdr->numbones(); i++)
+	{
+		// Only update bones reference by the bone mask.
+		if ( !( hdr->boneFlags( i ) & boneMask ) )
+		{
+			continue;
+		}
 		matrix3x4_t& bone = GetBoneForWrite( i );
 		Vector vBonePos;
-		MatrixGetTranslation( bone, vBonePos );
+		MatrixGetTranslation ( bone, vBonePos );
 		vBonePos += vDeltaToAdd;
-		MatrixSetTranslation( vBonePos, bone );
+		MatrixSetTranslation ( vBonePos, bone );
 	}
 
-	// ------------------------------------------------------------------------
-	// 用“后置隐藏坐标”替代原本会引发拉丝的 MatrixScaleByZero
-	// 计算一个处于视线正后方的垃圾存放点 (Hide-out position)
-	// ------------------------------------------------------------------------
-	Vector vForward;
-	AngleVectors( MainViewAngles(), &vForward );
-	Vector vHideGarbagePos = MainViewOrigin() - ( vForward * 64.0f );
-    //
-	// 将头部以及头部的配件（帽子/头盔）平移到脑后，防止阻挡第一人称视角
-	//
-	MatrixSetTranslation( vHideGarbagePos, mHeadTransform );
+	// Then scale the head to zero, but leave its position - forms a "neck stub".
+	// This prevents us rendering junk all over the screen, e.g. inside of mouth, etc.
+	MatrixScaleByZero( mHeadTransform );
 
-	const char* pHeadGearBones[] = { "prp_helmet", "prp_hat", "ValveBiped.Bip01_Neck1" };
-	for ( int k = 0; k < ARRAYSIZE(pHeadGearBones); k++ )
+	// TODO: right now we nuke the hats by shrinking them to nothing,
+	// but it feels like we should do something more sensible.
+	// For example, for one sniper taunt he takes his hat off and waves it - would be nice to see it then.
+	int iHelm = LookupBone( "prp_helmet" );
+	if ( iHelm != -1 )
 	{
-		int iBone = LookupBone( pHeadGearBones[k] );
-		if ( iBone != -1 )
-		{
-			matrix3x4_t &transform = GetBoneForWrite( iBone );
-			MatrixSetTranslation( vHideGarbagePos, transform );
-		}
+		// Scale the helmet.
+		matrix3x4_t  &transformhelmet = GetBoneForWrite( iHelm );
+		MatrixScaleByZero( transformhelmet );
 	}
 
-	if ( !cl_first_person_show_arms.GetBool() )
+	iHelm = LookupBone( "prp_hat" );
+	if ( iHelm != -1 )
 	{
-		int iRightUpperArm = LookupBone( "ValveBiped.Bip01_R_UpperArm" );
-		int iLeftUpperArm  = LookupBone( "ValveBiped.Bip01_L_UpperArm" );
-
-		for ( int i = 0; i < hdr->numbones(); i++ )
-		{
-			if ( !( hdr->boneFlags( i ) & boneMask ) )
-				continue;
-
-			const char *pszBoneName = hdr->pBone( i )->pszName();
-			bool bIsArmBone = false;
-
-			// 递归父节点检查：判断是否属于 UpperArm (大臂) 的子集
-			int parentIndex = i;
-			while ( parentIndex != -1 )
-			{
-				if ( parentIndex == iRightUpperArm || parentIndex == iLeftUpperArm )
-				{
-					bIsArmBone = true;
-					break;
-				}
-				parentIndex = hdr->pBone( parentIndex )->parent;
-			}
-			if ( bIsArmBone )
-			{
-				matrix3x4_t &transform = GetBoneForWrite( i );
-				MatrixSetTranslation( vHideGarbagePos, transform );
-			}
-		}
+		matrix3x4_t  &transformhelmet = GetBoneForWrite( iHelm );
+		MatrixScaleByZero( transformhelmet );
 	}
 }
+
+
 
 void CC_DumpClientSoundscapeData( const CCommand& args )
 {

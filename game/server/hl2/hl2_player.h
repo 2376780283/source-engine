@@ -97,8 +97,6 @@ public:
 	virtual void		Precache( void );
 	virtual void		Spawn(void);
 	virtual void		Activate( void );
-	virtual void        SetAnimation( PLAYER_ANIM playerAnim );
-	void                ResetAnimation( void );
 	virtual void		CheatImpulseCommands( int iImpulse );
 	virtual void		PlayerRunCommand( CUserCmd *ucmd, IMoveHelper *moveHelper);
 	virtual void		PlayerUse ( void );
