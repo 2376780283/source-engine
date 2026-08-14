@@ -21,9 +21,6 @@
 #include "tier0/memdbgon.h"
 
 ConVar gamepadui_savegame_use_delete_mode( "gamepadui_savegame_use_delete_mode", "1", FCVAR_NONE, "Causes the save game panel to use a \"delete mode\" when not using a controller, showing X buttons next to each save game" );
-#ifdef GAMEPADUI_GAME_EZ2
-ConVar gamepadui_savegame_wilson_thumb( "gamepadui_savegame_wilson_thumb", "1", FCVAR_NONE, "Shows a Wilson icon on save games that have Wilson" );
-#endif
 
 class GamepadUISaveButton;
 struct SaveGameDescription_t;
@@ -46,16 +43,6 @@ public:
 
 	bool InDeleteMode() { return m_pDeletePanels.Count() > 0; }
 
-#ifdef GAMEPADUI_GAME_EZ2
-	int IsSaveSuspect( const char *pszEZ2Version, const char *pszMapName, int nMapVersion, const char **ppszIncompatibleVersion, const char **ppszLastCompatibleBranch );
-
-    GamepadUIImage &GetWilsonThumb( float &flSize, float &flOffsetX, float &flOffsetY )
-    {
-        flSize = m_flThumbSize; flOffsetX = m_flThumbOffsetX; flOffsetY = m_flThumbOffsetY;
-        return m_WilsonThumb;
-    }
-#endif
-
     MESSAGE_FUNC_HANDLE( OnGamepadUIButtonNavigatedTo, "OnGamepadUIButtonNavigatedTo", button );
 
 private:
@@ -63,12 +50,6 @@ private:
     void LayoutSaveButtons();
     bool ParseSaveData( char const* pFileName, char const* pShortName, SaveGameDescription_t& save );
     static int SaveReadNameAndComment( FileHandle_t f, OUT_Z_CAP( nameSize ) char* name, int nameSize, OUT_Z_CAP( commentSize ) char* comment, int commentSize );
-#ifdef GAMEPADUI_GAME_EZ2
-	static int SaveReadCustomMetadata( const char *pSaveName, char *ez2version, int ez2versionSize, char *platform, int platformSize, int &nMapVersion, bool &bDeck, bool &bWilson );
-
-	void LoadVersionHistory();
-	void UnloadVersionHistory();
-#endif
     void FindSaveSlot( OUT_Z_CAP( bufsize ) char* buffer, int bufsize );
     void DeleteSaveGame( const char* pFileName );
 
@@ -87,12 +68,6 @@ private:
 	GamepadUIScrollBar *m_pScrollBar = NULL;
 
     bool m_bIsSave;
-
-#ifdef GAMEPADUI_GAME_EZ2
-	KeyValues *m_pVersionHistory;
-
-	GamepadUIImage m_WilsonThumb;
-#endif
 
     GAMEPADUI_PANEL_PROPERTY( float, m_flSavesFade, "Saves.Fade", "0", SchemeValueTypes::ProportionalFloat );
     GAMEPADUI_PANEL_PROPERTY( float, m_flSavesOffsetX, "Saves.OffsetX", "0", SchemeValueTypes::ProportionalFloat );
@@ -126,25 +101,9 @@ struct SaveGameDescription_t
 	char szFileTime[32];
 	unsigned int iTimestamp;
 	unsigned int iSize;
-#ifdef GAMEPADUI_GAME_EZ2
-	char szEZ2Version[8];
-	char szPlatform[16];
-	int nMapVersion;
-	bool bDeck;
-	bool bWilson;
-#endif
 };
+
 /* End from GameUI */
-
-#ifdef GAMEPADUI_GAME_EZ2
-enum
-{
-	SaveSuspectLevel_None,
-	SaveSuspectLevel_Mismatch,		// Save is from a different version
-	SaveSuspectLevel_Incompatible,	// Save is from an explicitly incompatible version
-};
-#endif
-
 class GamepadUISaveButton : public GamepadUIButton
 {
 public:
@@ -173,51 +132,7 @@ public:
 		{
 			m_Image.SetImage( "gamepadui/save_game.vmt" );
 		}
-
-#ifdef GAMEPADUI_GAME_EZ2
-		m_strEZ2Version = GamepadUIString( pSaveGame->szEZ2Version );
-#endif
     }
-
-#ifdef GAMEPADUI_GAME_EZ2
-	void RunAnimations( ButtonState state )
-	{
-		BaseClass::RunAnimations( state );
-
-		GAMEPADUI_RUN_ANIMATION_COMMAND( m_colVersion, vgui::AnimationController::INTERPOLATOR_LINEAR );
-	}
-
-	void ApplySchemeSettings( vgui::IScheme *pScheme ) OVERRIDE
-	{
-		BaseClass::ApplySchemeSettings( pScheme );
-
-		char szVersion[8];
-		V_UnicodeToUTF8( m_strEZ2Version.String(), szVersion, sizeof( szVersion ) );
-		m_iSaveSuspectLevel = static_cast<GamepadUISaveGamePanel *>(GetParent())->IsSaveSuspect( szVersion, m_pSaveGame->szMapName, m_pSaveGame->nMapVersion, &m_pIncompatibleVersion, &m_pLastCompatibleBranch );
-
-		if ( m_iSaveSuspectLevel != SaveSuspectLevel_None )
-		{
-			switch (m_iSaveSuspectLevel)
-			{
-				case SaveSuspectLevel_Mismatch:
-					m_colVersionAnimationValue[ButtonStates::Out] = m_colVersionMismatch;
-					break;
-
-				case SaveSuspectLevel_Incompatible:
-				{
-					// For now, correspond suspect colors to over and out states
-					m_colBackgroundColorAnimationValue[ButtonStates::Over] = m_colVersionIncompatible;
-					m_colTextColorAnimationValue[ButtonStates::Out] = m_colVersionIncompatible;
-					m_colDescriptionColorAnimationValue[ButtonStates::Out] = m_colVersionIncompatible;
-					m_colVersionAnimationValue[ButtonStates::Out] = m_colVersionIncompatible;
-					break;
-				}
-			}
-
-			DoAnimations( true );
-		}
-	}
-#endif
 
     void Paint() OVERRIDE
     {
@@ -256,41 +171,6 @@ public:
 		}
 
         PaintText();
-
-#ifdef GAMEPADUI_GAME_EZ2
-		if ( m_pSaveGame->iTimestamp != NEW_SAVE_GAME_TIMESTAMP )
-		{
-			const wchar_t *pwszEZ2Version = m_strEZ2Version.String();
-			int nEZ2VerLen = m_strEZ2Version.Length();
-			if (m_strEZ2Version.IsEmpty())
-			{
-				// Display a question mark for unknown versions
-				pwszEZ2Version = L"?";
-				nEZ2VerLen = 1;
-			}
-
-			int nTextW, nTextH;
-			vgui::surface()->GetTextSize( m_hDescriptionFont, pwszEZ2Version, nTextW, nTextH );
-
-			int nTextX = m_flWidth - m_flTextOffsetX - nTextW + imgW;
-			int nTextY = m_flHeight + m_flTextOffsetY - nTextH;
-
-			vgui::surface()->DrawSetTextFont( m_hTextFont );
-			vgui::surface()->DrawSetTextPos( nTextX, nTextY );
-			vgui::surface()->DrawSetTextColor( m_colVersion );
-			vgui::surface()->DrawPrintText( pwszEZ2Version, nEZ2VerLen );
-		}
-
-		if ( m_pSaveGame->bWilson && gamepadui_savegame_wilson_thumb.GetBool() )
-		{
-			float flSize, flOffsetX, flOffsetY;
-			vgui::surface()->DrawSetColor( m_colDescriptionColor );
-			vgui::surface()->DrawSetTexture( static_cast<GamepadUISaveGamePanel*>(GetParent())->GetWilsonThumb( flSize, flOffsetX, flOffsetY ) );
-			//vgui::surface()->DrawTexturedSubRect( m_flWidth - flOffsetX - flSize, flOffsetY, m_flWidth - flOffsetX, flOffsetY + flSize, 0.28125f, 0.1875f, 0.703125f, 0.703125f );
-			vgui::surface()->DrawTexturedSubRect( flOffsetX, flOffsetY, flOffsetX + flSize, flOffsetY + flSize, 0.28125f, 0.1875f, 0.703125f, 0.703125f );
-			vgui::surface()->DrawSetTexture( 0 );
-		}
-#endif
     }
 
 	const SaveGameDescription_t* GetSaveGame() const
@@ -298,38 +178,10 @@ public:
 		return m_pSaveGame;
 	}
 
-#ifdef GAMEPADUI_GAME_EZ2
-	int GetSaveSuspectLevel() const
-	{
-		return m_iSaveSuspectLevel;
-	}
-
-	const char *GetIncompatibleVersion() const
-	{
-		return m_pIncompatibleVersion;
-	}
-
-	const char *GetLastCompatibleBranch() const
-	{
-		return m_pLastCompatibleBranch;
-	}
-#endif
-
 private:
 	bool m_bUseTGAImage = false;
     GamepadUIImage m_Image;
 	const SaveGameDescription_t *m_pSaveGame;
-#ifdef GAMEPADUI_GAME_EZ2
-	GamepadUIString m_strEZ2Version;
-
-	int m_iSaveSuspectLevel;
-	const char *m_pIncompatibleVersion = NULL;
-	const char *m_pLastCompatibleBranch = NULL;
-
-	GAMEPADUI_BUTTON_ANIMATED_PROPERTY( Color, m_colVersion, "Button.Version", "255 255 255 255", SchemeValueTypes::Color );
-	GAMEPADUI_PANEL_PROPERTY( Color, m_colVersionMismatch, "Button.Version.Mismatch", "255 224 0 255", SchemeValueTypes::Color );
-	GAMEPADUI_PANEL_PROPERTY( Color, m_colVersionIncompatible, "Button.Version.Incompatible", "255 128 0 255", SchemeValueTypes::Color );
-#endif
 };
 
 GamepadUISaveGamePanel::GamepadUISaveGamePanel( vgui::Panel* pParent, const char* pPanelName, bool bIsSave )
@@ -342,12 +194,6 @@ GamepadUISaveGamePanel::GamepadUISaveGamePanel( vgui::Panel* pParent, const char
     GetFrameTitle() = GamepadUIString(m_bIsSave ? "#GameUI_SaveGame" : "#GameUI_LoadGame");
 
     Activate();
-
-#ifdef GAMEPADUI_GAME_EZ2
-	m_WilsonThumb.SetImage( "vgui/icons/icon_wilson" );
-
-	LoadVersionHistory();
-#endif
     ScanSavedGames();
 
     if ( m_pSavePanels.Count() )
@@ -358,9 +204,6 @@ GamepadUISaveGamePanel::GamepadUISaveGamePanel( vgui::Panel* pParent, const char
 
 GamepadUISaveGamePanel::~GamepadUISaveGamePanel()
 {
-#ifdef GAMEPADUI_GAME_EZ2
-	UnloadVersionHistory();
-#endif
 }
 
 void GamepadUISaveGamePanel::UpdateGradients()
@@ -632,13 +475,6 @@ bool GamepadUISaveGamePanel::ParseSaveData( char const* pFileName, char const* p
 	}
 	Q_strncpy( save.szFileTime, szFileTime, sizeof( save.szFileTime ) );
 	save.iTimestamp = fileTime;
-#ifdef GAMEPADUI_GAME_EZ2
-	Q_strncpy( save.szEZ2Version, szEZ2Version, sizeof( save.szEZ2Version ) );
-	Q_strncpy( save.szPlatform, szPlatform, sizeof( save.szPlatform ) );
-	save.nMapVersion = nMapVersion;
-	save.bDeck = bDeck;
-	save.bWilson = bWilson;
-#endif
 	return true;
 }
 
@@ -759,150 +595,6 @@ int GamepadUISaveGamePanel::SaveReadNameAndComment( FileHandle_t f, OUT_Z_CAP( n
 	return 0;
 }
 
-#ifdef GAMEPADUI_GAME_EZ2
-int GamepadUISaveGamePanel::SaveReadCustomMetadata( const char *pSaveName, char *ez2version, int ez2versionSize, char *platform, int platformSize, int &nMapVersion, bool &bDeck, bool &bWilson )
-{
-	char name[MAX_PATH];
-	Q_strncpy( name, pSaveName, sizeof( name ) );
-	Q_SetExtension( name, ".txt", sizeof( name ) );
-
-	KeyValues *pCustomSaveMetadata = new KeyValues( "CustomSaveMetadata" );
-	if (pCustomSaveMetadata->LoadFromFile( g_pFullFileSystem, name, "MOD" ))
-	{
-		Q_strncpy( ez2version, pCustomSaveMetadata->GetString( "ez2_version" ), ez2versionSize );
-		Q_strncpy( platform, pCustomSaveMetadata->GetString( "platform" ), platformSize );
-		nMapVersion = pCustomSaveMetadata->GetInt( "mapversion" );
-		bDeck = pCustomSaveMetadata->GetBool( "is_deck" );
-		bWilson = pCustomSaveMetadata->GetBool( "wilson" );
-
-		pCustomSaveMetadata->deleteThis();
-		return 1;
-	}
-
-	pCustomSaveMetadata->deleteThis();
-	return 0;
-}
-
-// 0 = equal, negative = version 1 greater, positive = version 2 greater
-// 
-// Actual return number is based on which version place is greater/less
-// For example:
-// - '1' would mean version 1 is a major version greater than version 2
-// - '-2' would mean version 2 is a minor version greater than version 1
-static int CompareVersions( const char *pszVersion1, const char *pszVersion2 )
-{
-	if (!(pszVersion1 || *pszVersion1))
-		return 1;
-	if (!(pszVersion2 || *pszVersion2))
-		return -1;
-
-	// If the first character isn't a number, it's not a valid version
-	if (pszVersion1[0] < '0' || pszVersion1[0] > '9')
-		return 1;
-	if (pszVersion2[0] < '0' || pszVersion2[0] > '9')
-		return -1;
-
-	CUtlStringList szVersionNums1;
-	V_SplitString( pszVersion1, ".", szVersionNums1 );
-
-	CUtlStringList szVersionNums2;
-	V_SplitString( pszVersion2, ".", szVersionNums2 );
-
-	Assert( szVersionNums1.Count() >= szVersionNums2.Count() );
-
-	int nReturn = 0;
-	for (int i = 0; i < szVersionNums1.Count(); i++)
-	{
-		int nV1 = atoi( szVersionNums1[i] );
-		int nV2 = atoi( szVersionNums2[i] );
-		if (nV1 > nV2)
-		{
-			nReturn = -(i+1);
-			break;
-		}
-		else if (nV1 < nV2)
-		{
-			nReturn = i+1;
-			break;
-		}
-	}
-
-	szVersionNums1.PurgeAndDeleteElements();
-	szVersionNums2.PurgeAndDeleteElements();
-
-	return nReturn;
-}
-
-void GamepadUISaveGamePanel::LoadVersionHistory()
-{
-	m_pVersionHistory = new KeyValues( "VersionHistory" );
-	m_pVersionHistory->LoadFromFile( g_pFullFileSystem, "scripts/ez2_version_history.txt", "MOD" );
-}
-
-void GamepadUISaveGamePanel::UnloadVersionHistory()
-{
-	m_pVersionHistory->deleteThis();
-}
-
-int GamepadUISaveGamePanel::IsSaveSuspect( const char *pszEZ2Version, const char *pszMapName, int nMapVersion, const char **ppszIncompatibleVersion, const char **ppszLastCompatibleBranch )
-{
-	if (!(pszEZ2Version && *pszEZ2Version))
-	{
-		// Placeholder version for updates which predate this system
-		pszEZ2Version = "0.0.0";
-		*ppszLastCompatibleBranch = "release-1.5";
-	}
-
-	if (m_pVersionHistory)
-	{
-		bool bNewerVersionExists = false;
-		KeyValues *pVersionKey = m_pVersionHistory->GetFirstSubKey();
-		while (pVersionKey)
-		{
-			int iVerCompare = CompareVersions( pVersionKey->GetName(), pszEZ2Version );
-			if (iVerCompare <= -1)
-			{
-				// Newer version of E:Z2 than the save game's
-
-				// Each major/minor version
-				bNewerVersionExists = (iVerCompare >= -2);
-
-				// Check if this version breaks all previous versions
-				if (pVersionKey->GetBool( "universal" ))
-				{
-					*ppszIncompatibleVersion = pVersionKey->GetName();
-					return SaveSuspectLevel_Incompatible;
-				}
-
-				// Check for incompatible maps
-				KeyValues *pMaps = pVersionKey->FindKey( "maps" );
-				if (pMaps)
-				{
-					KeyValues *pMapKey = pMaps->FindKey( pszMapName );
-					if (pMapKey)
-					{
-						*ppszIncompatibleVersion = pVersionKey->GetName();
-						return SaveSuspectLevel_Incompatible;
-					}
-				}
-			}
-			else if (iVerCompare == 0)
-			{
-				// Matching version of E:Z2
-				*ppszLastCompatibleBranch = pVersionKey->GetString( "branch", *ppszLastCompatibleBranch );
-			}
-
-			pVersionKey = pVersionKey->GetNextKey();
-		}
-
-		if (bNewerVersionExists)
-			return SaveSuspectLevel_Mismatch;
-	}
-
-	return SaveSuspectLevel_None;
-}
-#endif
-
 void GamepadUISaveGamePanel::FindSaveSlot( OUT_Z_CAP( bufsize ) char* buffer, int bufsize )
 {
 	buffer[0] = 0;
@@ -946,12 +638,6 @@ void GamepadUISaveGamePanel::DeleteSaveGame( const char* pFileName )
 		strcpy( ext, ".tga" );
 	}
 	g_pFullFileSystem->RemoveFile( tga, "MOD" );
-
-#ifdef GAMEPADUI_GAME_EZ2
-	// delete the associated txt
-	Q_SetExtension( tga, ".txt", sizeof( tga ) );
-	g_pFullFileSystem->RemoveFile( tga, "MOD" );
-#endif
 }
 /* End Mostly from GameUI */
 
@@ -1170,34 +856,6 @@ void GamepadUISaveGamePanel::OnCommand( char const* pCommand )
 				}
 				else
 				{
-#ifdef GAMEPADUI_GAME_EZ2
-					if (panel->GetSaveSuspectLevel() != SaveSuspectLevel_None)
-					{
-						wchar_t wszLastCompatibleBranch[ 16 ];
-						V_UTF8ToUnicode( panel->GetLastCompatibleBranch(), wszLastCompatibleBranch, sizeof( wszLastCompatibleBranch ) );
-						
-						const char *pszFrameTitle = NULL;
-						wchar_t buf[ 512 ];
-						switch (panel->GetSaveSuspectLevel())
-						{
-							case SaveSuspectLevel_Mismatch:
-								g_pVGuiLocalize->ConstructString( buf, sizeof( buf ), g_pVGuiLocalize->Find( "#GameUI_DifferentVersion_Info" ), 1, wszLastCompatibleBranch );
-								pszFrameTitle = "#GameUI_DifferentVersion_Title";
-								break;
-							case SaveSuspectLevel_Incompatible:
-								g_pVGuiLocalize->ConstructString( buf, sizeof( buf ), g_pVGuiLocalize->Find( "#GameUI_IncompatibleVersion_Info" ), 1, wszLastCompatibleBranch );
-								pszFrameTitle = "#GameUI_IncompatibleVersion_Title";
-								break;
-						}
-						
-						new GamepadUIGenericConfirmationPanel( this, "IncompatibleVersionConfirmationPanel", g_pVGuiLocalize->Find( pszFrameTitle ), buf,
-						[this, pSave]()
-						{
-							LoadGame( pSave );
-						}, true );
-					}
-					else
-#endif
 					LoadGame( pSave );
 				}
 				break;
