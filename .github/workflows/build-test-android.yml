@@ -1,0 +1,63 @@
+name: Build Android AArch64
+
+on:
+  workflow_dispatch:
+    inputs:
+      ndk_version:
+        description: 'Android NDK version'
+        required: true
+        default: 'r28c'
+        type: string
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Cache Android NDK
+        uses: actions/cache@v4
+        id: ndk-cache
+        with:
+          path: android-ndk-${{ inputs.ndk_version }}
+          key: android-ndk-${{ inputs.ndk_version }}-${{ runner.os }}
+
+      - name: Download Android NDK
+        if: steps.ndk-cache.outputs.cache-hit != 'true'
+        run: |
+          NDK_VERSION="${{ inputs.ndk_version }}"
+          echo "Downloading Android NDK $NDK_VERSION..."
+          wget -q "https://dl.google.com/android/repository/android-ndk-$NDK_VERSION-linux.zip" -O ndk.zip
+          echo "Extracting NDK..."
+          unzip -q ndk.zip
+          rm ndk.zip
+          echo "NDK downloaded and extracted successfully"
+
+      - name: Run build script
+        working-directory: source-engine
+        run: |
+          chmod +x scripts/build-android-aarch64.sh
+          bash scripts/build-android-aarch64.sh
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aarch64-build-${{ inputs.build_type }}
+          path: android_build/
+          if-no-files-found: warn
