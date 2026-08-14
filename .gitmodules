@@ -1,10 +1,9 @@
 [submodule "thirdparty"]
 	path = thirdparty
-	url = https://gitee.com/zzh_life/source-thirdparty.git
+	url = https://github.com/2376780283/SourceApp-thirdparty.git
 [submodule "ivp"]
 	path = ivp
-	url = https://gitee.com/zzh_life/source-physics.git
+	url = https://github.com/2376780283/SourceApp-physics.git
 [submodule "lib"]
 	path = lib
-	url = https://gitee.com/zzh_life/source-engine-libs.git
-# 1. 初始化子模块 2. 更新子模块 3. 删除子模块 dont forget --recursive
+	url = https://github.com/2376780283/SourceApp-libs.git
