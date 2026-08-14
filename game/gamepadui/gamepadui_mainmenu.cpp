@@ -20,12 +20,11 @@ ConVar gamepadui_show_old_ui_button("gamepadui_show_old_ui_button", "1", FCVAR_N
                                     "effect until changing level)");
 #endif
 
-// Vgui sorting
 static int CompareButtonsByPriorityDesc(GamepadUIButton *const *a, GamepadUIButton *const *b) {
     int prA = (*a)->GetPriority();
     int prB = (*b)->GetPriority();
     if (prA == prB) return 0;
-    return (prA > prB) ? 1 : -1; // 大 → 前  (降序)
+    return (prA > prB) ? 1 : -1;
 }
 
 GamepadUIMainMenu::GamepadUIMainMenu(vgui::Panel *pParent) : BaseClass(pParent, "MainMenu") {
@@ -63,10 +62,7 @@ void GamepadUIMainMenu::UpdateGradients() {
 }
 
 void GamepadUIMainMenu::LoadMenuButtons() {
-    // 1) 清空旧按钮，防止重复
     for (int i = 0; i < ARRAYSIZE(m_Buttons); ++i) m_Buttons[i].PurgeAndDeleteElements();
-
-    // 2) 读 mainmenu.res
     KeyValues *kvFile = new KeyValues("MainMenuScript");
     if (kvFile && kvFile->LoadFromFile(g_pFullFileSystem, GAMEPADUI_MAINMENU_FILE)) {
         for (KeyValues *kv = kvFile->GetFirstSubKey(); kv; kv = kv->GetNextKey()) {
@@ -88,8 +84,6 @@ void GamepadUIMainMenu::LoadMenuButtons() {
         }
         kvFile->deleteThis();
     }
-
-    // 3) 对两个列表分别排序
     for (int i = 0; i < ARRAYSIZE(m_Buttons); ++i) m_Buttons[i].Sort(CompareButtonsByPriorityDesc);
 
 #ifdef GAMEPADUI_GAME_EZ2
@@ -119,12 +113,6 @@ void GamepadUIMainMenu::LoadMenuButtons() {
     
 
     UpdateButtonVisibility();
-}
-
-int GamepadUIMainMenu::CompareButtonsByPriority(GamepadUIButton *const *a, GamepadUIButton *const *b) {
-    int prA = (*a)->GetPriority();
-    int prB = (*b)->GetPriority();
-    return (prA == prB) ? 0 : (prA > prB ? 1 : -1); // 降序排列
 }
 
 void GamepadUIMainMenu::ApplySchemeSettings(vgui::IScheme *pScheme) {

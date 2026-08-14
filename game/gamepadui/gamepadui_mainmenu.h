@@ -51,7 +51,6 @@ private:
     float GetCurrentLogoOffset();
 
     CUtlVector<GamepadUIButton*> m_Buttons[ GamepadUIMenuStates::Count ];
-    static int CompareButtonsByPriority( GamepadUIButton * const *a, GamepadUIButton * const *b );
 
 #ifdef GAMEPADUI_GAME_EZ2
     GamepadUIButton *m_pSwitchToOldUIButton;    
