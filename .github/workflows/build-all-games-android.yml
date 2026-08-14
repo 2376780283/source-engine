@@ -58,7 +58,7 @@ jobs:
             echo "Building single selected game: $SELECTED_GAME"
             GAMES_JSON=$(jq -nc --arg g "$SELECTED_GAME" '[$g]')
           else
-            BASE_GAMES='["hl2", "hl1", "hl2mp", "cstrike", "episodic", "portal"]'
+            BASE_GAMES='["hl2", "hl1", "hl1mp", "hl2mp", "cstrike", "episodic", "portal"]'
             if [ "$BRANCH" = "EntropyZero" ]; then
               echo "Branch is EntropyZero. Adding entropyzero2 to matrix..."
               GAMES_JSON=$(echo $BASE_GAMES | jq '. + ["entropyzero2"]')
