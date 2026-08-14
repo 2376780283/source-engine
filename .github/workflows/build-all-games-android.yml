@@ -36,6 +36,7 @@ on:
           - portal
           - entropyzero2
           - nh2
+          - hl1mp
       android_api:
         description: 'Android API level'
         required: true
