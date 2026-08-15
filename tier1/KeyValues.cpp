@@ -2182,7 +2182,7 @@ void KeyValues::RecursiveMergeKeyValues( KeyValues *baseKV )
 }
 
 //Gamepadui
-bool IsSteamDeck()
+bool IsGamepadUI()
 {
 	//we dont want to use shader editor AND gamepadui at the same time
 	if (CommandLine()->FindParm("-shaderedit"))
@@ -2222,7 +2222,7 @@ bool EvaluateConditional( const char *str )
 		bNot = true;
 
 	if ( Q_stristr( str, "$DECK" ) )
-		return IsSteamDeck() ^ bNot;
+		return IsGamepadUI() ^ bNot;
 
 	if ( Q_stristr( str, "$X360" ) )
 		return IsX360() ^ bNot;

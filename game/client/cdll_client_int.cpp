@@ -379,7 +379,7 @@ static ConVar *g_pcv_ThreadMode = NULL;
 
 // GAMEPADUI TODO - put this somewhere better. (Madi)
 #if 0 // defined( GAMEPADUI )
-const bool IsSteamDeck()
+const bool IsGamepadUI()
 {
 	if ( CommandLine()->FindParm( "-gamepadui" ) )
 		return true;
@@ -1304,7 +1304,7 @@ void CHLClient::PostInit()
 #endif
 
 #if defined(GAMEPADUI)
-	if ( IsSteamDeck() )
+	if ( IsGamepadUI() )
 	{
 		CSysModule* pGamepadUIModule = g_pFullFileSystem->LoadModule( "gamepadui", "GAMEBIN", false );
 		if ( pGamepadUIModule != nullptr )

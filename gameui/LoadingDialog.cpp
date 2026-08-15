@@ -67,7 +67,7 @@ CLoadingDialog::CLoadingDialog(vgui::Panel *parent) : Frame(parent, "LoadingDial
     m_flLastSecondaryProgressUpdateTime = 0.0f;
     m_flSecondaryProgressStartTime = 0.0f;
 
-    if (IsSteamDeck()) {
+    if (IsGamepadUI()) {
         m_pProgress = new ContinuousProgressBar(this, "Progress");
         m_pProgress2 = new ContinuousProgressBar(this, "Progress2");
         m_pProgress->SetTall(48);
@@ -126,7 +126,7 @@ CLoadingDialog::CLoadingDialog(vgui::Panel *parent) : Frame(parent, "LoadingDial
 
         m_flProgressFraction = 0;
     } else {
-        if (IsSteamDeck()) {
+        if (IsGamepadUI()) {
             // 设置窗口
             int zzh_screenWide, zzh_screenTall;
             surface()->GetScreenSize(zzh_screenWide, zzh_screenTall);
@@ -231,7 +231,7 @@ void CLoadingDialog::Open() {
         m_pCancelButton->SetText("#GameUI_Cancel");
         m_pCancelButton->SetCommand("Cancel");
     }
-    if (IsSteamDeck()) {
+    if (IsGamepadUI()) {
 
         m_pProgress->SetVisible(true);
         m_pProgress2->SetVisible(false);

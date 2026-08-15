@@ -828,7 +828,7 @@ void CVideoMode_Common::SetupStartupGraphic()
     // loading.vtf
 	buf.Clear();	// added this Clear() because we saw cases where LoadVTF was not emptying the buf fully in the above section
     const char* loading = "materials/console/startup_loading.vtf";
-    if ( IsSteamDeck() )
+    if ( IsGamepadUI() )
         loading = "materials/gamepadui/game_logo.vtf";
         
                         
@@ -899,7 +899,7 @@ void CVideoMode_Common::DrawStartupGraphic()
     IMaterial *pMaterial = g_pMaterialSystem->CreateMaterial( "__background", pVMTKeyValues );
 
     const char* loading = "console/startup_loading.vtf";
-    if ( IsSteamDeck() )
+    if ( IsGamepadUI() )
         loading = "gamepadui/game_logo.vtf";
 
     pVMTKeyValues = new KeyValues( "UnlitGeneric" );
@@ -942,7 +942,7 @@ void CVideoMode_Common::DrawStartupGraphic()
 				slide = 0;
 				
 				DrawScreenSpaceRectangle( pMaterial, 0, 0+slide, w, h-50, 0, 0, tw-1, th-1, tw, th, NULL,1,1,depth );
-                if ( !IsSteamDeck() )
+                if ( !IsGamepadUI() )
                     DrawScreenSpaceRectangle( pLoadingMaterial, w-lw, h-lh+slide/2, lw, lh, 0, 0, lw-1, lh-1, lw, lh, NULL,1,1,depth-0.1 );
                 else
                     // TODO: Steam Deck
@@ -991,8 +991,7 @@ void CVideoMode_Common::DrawStartupGraphic()
 			pRenderContext->ClearColor3ub( 0, 0, 0 );
 			pRenderContext->ClearBuffers( true, true, true );
 			DrawScreenSpaceRectangle( pMaterial, 0, 0, w, h, 0, 0, tw-1, th-1, tw, th, NULL,1,1,depth );
-//            DrawScreenSpaceRectangle( pLoadingMaterial, w-lw, h-lh, lw, lh, 0, 0, lw-1, lh-1, lw, lh, NULL,1,1,depth );
-       if(!IsSteamDeck())
+       if(!IsGamepadUI())
 		    DrawScreenSpaceRectangle( pLoadingMaterial, w-lw, h-lh, lw, lh, 0, 0, lw-1, lh-1, lw, lh, NULL,1,1,depth );
 			g_pMaterialSystem->SwapBuffers();		
 
