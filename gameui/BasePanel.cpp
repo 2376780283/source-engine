@@ -56,7 +56,6 @@ using namespace vgui;
 #include "OptionsDialog.h"
 #include "CreateMultiplayerGameDialog.h"
 #include "ChangeGameDialog.h"
-#include "ExtraManagerPanel.h" 
 
 #include "BackgroundMenuButton.h"
 #include "BasePanel.h"
@@ -915,7 +914,6 @@ static const char *g_rgValidCommands[] =
 	"OpenCreateMultiplayerGameDialog",
 	"OpenChangeGameDialog",
 	"OpenLoadCommentaryDialog",
-	"Extra_manager",
 	"Quit",
 	"QuitNoConfirm",
 	"ResumeGame",
@@ -2114,10 +2112,6 @@ void CBasePanel::RunMenuCommand(const char *command)
 	{
 		OnOpenLoadCommentaryDialog();	
 	}
-	else if ( !Q_stricmp( command, "Extra_manager" ) )
-	{
-		ShowExtraManager();
-	}
 	else if ( !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) )
 	{
 		OpenLoadSingleplayerCommentaryDialog();	
@@ -2404,7 +2398,6 @@ bool CBasePanel::IsPromptableCommand( const char *command )
 		 !Q_stricmp( command, "OpenOptionsDialog" ) ||
 		 !Q_stricmp( command, "OpenControllerDialog" ) ||
 		 !Q_stricmp( command, "OpenLoadCommentaryDialog" ) ||
-	     !Q_stricmp( command, "Extra_manager" ) ||
          !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) ||
          !Q_stricmp( command, "OpenAchievementsDialog" ) ||
 
@@ -3465,28 +3458,6 @@ void CBasePanel::OnOpenMatchmakingBasePanel()
 	m_hMatchmakingBasePanel->Activate();
 }
 
-
-
-void CBasePanel::ShowExtraManager()
-{
-
-    if ( !m_hExtraDialog.Get() )
-	{
-	   m_hExtraDialog = new ExtraManagerPanel(this);  // 正确创建实例
-		PositionDialog( m_hExtraDialog );
-		m_hExtraDialog->MoveToCenterOfScreen(); 
-	}
-     m_hExtraDialog->Activate();     
-}
-
-void CC_ShowExtraManager(const CCommand &args)
-{
-    if (g_pBasePanel)
-    {
-        g_pBasePanel->ShowExtraManager();
-    }
-}
-
 void CC_ShowWorkshopPublish(const CCommand &args)
 {
 	    vgui::MessageBox *pMessageBox = new vgui::MessageBox
@@ -3495,8 +3466,6 @@ void CC_ShowWorkshopPublish(const CCommand &args)
          pMessageBox->DoModal();        
 }
 static ConCommand Workshoppublish("Workshop_publish", CC_ShowWorkshopPublish, "Open WorkShop publish dialog", FCVAR_NONE);
-
-static ConCommand Extra_manager("Extra_manager", CC_ShowExtraManager, "Open Extra Manager dialog", FCVAR_NONE);
 
 //-----------------------------------------------------------------------------
 // Purpose: Helper function for this common operation
