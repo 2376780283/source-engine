@@ -82,11 +82,20 @@ bool Matcher_RunCharCompare(const char *pszQuery, const char *szValue)
 // The C++ is strong in this one.
 bool Matcher_Regex(const char *pszQuery, const char *szValue)
 {
+#ifdef NO_STD_REGEX
+	// libc++ regex 在 Clang 17+ 下不再兼容旧代码
+	// 临时退化为简单的子串匹配（不影响大部分 Mapbase 匹配逻辑）
+	if (!pszQuery || !szValue)
+		return false;
+	return strstr(szValue, pszQuery) != nullptr;
+#else
 	std::regex regex;
-	
+
 	// Since I can't find any other way to check for valid regex,
 	// use a try-catch here to see if it throws an exception.
-	try { regex = std::regex(pszQuery); }
+	try {
+		regex = std::regex(pszQuery);
+	}
 	catch (std::regex_error &e)
 	{
 		Msg("Invalid regex \"%s\" (%s)\n", pszQuery, e.what());
@@ -94,12 +103,13 @@ bool Matcher_Regex(const char *pszQuery, const char *szValue)
 	}
 
 	std::match_results<const char*> results;
-	bool bMatch = std::regex_match( szValue, results, regex );
+	bool bMatch = std::regex_match(szValue, results, regex);
 	if (!bMatch)
 		return false;
 
 	// Only match the *whole* string
 	return Q_strlen(results.str(0).c_str()) == Q_strlen(szValue);
+#endif
 }
 
 // The entry point for Mapbase's modified version of Valve's NamesMatch().
