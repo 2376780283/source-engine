@@ -80,8 +80,6 @@ bool Matcher_RunCharCompare(const char *pszQuery, const char *szValue)
 
 // Regular expressions based off of the std library.
 // The C++ is strong in this one.
-// Regular expressions based off of the std library.
-// The C++ is strong in this one.
 bool Matcher_Regex(const char *pszQuery, const char *szValue)
 {
 #ifdef NO_STD_REGEX
