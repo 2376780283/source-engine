@@ -160,7 +160,6 @@ void GamepadUIMainMenu::LayoutMainMenu()
     float baseX = m_flOldUIButtonOffsetX;
     float baseY = nParentH - m_pConsoleButton->m_flHeight - m_flOldUIButtonOffsetY;
     m_pConsoleButton->SetPos(baseX, baseY);
-    m_pExtrasButton->SetPos(baseX + m_pConsoleButton->m_flWidth + buttonSpacing, baseY);
 }
 
 void GamepadUIMainMenu::PaintLogo()
