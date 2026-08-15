@@ -14,7 +14,7 @@ $Configuration
 {
 	$Compiler
 	{
-		$AdditionalIncludeDirectories	"$BASE;$SRCDIR\game\shared\hl2;$SRCDIR\game\shared\episodic;.\hl2;.\episodic;.\gunmod;$SRCDIR\game\shared\gunmod"
+		$AdditionalIncludeDirectories	"$BASE;$SRCDIR\game\shared\hl2;$SRCDIR\game\shared\episodic;.\hl2;.\episodic"
 		$PreprocessorDefinitions		"$BASE;HL2_DLL;HL2_EPISODIC;USES_SAVERESTORE;MAPBASE_VSCRIPT;ASW_PROJECTED_TEXTURES;DYNAMIC_RTT_SHADOWS;GLOWS_ENABLE;ARGG"
 	}
 }
@@ -48,12 +48,6 @@ $Project "Server (Episodic)"
 		$File	"$SRCDIR\game\shared\vehicle_choreo_generic_shared.h"
 		$File	"$SRCDIR\game\shared\weapon_parse_default.cpp"
 		
-   		$Folder "Gunmod"
-     	{
-		$File "$SRCDIR\game\shared\gunmod\weapon_physgun.cpp"
-		$File "$SRCDIR\game\shared\gunmod\weapon_toolgun.cpp"
-    	}
-
 		$Folder	"HL2 DLL"
 		{
 			$File	"$SRCDIR\game\shared\episodic\achievements_ep1.cpp"
