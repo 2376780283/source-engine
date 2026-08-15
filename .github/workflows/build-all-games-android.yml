@@ -23,8 +23,8 @@ on:
         type: choice
         options:
           - all
-          - hl2_mapbase
-          - episodic_mapbase
+          - mapbase_hl2
+          - mapbase_episodic
       android_api:
         description: 'Android API level'
         required: true
@@ -46,7 +46,7 @@ jobs:
             echo "Building single selected game: $SELECTED_GAME"
             GAMES_JSON=$(jq -nc --arg g "$SELECTED_GAME" '[$g]')
           else
-            BASE_GAMES='["hl2_mapbase", "episodic_mapbase"]'
+            BASE_GAMES='["mapbase_hl2", "mapbase_episodic"]'
             if [ "$BRANCH" = "EntropyZero" ]; then
               echo "Branch is EntropyZero. Adding entropyzero2 to matrix..."
               GAMES_JSON=$(echo $BASE_GAMES | jq '. + ["entropyzero2"]')
