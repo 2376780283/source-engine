@@ -1,4 +1,4 @@
-//========= Copyright ï¿½ 1996-2008, Valve Corporation, All rights reserved. ============//
+//========= Copyright © 1996-2008, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: See header file
 //
@@ -2374,3 +2374,4 @@ void CLocatorPanel::RemoveTarget( int hTarget )
 		pTarget->Deactivate();
 	}
 }
+
