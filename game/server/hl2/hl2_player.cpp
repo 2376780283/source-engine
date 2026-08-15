@@ -901,28 +901,44 @@ void CHL2_Player::PostThink( void )
 	if ( !g_fGameOver && !IsPlayerLockedInPlace() && IsAlive() )
 	{
 		HandleAdmireGlovesAnimation();
+		UpdateHandViewModel();
 	}
-	
-	if (pszEnabled && pszEnabled[0] == '0')
-	    return;
+}
+
+void CHL2_Player::UpdateHandViewModel( void )
+{
+    if ( pszEnabled && pszEnabled[0] == '0' )
+        return;
+
     if ( !pHandVM )
     {
         pHandVM = GetViewModel( 1 );
         m_szCurrentHandModelName[0] = '\0';
     }    
+
     if ( !pHandVM )
         return;
+
     pszDesiredModel = engine->GetClientConVarValue( engine->IndexOfEdict( edict() ), "c_hand" );
-    pszHandSkin  = engine->GetClientConVarValue( ENTINDEX( edict() ), "c_handskin" );
+    pszHandSkin     = engine->GetClientConVarValue( ENTINDEX( edict() ), "c_handskin" );
+
     if ( !pszDesiredModel || !pszDesiredModel[0] )
         return;
+
     if ( Q_stricmp( m_szCurrentHandModelName, pszDesiredModel ) != 0 )
     {
         PrecacheModel( pszDesiredModel );
         Q_strncpy( m_szCurrentHandModelName, pszDesiredModel, sizeof(m_szCurrentHandModelName) );
         pHandVM->SetModel( m_szCurrentHandModelName );        
-        pHandVM->m_nSkin = atoi(pszHandSkin);
+    }
 
+    if ( pszHandSkin )
+    {
+        int nDesiredSkin = atoi( pszHandSkin );
+        if ( pHandVM->m_nSkin != nDesiredSkin )
+        {
+            pHandVM->m_nSkin = nDesiredSkin;
+        }
     }
 }
 
@@ -933,7 +949,8 @@ void CHL2_Player::StartAdmireGlovesAnimation( void )
 
 	if ( vm && !GetActiveWeapon() )
 	{
-		/* vm->SetWeaponModel( "models/weapons/v_hands.mdl", NULL ); */
+	    // TODO(zzh): 获取玩家c_arm手臂，不要写死v_hand
+		vm->SetWeaponModel( "models/weapons/v_hands.mdl", NULL );
 		ShowViewModel( true );
 						
 		int	idealSequence = vm->SelectWeightedSequence( ACT_VM_IDLE );

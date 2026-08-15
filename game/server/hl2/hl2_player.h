@@ -259,6 +259,7 @@ public:
 	virtual void RemoveSuit( void );
 	void  HandleAdmireGlovesAnimation( void );
 	void  StartAdmireGlovesAnimation( void );
+	void  UpdateHandViewModel( void );
 	
 	void  HandleSpeedChanges( void );
 
