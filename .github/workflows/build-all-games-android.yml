@@ -1,11 +1,6 @@
 name: Build All Games Android AArch64
 
 on:
-  push:
-    branches:
-      - master
-      - EntropyZero
-      - nh2
   workflow_dispatch:
     inputs:
       ndk_version:
