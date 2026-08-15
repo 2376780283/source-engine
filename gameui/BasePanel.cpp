@@ -56,7 +56,6 @@ using namespace vgui;
 #include "OptionsDialog.h"
 #include "CreateMultiplayerGameDialog.h"
 #include "ChangeGameDialog.h"
-#include "WorkshopManagerPanel.h" 
 
 #include "BackgroundMenuButton.h"
 #include "BasePanel.h"
@@ -915,7 +914,6 @@ static const char *g_rgValidCommands[] =
 	"OpenCreateMultiplayerGameDialog",
 	"OpenChangeGameDialog",
 	"OpenLoadCommentaryDialog",
-	"workshop_publish",
 	"Quit",
 	"QuitNoConfirm",
 	"ResumeGame",
@@ -1315,6 +1313,19 @@ void CBasePanel::OnLevelLoadingFinished()
 	}
 }
 
+// ------------------------------------------------------------
+//  spinner color for gamepadui
+// ------------------------------------------------------------
+struct SpinnerColor_t {
+    const char *szGameKeyword;
+    unsigned char r, g, b;
+};
+
+static const SpinnerColor_t g_SpinnerColors[] = {
+    {"portal", 49, 185, 224},
+    {"entropyzero2", 255, 46, 0},
+};
+
 //-----------------------------------------------------------------------------
 // Draws the background image.
 //-----------------------------------------------------------------------------
@@ -1408,14 +1419,21 @@ void CBasePanel::DrawBackgroundImage()
 			surface()->DrawGetTextureSize(m_iLoadingSpinnerImageID, twide, ttall); //now use twide and ttall for spinner
 			IScheme* pScheme = vgui::scheme()->GetIScheme(vgui::scheme()->GetScheme("Scheme"));			
 	       
-	        const char *p_SpinnerGameName = CommandLine()->ParmValue( "-game", "hl2" );
-			if ( Q_stristr( p_SpinnerGameName, "portal" ) ) {							
-	          	surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 49, 185, 224, alpha })); //设置spinner色 蓝
-           	} else {         	        
-                surface()->DrawSetColor(pScheme->GetColor("SteamDeckSpinner", { 201, 100, 0, alpha })); //设置spinner色 橙色
-		    }
-		    
-		    
+            const char *p_SpinnerGameName = CommandLine()->ParmValue("-game", "hl2");
+
+            Color finalColor(201, 100, 0, alpha);
+
+            if (pScheme->GetColor("SteamDeckSpinner", Color(0, 0, 0, 0)) != Color(0, 0, 0, 0)) {
+                finalColor = pScheme->GetColor("SteamDeckSpinner", finalColor);
+            } else {
+                for (const auto &item : g_SpinnerColors) {
+                    if (Q_stristr(p_SpinnerGameName, item.szGameKeyword)) {
+                        finalColor.SetColor(item.r, item.g, item.b, alpha);
+                        break;
+                    }
+                }
+            }
+            surface()->DrawSetColor(finalColor);
 			     		     	
 			surface()->DrawSetTextureFrame(m_iLoadingSpinnerImageID, ((int)m_fLoadingSpinnerFrame) % surface()->GetTextureNumFrames(m_iLoadingSpinnerImageID), &nFrameCache);
 			surface()->DrawSetTexture(m_iLoadingSpinnerImageID);
@@ -2094,10 +2112,6 @@ void CBasePanel::RunMenuCommand(const char *command)
 	{
 		OnOpenLoadCommentaryDialog();	
 	}
-	else if ( !Q_stricmp( command, "workshop_publish" ) )
-	{
-		ShowWorkshopManager();
-	}
 	else if ( !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) )
 	{
 		OpenLoadSingleplayerCommentaryDialog();	
@@ -2134,12 +2148,12 @@ void CBasePanel::RunMenuCommand(const char *command)
     {
         if ( IsPC() )
         {
-            if ( !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
+ /*           if ( !steamapicontext->SteamUser() || !steamapicontext->SteamUser()->BLoggedOn() )
             {
                 vgui::MessageBox *pMessageBox = new vgui::MessageBox("#GameUI_Achievements_SteamRequired_Title", "#GameUI_Achievements_SteamRequired_Message", this );
                 pMessageBox->DoModal();
                 return;
-            }
+            }*/
 
 			OnOpenCSAchievementsDialog();
         }
@@ -2384,7 +2398,6 @@ bool CBasePanel::IsPromptableCommand( const char *command )
 		 !Q_stricmp( command, "OpenOptionsDialog" ) ||
 		 !Q_stricmp( command, "OpenControllerDialog" ) ||
 		 !Q_stricmp( command, "OpenLoadCommentaryDialog" ) ||
-	     !Q_stricmp( command, "workshop_publish" ) ||
          !Q_stricmp( command, "OpenLoadSingleplayerCommentaryDialog" ) ||
          !Q_stricmp( command, "OpenAchievementsDialog" ) ||
 
@@ -3445,29 +3458,14 @@ void CBasePanel::OnOpenMatchmakingBasePanel()
 	m_hMatchmakingBasePanel->Activate();
 }
 
-
-
-void CBasePanel::ShowWorkshopManager()
+void CC_ShowWorkshopPublish(const CCommand &args)
 {
-
-    if ( !m_hWorkshopDialog.Get() )
-	{
-	   m_hWorkshopDialog = new WorkshopManagerPanel(this);  // 正确创建实例
-		PositionDialog( m_hWorkshopDialog );
-		m_hWorkshopDialog->MoveToCenterOfScreen(); 
-	}
-     m_hWorkshopDialog->Activate();     
+	    vgui::MessageBox *pMessageBox = new vgui::MessageBox
+	    ("Workshop Pubilsh Tool:",
+	    "Workshop publish is not support", g_pBasePanel );
+         pMessageBox->DoModal();        
 }
-
-void CC_ShowWorkshopManager(const CCommand &args)
-{
-    if (g_pBasePanel)
-    {
-        g_pBasePanel->ShowWorkshopManager();
-    }
-}
-
-static ConCommand workshop_manager("workshop_publish", CC_ShowWorkshopManager, "Open Workshop Manager dialog", FCVAR_NONE);
+static ConCommand Workshoppublish("Workshop_publish", CC_ShowWorkshopPublish, "Open WorkShop publish dialog", FCVAR_NONE);
 
 //-----------------------------------------------------------------------------
 // Purpose: Helper function for this common operation

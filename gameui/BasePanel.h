@@ -15,8 +15,11 @@
 #include "vgui_controls/PHandle.h"
 #include "vgui_controls/MenuItem.h"
 #include "vgui_controls/MessageDialog.h"
+
 #include "KeyValues.h"
 #include "utlvector.h"
+
+
 #include "tier1/CommandBuffer.h"
 
 #include "ixboxsystem.h"
@@ -286,10 +289,8 @@ public:
 
 	int  GetMenuAlpha( void );
 
-	void SetMainMenuOverride( vgui::VPANEL panel );
-
-
-
+	void SetMainMenuOverride( vgui::VPANEL panel );   
+    
 protected:
 	virtual void PaintBackground();
 	virtual void ApplySchemeSettings(vgui::IScheme *pScheme);
@@ -383,6 +384,7 @@ private:
 	vgui::DHANDLE<vgui::Frame> m_hLoadCommentaryDialog;
 	vgui::DHANDLE<vgui::Frame> m_hAchievementsDialog;
 
+
 	// Xbox 360
 	vgui::DHANDLE<vgui::Frame> m_hMatchmakingBasePanel;
 	vgui::DHANDLE<vgui::Frame> m_hControllerDialog;
@@ -399,8 +401,8 @@ private:
 	int							m_iBackgroundImageID;
 	int							m_iRenderTargetImageID;
 	int							m_iLoadingImageID;
-	int							m_iLoadingSpinnerImageID; float m_fLoadingSpinnerFrame;
 	int							m_iProductImageID;
+	int							m_iLoadingSpinnerImageID; float m_fLoadingSpinnerFrame;
 	bool						m_bLevelLoading;
 	bool						m_bEverActivated;
 	bool						m_bCopyFrameBuffer;
@@ -449,6 +451,7 @@ private:
 	// fading to game
 	MESSAGE_FUNC_CHARPTR( RunEngineCommand, "RunEngineCommand", command );
 	MESSAGE_FUNC( FinishDialogClose, "FinishDialogClose" );
+    
 
 public:
 	MESSAGE_FUNC_CHARPTR( RunMenuCommand, "RunMenuCommand", command );

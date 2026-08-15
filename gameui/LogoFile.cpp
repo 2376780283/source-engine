@@ -1,287 +1,149 @@
-//========= Copyright Valve Corporation, All rights reserved. ============//
-//
-// Purpose: 
-//
-// $NoKeywords: $
-//
-//=============================================================================//
+#include <cstdint>
+#include <cstdio>
+#include <cstring>
+#include <cstdlib>
 
-#if !defined( _X360 )
-#include <windows.h>
-#endif
-#include <stdio.h>
-#include "tier1/utlbuffer.h"
-#include <vgui/VGUI.h>
-#include <vgui_controls/Controls.h>
-#include "filesystem.h"
+// --------------------------- 数据结构 ---------------------------
+struct miptex_t {
+    char name[16];
+    unsigned width, height;
+    unsigned offsets[4]; // 四个 mip 层
+};
 
-#if defined( _X360 )
-#include "xbox/xbox_win32stubs.h"
-#endif
+struct lumpinfo_t {
+    int filepos;
+    int disksize;
+    int size;
+    char type;
+    char compression;
+    char pad1, pad2;
+    char name[16];
+};
 
-// memdbgon must be the last include file in a .cpp file!!!
-#include "tier0/memdbgon.h"
+struct wadinfo_t {
+    char identification[4]; // "WAD3"
+    int numlumps;
+    int infotableofs;
+};
 
-using namespace vgui;
+// --------------------------- 全局调色板 ---------------------------
+unsigned char palLogo[768];        // 256*3 调色板
+float linearpalette[256][3];
+float d_red, d_green, d_blue;
+int colors_used;
+int color_used[256];
+float maxdistortion;
+unsigned char pixdata[256];
 
-#define	TYP_LUMPY		64				// 64 + grab command number
-
-typedef struct
-{
-	char		identification[4];		// should be WAD2 or 2DAW
-	int			numlumps;
-	int			infotableofs;
-} wadinfo_t;
-
-typedef struct
-{
-	int			filepos;
-	int			disksize;
-	int			size;					// uncompressed
-	char		type;
-	char		compression;
-	char		pad1, pad2;
-	char		name[16];				// must be null terminated
-} lumpinfo_t;
-
-typedef struct
-{
-	char		name[16];
-	unsigned	width, height;
-	unsigned	offsets[4];		// four mip maps stored
-} miptex_t;
-
-unsigned char	pixdata[256];
-
-float 	linearpalette[256][3];
-float 	d_red, d_green, d_blue;
-int		colors_used;
-int		color_used[256];
-float	maxdistortion;
-unsigned char palLogo[768];
-
-/*
-=============
-AveragePixels
-=============
-*/
-unsigned char AveragePixels (int count)
-{
-	return pixdata[0];
+// --------------------------- 辅助函数 ---------------------------
+unsigned char AveragePixels(int count) {
+    int sum = 0;
+    for (int i = 0; i < count; ++i)
+        sum += pixdata[i];
+    return (unsigned char)(sum / count);
 }
 
-/*
-==============
-GrabMip
-
-filename MIP x y width height
-must be multiples of sixteen
-==============
-*/
-int GrabMip ( HANDLE hdib, unsigned char *lump_p, char *lumpname, COLORREF crf, int *width, int *height)
+// --------------------------- 生成 MIP ---------------------------
+int GrabMip(const unsigned char* pixels, int w, int h, unsigned char* lump_p, const char* lumpname,
+            uint8_t r, uint8_t g, uint8_t b, int* outWidth, int* outHeight)
 {
-	int             i,x,y,xl,yl,xh,yh,w,h;
-	unsigned char   *screen_p, *source;
-	miptex_t		*qtex;
-	int				miplevel, mipstep;
-	int				xx, yy;
-	int				count;
-	int				byteimagewidth, byteimageheight;
-	unsigned char   *byteimage;
-	LPBITMAPINFO	lpbmi;      // pointer to BITMAPINFO structure (Win3.0)
+    *outWidth = w;
+    *outHeight = h;
 
-	/* get pointer to BITMAPINFO (Win 3.0) */
-	lpbmi = (LPBITMAPINFO)::GlobalLock((HGLOBAL)hdib);
-	unsigned char *lump_start = lump_p;
-	
-	xl = yl = 0;
-	w = lpbmi->bmiHeader.biWidth;
-	h = lpbmi->bmiHeader.biHeight;
+    if ((w & 15) || (h & 15))
+        return 0; // 尺寸必须是16的倍数
 
-	*width = w;
-	*height = h;
+    miptex_t* qtex = (miptex_t*)lump_p;
+    qtex->width = w;
+    qtex->height = h;
+    strncpy(qtex->name, lumpname, sizeof(qtex->name));
+    lump_p += sizeof(miptex_t);
 
-	byteimage = (unsigned char *)((LPSTR)lpbmi + sizeof( BITMAPINFOHEADER ) + 256 * sizeof( RGBQUAD ) );
+    // Level 0
+    memcpy(lump_p, pixels, w*h);
+    lump_p += w*h;
 
-	if ( (w & 15) || (h & 15) )
-		return 0; //Error ("line %i: miptex sizes must be multiples of 16", scriptline);
+    // 线性调色板
+    for (int i = 0; i < 256; i++)
+        for (int j = 0; j < 3; j++)
+            linearpalette[i][j] = palLogo[i*3 + j] / 255.0f;
 
-	xh = xl+w;
-	yh = yl+h;
+    maxdistortion = 0;
+    colors_used = 256;
+    for (int i = 0; i < 256; i++) color_used[i] = 1;
 
-	qtex = (miptex_t *)lump_p;
-	qtex->width = (unsigned)(w);
-	qtex->height = (unsigned)(h);
-	Q_strncpy (qtex->name, lumpname, sizeof( qtex->name) ); 
-	
-	lump_p = (unsigned char *)&qtex->offsets[4];
-	
-	byteimagewidth = w;
-	byteimageheight = h;
+    // 生成 mip1~3
+    for (int miplevel = 1; miplevel < 4; ++miplevel) {
+        d_red = d_green = d_blue = 0;
+        qtex->offsets[miplevel] = (unsigned)(lump_p - (unsigned char*)qtex);
+        int step = 1 << miplevel;
+        for (int y = 0; y < h; y += step) {
+            for (int x = 0; x < w; x += step) {
+                int count = 0;
+                for (int yy = 0; yy < step; ++yy)
+                    for (int xx = 0; xx < step; ++xx)
+                        pixdata[count++] = pixels[(y + yy)*w + x + xx];
+                *lump_p++ = AveragePixels(count);
+            }
+        }
+    }
 
-	source = (unsigned char *)lump_p;
-	qtex->offsets[0] = (unsigned)((unsigned char *)lump_p - (unsigned char *)qtex);
+    // 写入 palette 16bit
+    *(uint16_t*)lump_p = 256;
+    lump_p += sizeof(uint16_t);
+    memcpy(lump_p, palLogo, 768);
+    lump_p += 768;
 
-	// We're reading from a dib, so go bottom up
-	screen_p = byteimage + (h - 1) * w;
-	for (y=yl ; y<yh ; y++)
-	{
-		for (x=xl ; x<xh ; x++)
-			*lump_p++ = *screen_p++;
+    // 写入 RGB 颜色
+    *lump_p++ = r;
+    *lump_p++ = g;
+    *lump_p++ = b;
 
-		screen_p -= 2 * w;
-	}
-
-	// calculate gamma corrected linear palette
-	for (i = 0; i < 256; i++)
-	{
-		for (int j = 0; j < 3; j++)
-		{
-			float f = (float)(palLogo[i*3+j] / 255.0);
-			linearpalette[i][j] = f; //pow((double)f, 2); // assume textures are done at 2.2, we want to remap them at 1.0
-		}
-	}
-
-	maxdistortion = 0;
-	// assume palette full if it's a transparent texture
-	colors_used = 256;
-	for (i = 0; i < 256; i++)
-		color_used[i] = 1;
-
-
-	//
-	// subsample for greater mip levels
-	//
-
-	for (miplevel = 1 ; miplevel<4 ; miplevel++)
-	{
-		d_red = d_green = d_blue = 0;	// no distortion yet
-		qtex->offsets[miplevel] = (unsigned)(lump_p - (unsigned char *)qtex);
-		
-		mipstep = 1<<miplevel;
-
-		for (y=0 ; y<h ; y+=mipstep)
-		{
-			for (x = 0 ; x<w ; x+= mipstep)
-			{
-				count = 0;
-				for (yy=0 ; yy<mipstep ; yy++)
-				{
-					for (xx=0 ; xx<mipstep ; xx++)
-						pixdata[count++] = source[(y+yy)*w + x + xx ];
-				}
-
-				*lump_p++ = AveragePixels (count);
-			}	
-		}
-	}
-
-	::GlobalUnlock(lpbmi);
-
-	// Write out palette in 16bit mode
-	*(unsigned short *) lump_p = 256;	// palette size
-	lump_p += sizeof(short);
-
-	memcpy(lump_p, &palLogo[0], 765);
-	lump_p += 765;
-
-	*lump_p++  = (unsigned char)(crf & 0xFF);
-	
-	*lump_p++  = (unsigned char)((crf >> 8) & 0xFF);
-	
-	*lump_p++  = (unsigned char)((crf >> 16) & 0xFF);
-
-	return lump_p - lump_start;
+    return lump_p - (unsigned char*)qtex;
 }
 
-
-void UpdateLogoWAD( void *phdib, int r, int g, int b )
+// --------------------------- 输出 WAD ---------------------------
+void UpdateLogoWAD(const unsigned char* pixels, int width, int height, const char* name,
+                   uint8_t r, uint8_t g, uint8_t b, const char* outFilename)
 {
-	char logoname[ 32 ];
-	char *pszName;
-	Q_strncpy( logoname, "LOGO", sizeof( logoname ) );
-	pszName = &logoname[ 0 ];
+    if (!pixels || !name || !name[0])
+        return;
 
-	HANDLE hdib = (HANDLE)phdib;
-	COLORREF crf = RGB( r, g, b );
+    unsigned char buf[16384]; // 临时缓冲区
+    int w, h;
 
-	if ((!pszName) || (pszName[0] == 0) || (hdib == NULL))
-		return;
-	// Generate lump
+    int length = GrabMip(pixels, width, height, buf, name, r, g, b, &w, &h);
+    if (length == 0)
+        return;
 
-	unsigned char *buf = (unsigned char *)_alloca( 16384 );
+    // 校验尺寸
+    if (!(w == h && (w == 16 || w == 32 || w == 64)))
+        return;
 
-	CUtlBuffer buffer( 0, 16384 );
+    while (length & 3) length++; // 4字节对齐
 
-	int width, height;
-	
-	int length = GrabMip (hdib, buf, pszName, crf, &width, &height);
-	if ( length == 0 )
-	{
-		return;
-	}
+    // WAD header
+    wadinfo_t header;
+    header.identification[0] = 'W';
+    header.identification[1] = 'A';
+    header.identification[2] = 'D';
+    header.identification[3] = '3';
+    header.numlumps = 1;
+    header.infotableofs = sizeof(wadinfo_t) + length;
 
-	bool sizevalid = false;
+    lumpinfo_t info;
+    memset(&info, 0, sizeof(info));
+    strncpy(info.name, name, sizeof(info.name));
+    info.filepos = sizeof(wadinfo_t);
+    info.size = info.disksize = length;
+    info.type = 64; // TYP_LUMPY
+    info.compression = 0;
 
-	if ( width == height )
-	{
-		if ( width == 16 ||
-			 width == 32 ||
-			 width == 64 )
-		{
-			sizevalid = true;
-		}
-	}
+    FILE* fp = fopen(outFilename, "wb");
+    if (!fp) return;
 
-	if ( !sizevalid )
-		return;
-
-	while (length & 3)
-		length++;
-
-	// Write Header
-	wadinfo_t	header;
-	header.identification[0] = 'W';
-	header.identification[1] = 'A';
-	header.identification[2] = 'D';
-	header.identification[3] = '3';
-	header.numlumps = 1;     
-	header.infotableofs = 0; 
-
-	buffer.Put( &header, sizeof( wadinfo_t ) );
-
-	// Fill Ino info table
-	lumpinfo_t	info;
-	Q_memset (&info, 0, sizeof(info));
-	Q_strncpy(info.name, pszName, sizeof( info.name ) );
-	info.filepos = (int)sizeof(wadinfo_t);
-	info.size = info.disksize = length;
-	info.type = TYP_LUMPY;
-	info.compression = 0;
-	
-	// Write Lump
-	buffer.Put( buf, length );
-
-	// Write info table
-	buffer.Put( &info, sizeof( lumpinfo_t ) );
-
-	int savepos = buffer.TellPut();
-
-	buffer.SeekPut( CUtlBuffer::SEEK_HEAD, 0 );
-
-	header.infotableofs = length + sizeof(wadinfo_t);
-
-	buffer.Put( &header, sizeof( wadinfo_t ) );
-
-	buffer.SeekPut( CUtlBuffer::SEEK_HEAD, savepos );
-
-	// Output to file
-	FileHandle_t file;
-	file = g_pFullFileSystem->Open( "pldecal.wad", "wb" );
-	if ( file != FILESYSTEM_INVALID_HANDLE )
-	{
-		g_pFullFileSystem->Write( buffer.Base(), buffer.TellPut(), file );
-		g_pFullFileSystem->Close( file );
-	}
-
+    fwrite(&header, sizeof(header), 1, fp);
+    fwrite(buf, length, 1, fp);
+    fwrite(&info, sizeof(info), 1, fp);
+    fclose(fp);
 }

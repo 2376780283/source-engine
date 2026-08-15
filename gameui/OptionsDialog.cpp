@@ -19,6 +19,9 @@
 #include "vgui/ISystem.h"
 #include "vgui/IVGui.h"
 
+// #include "tier0/icommandline.h"
+// #include "tier1/convar.h"
+
 #include "KeyValues.h"
 #include "OptionsSubKeyboard.h"
 #include "OptionsSubMouse.h"
@@ -62,13 +65,13 @@ COptionsDialog::COptionsDialog(vgui::Panel *parent) : PropertyDialog(parent, "Op
 	SetTitle("#GameUI_Options", true);
 
 	// debug timing code, this function takes too long
-//	double s4 = system()->GetCurrentTime();
+    // double s4 = system()->GetCurrentTime();
 
 #if defined( WIN32 ) && !defined( _X360 )
 	// NVNT START see if the user has a haptic device via convar. if so create haptics dialog.
 	ConVarRef checkHap("hap_HasDevice");
 	checkHap.Init("hap_HasDevice",true);
-	if(checkHap.GetBool())
+	if(checkHap.GetBool() || CommandLine()->CheckParm( "-console" ))
 	{
 		AddPage(new COptionsSubHaptics(this), "#GameUI_Haptics_TabTitle");
 	}
@@ -83,16 +86,14 @@ COptionsDialog::COptionsDialog(vgui::Panel *parent) : PropertyDialog(parent, "Op
 	{
 		AddPage(new COptionsSubPortal(this), "#GameUI_Portal");
 	}
-
 	AddPage(new COptionsSubKeyboard(this), "#GameUI_Keyboard");
 	AddPage(new COptionsSubMouse(this), "#GameUI_Mouse");
-
 #ifdef ANDROID
 	AddPage(new COptionsSubTouch(this), "Touch");
 #endif
-
 	m_pOptionsSubAudio = new COptionsSubAudio(this);
 	AddPage(m_pOptionsSubAudio, "#GameUI_Audio");
+	
 	m_pOptionsSubVideo = new COptionsSubVideo(this);
 	AddPage(m_pOptionsSubVideo, "#GameUI_Video");
 

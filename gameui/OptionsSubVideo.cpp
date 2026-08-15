@@ -136,6 +136,7 @@ public:
 	CGammaDialog( vgui::VPANEL hParent ) : BaseClass( NULL, "OptionsSubVideoGammaDlg" )
 	{
 		// parent is ignored, since we want look like we're steal focus from the parent (we'll become modal below)
+		SetProportional(NeedProportional());
 		SetTitle("#GameUI_AdjustGamma_Title", true);
 		SetSize( 400, 260 );
 		SetDeleteSelfOnClose( true );
@@ -1070,7 +1071,7 @@ COptionsSubVideo::COptionsSubVideo(vgui::Panel *parent) : PropertyPage(parent, N
 		break;
 	}
 #else
-	int iNormalItemID = m_pAspectRatio->AddItem( "Android(default)", NULL );
+	int iNormalItemID = m_pAspectRatio->AddItem( "Auto(default)", NULL );
 	m_pAspectRatio->ActivateItem( iNormalItemID );
 
 	m_pGammaButton->SetEnabled(false);
