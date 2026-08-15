@@ -232,10 +232,6 @@ IReplaySystem *g_pReplay = NULL;
 IVEngineServer	*serverengine = NULL;
 #endif
 
-#if defined(GAMEPADUI)
-IGamepadUI *g_pGamepadUI = nullptr;
-#endif // GAMEPADUI
-
 #ifdef VSCRIPT
 IScriptManager *scriptmanager = NULL;
 #endif
