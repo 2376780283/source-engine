@@ -238,6 +238,7 @@ def define_platform(conf):
 			'LINUX=1', '_LINUX=1',
 			'POSIX=1', '_POSIX=1',
 			'GNUC',
+			'NO_STD_REGEX'
 			'NO_HOOK_MALLOC',
 			'_DLL_EXT=.so'
 		])
