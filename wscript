@@ -96,12 +96,9 @@ projects={
 		'utils/vtex',
 		'unicode',
 		'video',
-<<<<<<< HEAD
         'game/gamepadui',
-=======
 		'vscript',
 		'raytrace'
->>>>>>> 77028270 (Entropy Zero 1 Port)
 	],
 	'tests': [
 		'appframework',
