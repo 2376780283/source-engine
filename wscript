@@ -238,7 +238,6 @@ def define_platform(conf):
 			'LINUX=1', '_LINUX=1',
 			'POSIX=1', '_POSIX=1',
 			'GNUC',
-			'NO_STD_REGEX'
 			'NO_HOOK_MALLOC',
 			'_DLL_EXT=.so'
 		])
@@ -581,7 +580,7 @@ def configure(conf):
 	# And here C++ flags starts to be treated separately
 	cxxflags = list(cflags)
 	if conf.env.DEST_OS != 'win32':
-		cxxflags += ['-std=c++11','-fpermissive']
+		cxxflags += ['-std=c++11','-fpermissive','-DNO_STD_REGEX=1','-Wno-error']
 
 	if conf.env.COMPILER_CC == 'gcc':
 		conf.define('COMPILER_GCC', 1)
