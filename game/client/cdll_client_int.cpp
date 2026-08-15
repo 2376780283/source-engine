@@ -1308,7 +1308,7 @@ void CHLClient::PostInit()
 #endif
 
 #if defined( GAMEPADUI )
-	if ( IsSteamDeck()  )
+	if ( IsGamepadUI()  )
 	{
 		CSysModule* pGamepadUIModule = g_pFullFileSystem->LoadModule( "gamepadui", "GAMEBIN", false );
 		if ( pGamepadUIModule != nullptr )
@@ -1482,7 +1482,7 @@ void CHLClient::HudUpdate( bool bActive )
 #endif
 
 #ifdef GAMEPADUI
-	if (IsSteamDeck())
+	if (IsGamepadUI())
 	{
 		if (!enginevgui->IsGameUIVisible())
 		{
