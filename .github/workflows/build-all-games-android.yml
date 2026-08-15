@@ -1,4 +1,4 @@
-name: Build All Games Android AArch64
+name: Build Mapbase Games Android AArch64
 
 on:
   push:
@@ -51,7 +51,7 @@ jobs:
             echo "Building single selected game: $SELECTED_GAME"
             GAMES_JSON=$(jq -nc --arg g "$SELECTED_GAME" '[$g]')
           else
-            BASE_GAMES='["hl2", "episodic"]'
+            BASE_GAMES='["hl2_mapbase", "episodic_mapbase"]'
             if [ "$BRANCH" = "EntropyZero" ]; then
               echo "Branch is EntropyZero. Adding entropyzero2 to matrix..."
               GAMES_JSON=$(echo $BASE_GAMES | jq '. + ["entropyzero2"]')
