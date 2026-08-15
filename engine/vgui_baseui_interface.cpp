@@ -613,7 +613,7 @@ void CEngineVGui::Init()
 		return;
 	}
 
-	if ( IsX360() || IsIsGamepadUI() )
+	if ( IsX360() || IsGamepadUI() )
 	{
 		CCommand ccommand;
 		if ( CL_ShouldLoadBackgroundLevel( ccommand ) )
@@ -1273,7 +1273,7 @@ void CEngineVGui::OnLevelLoadingStarted()
 		}
 	}
 	
-	if ( IsX360() || IsIsGamepadUI() )
+	if ( IsX360() || IsGamepadUI() )
 	{
 		// TCR requirement, always!!!
 		m_bShowProgressDialog = true;
