@@ -93,7 +93,6 @@ def build(bld):
 		'OptionsSubPortal.cpp',
 		'OptionsSubVideo.cpp',
 		'OptionsSubVoice.cpp',
-    	'ExtraManagerPanel.cpp',
 		'../public/tier0/memoverride.cpp',
 	]
 
