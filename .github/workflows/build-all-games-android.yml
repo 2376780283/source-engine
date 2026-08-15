@@ -1,11 +1,6 @@
 name: Build Mapbase Games Android AArch64
 
 on:
-  push:
-    branches:
-      - master
-      - EntropyZero
-      - nh2
   workflow_dispatch:
     inputs:
       ndk_version:
@@ -28,8 +23,8 @@ on:
         type: choice
         options:
           - all
-          - hl2
-          - episodic
+          - hl2_mapbase
+          - episodic_mapbase
       android_api:
         description: 'Android API level'
         required: true
