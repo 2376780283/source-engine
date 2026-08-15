@@ -124,7 +124,8 @@ jobs:
           echo "Starting build and install for $CURRENT_GAME..."
           echo "========================================"
 
-          python3 ./waf build install --strip
+          python3 ./waf build install
+          # do not add the fucking strip
 
       - name: Verify & List Output Artifacts
         run: |
