@@ -610,6 +610,29 @@ FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
         }
     }
 
+	const char *pszExtraPaths = getenv( "EXTRAS_PATH" );
+	if ( pszExtraPaths )
+	{
+		CUtlStringList vecPaths;
+		V_SplitString( pszExtraPaths, ",", vecPaths );
+		FOR_EACH_VEC( vecPaths, idxExtraPath )
+		{
+			char szAbsSearchPath[MAX_PATH];
+			Q_StripPrecedingAndTrailingWhitespace( vecPaths[ idxExtraPath ] );
+			V_MakeAbsolutePath( szAbsSearchPath, sizeof( szAbsSearchPath ), vecPaths[ idxExtraPath ], baseDir );
+			V_FixSlashes( szAbsSearchPath );
+			if ( !V_RemoveDotSlashes( szAbsSearchPath ) )
+			{
+				Warning( "[SourceApp]: Bad extra path - Can't resolve pathname for '%s'\n", szAbsSearchPath );
+				continue;
+			}
+			V_StripTrailingSlash( szAbsSearchPath );
+			FileSystem_AddLoadedSearchPath( initInfo, "GAME", szAbsSearchPath, false );
+			FileSystem_AddLoadedSearchPath( initInfo, "MOD", szAbsSearchPath, false );		
+			Msg( "[SourceApp]: The extra path Mounted: %s\n", szAbsSearchPath );
+		}
+	}
+
 	bool bLowViolence = initInfo.m_bLowViolence;
 	for ( KeyValues *pCur=pSearchPaths->GetFirstValue(); pCur; pCur=pCur->GetNextValue() )
 	{
