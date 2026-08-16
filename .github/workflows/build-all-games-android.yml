@@ -31,11 +31,8 @@ on:
           - hl2
           - hl1
           - hl2mp
-          - cstrike
           - episodic
-          - portal
-          - entropyzero2
-          - nh2
+          - portal        
           - hl1mp
       android_api:
         description: 'Android API level'
