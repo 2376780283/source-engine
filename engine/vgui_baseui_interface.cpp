@@ -1273,17 +1273,11 @@ void CEngineVGui::OnLevelLoadingStarted()
 		}
 	}
 	
-	if ( IsX360() || !IsGamepadUI() )
+	/* if ( IsX360() || !IsGamepadUI() )
 	{
 		// TCR requirement, always!!!
 		m_bShowProgressDialog = true;
-	}
-
-	// i dont want gamepadui menu while loading
-	//if (IsGamepadUI())
-	//{
-	//	m_bShowProgressDialog = false;
-	//}
+	} */
 
 	// we've starting loading a level/connecting to a server
 	staticGameUIFuncs->OnLevelLoadingStarted( m_bShowProgressDialog );
