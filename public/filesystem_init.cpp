@@ -622,13 +622,13 @@ FSReturnCode_t FileSystem_LoadSearchPaths( CFSSearchPathsInit &initInfo )
 			V_FixSlashes( szAbsSearchPath );
 			if ( !V_RemoveDotSlashes( szAbsSearchPath ) )
 			{
-				Warning( "Bad extra path - Can't resolve pathname for '%s'\n", szAbsSearchPath );
-				continue; // 如果路径非法，跳过该路径继续处理下一个
+				Warning( "[SourceApp]: Bad extra path - Can't resolve pathname for '%s'\n", szAbsSearchPath );
+				continue;
 			}
 			V_StripTrailingSlash( szAbsSearchPath );
 			FileSystem_AddLoadedSearchPath( initInfo, "GAME", szAbsSearchPath, false );
 			FileSystem_AddLoadedSearchPath( initInfo, "MOD", szAbsSearchPath, false );		
-			Msg( "[SourceApp：] The extra path Mounted: %s\n", szAbsSearchPath );
+			Msg( "[SourceApp]: The extra path Mounted: %s\n", szAbsSearchPath );
 		}
 	}
 

@@ -16,7 +16,8 @@ def configure(conf):
 
 def build(bld):
 	source = [
-		'steam_api.cpp'
+		'steam_api.cpp',
+		'source_app_api.cpp'
 	]
 
 	includes = [
