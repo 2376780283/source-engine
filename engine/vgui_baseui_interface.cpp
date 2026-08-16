@@ -1273,11 +1273,11 @@ void CEngineVGui::OnLevelLoadingStarted()
 		}
 	}
 	
-	if ( IsX360() || IsGamepadUI() )
+	/* if ( IsX360() || !IsGamepadUI() )
 	{
 		// TCR requirement, always!!!
 		m_bShowProgressDialog = true;
-	}
+	} */
 
 	// we've starting loading a level/connecting to a server
 	staticGameUIFuncs->OnLevelLoadingStarted( m_bShowProgressDialog );
