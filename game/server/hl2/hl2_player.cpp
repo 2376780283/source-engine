@@ -919,8 +919,8 @@ void CHL2_Player::UpdateHandViewModel( void )
     if ( !pHandVM )
         return;
 
-    pszDesiredModel = engine->GetClientConVarValue( engine->IndexOfEdict( edict() ), "c_hand" );
-    pszHandSkin     = engine->GetClientConVarValue( ENTINDEX( edict() ), "c_handskin" );
+    const char *pszDesiredModel = engine->GetClientConVarValue( engine->IndexOfEdict( edict() ), "c_hand" );
+    const char *pszHandSkin     = engine->GetClientConVarValue( ENTINDEX( edict() ), "c_handskin" );
 
     if ( !pszDesiredModel || !pszDesiredModel[0] )
         return;
@@ -929,7 +929,7 @@ void CHL2_Player::UpdateHandViewModel( void )
     {
         PrecacheModel( pszDesiredModel );
         Q_strncpy( m_szCurrentHandModelName, pszDesiredModel, sizeof(m_szCurrentHandModelName) );
-        pHandVM->SetModel( m_szCurrentHandModelName );        
+        pHandVM->SetWeaponModel( m_szCurrentHandModelName, NULL );
     }
 
     if ( pszHandSkin )
@@ -941,6 +941,7 @@ void CHL2_Player::UpdateHandViewModel( void )
         }
     }
 }
+
 
 void CHL2_Player::StartAdmireGlovesAnimation( void )
 {
@@ -1182,8 +1183,7 @@ void CHL2_Player::Spawn(void)
 
 	SetFlashlightPowerDrainScale( 1.0f );
 	
-	CreateHandModel( 1, 0 );
-	
+	CreateHandModel( 1, 0 );	
 	pHandVM = GetViewModel( 1 );
 	pszEnabled = engine->GetClientConVarValue( ENTINDEX( edict() ), "c_hand_enabled" );
 }
