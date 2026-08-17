@@ -15,7 +15,7 @@ games = {
 	'hl2': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
 	'hl2mp': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
 	'hl1': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
-	'episodic': ['gamepadui_base.vpc', 'gamepadui_episodic.vpc'],
+	'snowdrop_escape': ['gamepadui_base.vpc', 'gamepadui_episodic.vpc'],
 	'portal': ['gamepadui_base.vpc', 'gamepadui_portal.vpc'],
 	'hl1mp': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'], 
 	'cstrike': ['gamepadui_base.vpc', 'gamepadui_hl2.vpc'],
