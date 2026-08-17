@@ -511,7 +511,7 @@ void CBasePlayer::CreateViewModel( int index /*=0*/ )
 }
 
 //-----------------------------------------------------------------------------
-// Purpose: 
+// Purpose: 创建 HandModel viewmodel
 //-----------------------------------------------------------------------------
 void CBasePlayer::CreateHandModel( int index, int iOtherVm )
 {

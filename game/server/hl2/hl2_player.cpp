@@ -907,9 +907,24 @@ void CHL2_Player::PostThink( void )
 
 void CHL2_Player::UpdateHandViewModel( void )
 {
-    if ( pszEnabled && pszEnabled[0] == '0' )
-        return;
-
+    const char *pszCurrentEnabled = engine->GetClientConVarValue( ENTINDEX( edict() ), "c_hand_enabled" );   
+    if ( !pszCurrentEnabled || pszCurrentEnabled[0] == '0' )
+    {
+        if ( pHandVM )
+        {
+            pHandVM->SetWeaponModel( NULL, NULL );
+        }
+        return; 
+    }
+    if ( !pHandVM )
+    {
+        CreateHandModel( 1, 0 );
+        pHandVM = GetViewModel( 1 );
+        if ( pHandVM )
+        {
+            m_szCurrentHandModelName[0] = '\0';
+        }
+    }
     if ( !pHandVM )
     {
         pHandVM = GetViewModel( 1 );
@@ -1183,9 +1198,13 @@ void CHL2_Player::Spawn(void)
 
 	SetFlashlightPowerDrainScale( 1.0f );
 	
-	CreateHandModel( 1, 0 );	
-	pHandVM = GetViewModel( 1 );
-	pszEnabled = engine->GetClientConVarValue( ENTINDEX( edict() ), "c_hand_enabled" );
+    pszEnabled = engine->GetClientConVarValue( ENTINDEX( edict() ), "c_hand_enabled" );
+
+    if ( pszEnabled && pszEnabled[0] == '1' )
+    {
+        CreateHandModel( 1, 0 );
+        pHandVM = GetViewModel( 1 );
+    }
 }
 
 //-----------------------------------------------------------------------------
