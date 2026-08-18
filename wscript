@@ -56,7 +56,6 @@ projects={
 		'filesystem',
 		'game/client',
 		'game/server',
-		'game/gamepadui',
 		'gameui',
 		'game/gamepadui',
 		'inputsystem',
