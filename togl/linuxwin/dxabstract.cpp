@@ -1204,6 +1204,7 @@ static void FillD3DCaps9( const GLMRendererInfoFields &glmRendererInfo, D3DCAPS9
 	pCaps->FakeSRGBWrite			=	!glmRendererInfo.m_hasGammaWrites;
 	pCaps->CanDoSRGBReadFromRTs		=	!glmRendererInfo.m_cantAttachSRGB;
 	pCaps->MixedSizeTargets			=	glmRendererInfo.m_hasMixedAttachmentSizes;
+	pCaps->HasFramebufferFetch		=	glmRendererInfo.m_hasFramebufferFetch;
 #endif
 }
 
