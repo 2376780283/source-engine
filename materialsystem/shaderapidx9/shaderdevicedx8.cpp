@@ -890,11 +890,13 @@ bool CShaderDeviceMgrDx8::ComputeCapsFromD3D( HardwareCaps_t *pCaps, int nAdapte
 	pCaps->m_FakeSRGBWrite = false;
 	pCaps->m_CanDoSRGBReadFromRTs = true;
 	pCaps->m_bSupportsGLMixedSizeTargets = false;
+	pCaps->m_bHasFramebufferFetch = false;
 #ifdef DX_TO_GL_ABSTRACTION
 	// using #if because we're referencing fields in the RHS which don't exist in Windows headers for the caps9 struct
 	pCaps->m_FakeSRGBWrite = caps.FakeSRGBWrite != 0;
 	pCaps->m_CanDoSRGBReadFromRTs = caps.CanDoSRGBReadFromRTs != 0;
 	pCaps->m_bSupportsGLMixedSizeTargets = caps.MixedSizeTargets != 0; 	
+	pCaps->m_bHasFramebufferFetch = caps.HasFramebufferFetch != 0;
 #endif
 	
 	// Query for SRGB support as needed for our DX 9 stuff

@@ -27,12 +27,21 @@
 //===============================================================================
 
 #include "togles/rendermechanism.h"
+#include "tier0/icommandline.h"
 
 // memdbgon -must- be the last include file in a .cpp file.
 #include "tier0/memdbgon.h"
 
 // 7LS TODO : took out cmdline here
 bool g_bUsePseudoBufs = false; //( Plat_GetCommandLineA() ) ? ( strstr( Plat_GetCommandLineA(), "-gl_enable_pseudobufs" ) != NULL ) : false;
+
+// -gl_multi_buffer_vbos: cycle a ring of plain map/unmap GL buffers on every
+// DISCARD lock instead of re-mapping one VBO.  Each slot's data is 2+ frames
+// old by the time it is rewritten, so the map never serializes against GPU
+// work - the persistent ring's stall-free property on the proven plain path.
+// Set once in the CGLMBuffer constructor (before any Lock can occur).
+static bool g_bMultiBufferVBOs = false;
+static bool g_bMultiBufferVBOsChecked = false;
 #ifdef OSX
 // Significant perf degradation on some OSX parts if static buffers not disabled
 bool g_bDisableStaticBuffer = true;
@@ -51,6 +60,98 @@ bool g_bDisableStaticBuffer = true; //( Plat_GetCommandLineA() ) ? ( strstr( Pla
 // #define REPORT_LOCK_TIME	0
 
 ConVar gl_bufmode( "gl_bufmode", "1" );
+
+#define GLM_BUFFER_PERF_ANALYSIS 0
+
+#if GLM_BUFFER_PERF_ANALYSIS
+struct CGLMBufferPerfStats
+{
+	CCycleCount m_LockTime;
+	CCycleCount m_UnlockTime;
+	CCycleCount m_PseudoCopyTime;
+	uint64 m_nLocks;
+	uint64 m_nUnlocks;
+	uint64 m_nPseudoLocks;
+	uint64 m_nPseudoUnlocks;
+	uint64 m_nDiscards;
+	uint64 m_nNoOverwrites;
+	uint64 m_nVertexBytes;
+	uint64 m_nIndexBytes;
+	uint64 m_nOtherBytes;
+	uint64 m_nPseudoCopyCalls;
+	uint64 m_nPseudoCopyBytes;
+
+	void Reset()
+	{
+		m_LockTime.Init();
+		m_UnlockTime.Init();
+		m_PseudoCopyTime.Init();
+		m_nLocks = 0;
+		m_nUnlocks = 0;
+		m_nPseudoLocks = 0;
+		m_nPseudoUnlocks = 0;
+		m_nDiscards = 0;
+		m_nNoOverwrites = 0;
+		m_nVertexBytes = 0;
+		m_nIndexBytes = 0;
+		m_nOtherBytes = 0;
+		m_nPseudoCopyCalls = 0;
+		m_nPseudoCopyBytes = 0;
+	}
+};
+
+static CGLMBufferPerfStats s_BufferPerfStats;
+
+class CGLMBufferPerfTimer
+{
+public:
+	explicit CGLMBufferPerfTimer( CCycleCount &total )
+		: m_Total( total )
+	{
+		m_Timer.Start();
+	}
+
+	~CGLMBufferPerfTimer()
+	{
+		m_Timer.End();
+		m_Total += m_Timer.GetDuration();
+	}
+
+private:
+	CFastTimer m_Timer;
+	CCycleCount &m_Total;
+};
+
+CON_COMMAND( gl_dump_buffer_stats, "Print GL buffer lock/upload time; pass 1 to reset after printing." )
+{
+	const double flLockMS = s_BufferPerfStats.m_LockTime.GetMillisecondsF();
+	const double flUnlockMS = s_BufferPerfStats.m_UnlockTime.GetMillisecondsF();
+	const double flCopyMS = s_BufferPerfStats.m_PseudoCopyTime.GetMillisecondsF();
+	ConMsg( "GL buffers: Locks: %llu (%llu pseudo), %4.3fms (%4.6fms/call); Unlocks: %llu (%llu pseudo), %4.3fms (%4.6fms/call)\n",
+		(unsigned long long)s_BufferPerfStats.m_nLocks,
+		(unsigned long long)s_BufferPerfStats.m_nPseudoLocks,
+		flLockMS,
+		s_BufferPerfStats.m_nLocks ? flLockMS / s_BufferPerfStats.m_nLocks : 0.0,
+		(unsigned long long)s_BufferPerfStats.m_nUnlocks,
+		(unsigned long long)s_BufferPerfStats.m_nPseudoUnlocks,
+		flUnlockMS,
+		s_BufferPerfStats.m_nUnlocks ? flUnlockMS / s_BufferPerfStats.m_nUnlocks : 0.0 );
+	ConMsg( "GL buffer traffic: Vertex: %llu bytes, Index: %llu bytes, Other: %llu bytes; Discards: %llu NoOverwrite: %llu; pseudo memcpy: %llu calls, %llu bytes, %4.3fms\n",
+		(unsigned long long)s_BufferPerfStats.m_nVertexBytes,
+		(unsigned long long)s_BufferPerfStats.m_nIndexBytes,
+		(unsigned long long)s_BufferPerfStats.m_nOtherBytes,
+		(unsigned long long)s_BufferPerfStats.m_nDiscards,
+		(unsigned long long)s_BufferPerfStats.m_nNoOverwrites,
+		(unsigned long long)s_BufferPerfStats.m_nPseudoCopyCalls,
+		(unsigned long long)s_BufferPerfStats.m_nPseudoCopyBytes,
+		flCopyMS );
+
+	if ( args.ArgC() == 2 && args.Arg(1)[0] != '0' )
+	{
+		s_BufferPerfStats.Reset();
+	}
+}
+#endif
 
 char ALIGN16 CGLMBuffer::m_StaticBuffers[ GL_MAX_STATIC_BUFFERS ][ GL_STATIC_BUFFER_SIZE ] ALIGN16_POST;
 bool CGLMBuffer::m_bStaticBufferUsed[ GL_MAX_STATIC_BUFFERS ];
@@ -81,6 +182,7 @@ CPersistentBuffer::CPersistentBuffer()
 	, m_nHandle( 0 )
 	, m_pImmutablePersistentBuf( NULL )
 	, m_nOffset( 0 )
+	, m_bReferencedSinceFence( false )
 #ifdef HAVE_GL_ARB_SYNC
 	, m_nSyncObj( 0 )
 #endif
@@ -115,12 +217,49 @@ void CPersistentBuffer::Init( EGLMBufferType type,uint nSize )
 
 		// Create persistent immutable buffer that we will permanently map.  This buffer can be written from any thread (not just
 		// the renderthread)
-		gGL->glBufferStorageEXT( m_buffGLTarget, m_nSize, (const GLvoid *)NULL, GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT ); // V_GL_REQ: GL_EXT_buffer_storage, GL_ARB_map_buffer_range, GL_VERSION_4_4
+		//
+		// GL_MAP_COHERENT_BIT is the default, but some mobile GLES drivers
+		// (observed on Mali-G31 r13p0) expose a persistent mapping whose
+		// "coherent" behavior is not actually write-through - writes stay
+		// stale on the GPU side no matter how the ring is managed, producing
+		// random-triangle flicker.  -gl_persistent_no_coherent drops the
+		// coherent bit and instead maps with GL_MAP_FLUSH_EXPLICIT_BIT so the
+		// explicit glFlushMappedBufferRange in CGLMBuffer::Unlock/GetHandle is
+		// well-defined - exactly the map semantics of the proven plain
+		// map/unmap path (the earlier diagnostic omitted FLUSH_EXPLICIT,
+		// which made the flush undefined per spec and masked the result).
+		GLbitfield nMapFlags = GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT;
+		if ( !CommandLine()->FindParm( "-gl_persistent_no_coherent" ) )
+		{
+			nMapFlags |= GL_MAP_COHERENT_BIT;
+		}
+		else
+		{
+			nMapFlags |= GL_MAP_FLUSH_EXPLICIT_BIT;
+		}
+		m_nMapFlags = nMapFlags;
+
+		// GL_MAP_FLUSH_EXPLICIT_BIT is a map-only flag; glBufferStorageEXT
+		// rejects it as a storage flag.
+		gGL->glBufferStorageEXT( m_buffGLTarget, m_nSize, (const GLvoid *)NULL, nMapFlags & ~GL_MAP_FLUSH_EXPLICIT_BIT ); // V_GL_REQ: GL_EXT_buffer_storage, GL_ARB_map_buffer_range, GL_VERSION_4_4
 
 		// Map the buffer for all of eternity.  Pointer can be used from multiple threads.
-		m_pImmutablePersistentBuf = gGL->glMapBufferRange( m_buffGLTarget, 0, m_nSize, GL_MAP_WRITE_BIT | GL_MAP_PERSISTENT_BIT | GL_MAP_COHERENT_BIT ); // V_GL_REQ: GL_ARB_map_buffer_range, GL_EXT_buffer_storage, GL_VERSION_4_4
+		m_pImmutablePersistentBuf = gGL->glMapBufferRange( m_buffGLTarget, 0, m_nSize, nMapFlags ); // V_GL_REQ: GL_ARB_map_buffer_range, GL_EXT_buffer_storage, GL_VERSION_4_4
 		Assert( m_pImmutablePersistentBuf != NULL );
 	}
+}
+
+void CPersistentBuffer::Remap()
+{
+	if ( !m_pImmutablePersistentBuf )
+		return;
+
+	// Cycle the mapping so the driver runs its normal unmap flush path.
+	// Legal for persistent mappings; the returned CPU pointer may change,
+	// which is fine - every Lock re-derives its slice pointer from GetPtr().
+	gGL->glUnmapBuffer( m_buffGLTarget );
+	m_pImmutablePersistentBuf = gGL->glMapBufferRange( m_buffGLTarget, 0, m_nSize, m_nMapFlags );
+	Assert( m_pImmutablePersistentBuf != NULL );
 }
 
 void CPersistentBuffer::Deinit()
@@ -161,7 +300,28 @@ void CPersistentBuffer::BlockUntilNotBusy()
 #ifdef HAVE_GL_ARB_SYNC
 	if (m_nSyncObj)
 	{
-		gGL->glClientWaitSync( m_nSyncObj, GL_SYNC_FLUSH_COMMANDS_BIT, 3000000000000ULL );
+		if ( CommandLine()->FindParm( "-gl_persistent_finish" ) )
+		{
+			// Diagnostic: some mobile GLES drivers (Mali-G31 r13p0) appear to
+			// signal GL sync objects before the GPU has actually retired the
+			// referenced work, letting the ring overwrite data the GPU still
+			// reads (random-triangle flicker that no slice/bookkeeping model
+			// removes).  glFinish blocks until ALL prior work completes, so a
+			// clean result with this switch implicates the fence machinery;
+			// a dirty result implicates the persistent mapping itself.
+			gGL->glFinish();
+		}
+		else
+		{
+			// 1s is generous for a 2-3 frame ring on any part we target; if this
+			// ever fires the GPU is wedged or the ring was sized too small.  The
+			// old 3s timeout just hid the stall.
+			GLenum result = gGL->glClientWaitSync( m_nSyncObj, GL_SYNC_FLUSH_COMMANDS_BIT, 1000000000ULL );
+			if ( result != GL_ALREADY_SIGNALED && result != GL_CONDITION_SATISFIED )
+			{
+				Warning( "CPersistentBuffer: glClientWaitSync timed out (0x%X)\n", (int)result );
+			}
+		}
 
 		gGL->glDeleteSync( m_nSyncObj );
 
@@ -169,6 +329,7 @@ void CPersistentBuffer::BlockUntilNotBusy()
 	}
 #endif
 	m_nOffset = 0;
+	m_bReferencedSinceFence = false;
 }
 
 void CPersistentBuffer::Append( uint nSize )
@@ -467,13 +628,68 @@ CGLMBuffer::CGLMBuffer( GLMContext *pCtx, EGLMBufferType type, uint size, uint o
 	m_pActualPseudoBuf = NULL;
 
 	m_bPseudo = false;
+	m_nPseudoLockOffset = 0xFFFFFFFF;
+	m_nPersistentBufferSlot = 0;
+	m_bPendingPersistentFlush = false;
+	m_nPendingPersistentFlushStart = 0;
+	m_nPendingPersistentFlushEnd = 0;
+	m_nRingSlot = 0;
+	m_nRingSlotCount = 1;
+	m_nRingSlotFrame = 0xFFFFFFFF;
+	m_ringHandles[0] = m_ringHandles[1] = m_ringHandles[2] = 0;
 		
 #if GL_ENABLE_UNLOCK_BUFFER_OVERWRITE_DETECTION
 	m_bPseudo = true;
 #endif
 
-	if( strcmp(gGL->m_pGLDriverStrings[cGLVendorString], "ARM") == 0 )
-		g_bUsePseudoBufs = true; // works faster with Mali gpu
+	// Client-memory pseudo buffers have no GPU-side storage: on GLES the driver
+	// must re-copy the referenced vertex/index ranges on every draw (client-side
+	// vertex arrays are undefined in ES 3.x and only tolerated via a slow legacy
+	// path on Mali).  Real VBOs with map/orphan keep dynamic data resident on the
+	// GPU and are strictly faster on Mali-G31-class parts.  Pseudo buffers remain
+	// available for debugging via -gl_enable_pseudobufs.
+	if( V_stristr(gGL->m_pGLDriverStrings[cGLVendorString], "arm") != NULL )
+	{
+		g_bUsePseudoBufs = CommandLine()->CheckParm( "-gl_enable_pseudobufs" ) != NULL;
+
+		// The static-buffer path glBufferSubData's into the same VBO every
+		// frame without orphaning, forcing a CPU/GPU serialization per lock -
+		// measured at a 5x FPS drop on Mali-G31.  Keep it hard-disabled on
+		// ARM even if -gl_enable_static_buffer is passed.
+		g_bDisableStaticBuffer = true;
+	}
+
+	if ( !g_bMultiBufferVBOsChecked )
+	{
+		// On Mali (r13p0 tested) glFlushMappedBufferRange on persistently
+		// mapped buffers is ignored - only glUnmapBuffer publishes writes -
+		// so the persistent ring is not viable there without a per-lock
+		// unmap/remap cycle.  Default the stall-free multi-buffer ring ON
+		// for ARM instead; -gl_no_multi_buffer_vbos restores the
+		// single-VBO path.  Other drivers opt in via -gl_multi_buffer_vbos.
+		if ( V_stristr( gGL->m_pGLDriverStrings[cGLVendorString], "arm" ) != NULL )
+		{
+			g_bMultiBufferVBOs = !CommandLine()->CheckParm( "-gl_no_multi_buffer_vbos" );
+		}
+		else
+		{
+			g_bMultiBufferVBOs = CommandLine()->CheckParm( "-gl_multi_buffer_vbos" ) != NULL;
+		}
+		g_bMultiBufferVBOsChecked = true;
+	}
+
+	if ( m_bDynamic )
+	{
+		static bool s_bReportedDynamicBufferMode = false;
+		if ( !s_bReportedDynamicBufferMode )
+		{
+			const char *pMode = g_bUsePseudoBufs ? "pseudo/client memory" :
+				( gGL->m_bHave_GL_EXT_buffer_storage ? "persistent mapped VBO ring" :
+				  ( g_bMultiBufferVBOs ? "multi-buffered mapped VBO ring" : "ordinary mapped VBO" ) );
+			Msg( "GL dynamic buffer mode: %s\n", pMode );
+			s_bReportedDynamicBufferMode = true;
+		}
+	}
 
 #if GL_ENABLE_INDEX_VERIFICATION
 	m_BufferSpanManager.Init( m_pCtx, m_type, 512, m_nSize, m_bDynamic );
@@ -545,6 +761,25 @@ CGLMBuffer::CGLMBuffer( GLMContext *pCtx, EGLMBufferType type, uint size, uint o
 
 		SetModes( false, true, true );
 
+		// -gl_multi_buffer_vbos: give dynamic VB/IB a ring of plain GL
+		// buffers.  Lock advances the slot on every DISCARD, so a map never
+		// waits on GPU work from earlier frames (each slot is 2 frames old
+		// by the time it is rewritten).  Skipped when the persistent ring
+		// is active (buffer storage takes precedence).
+		m_ringHandles[0] = m_nHandle;
+		if ( g_bMultiBufferVBOs && m_bDynamic &&
+			 ( ( m_type == kGLMVertexBuffer ) || ( m_type == kGLMIndexBuffer ) ) &&
+			 !gGL->m_bHave_GL_EXT_buffer_storage )
+		{
+			for ( uint i = 1; i < 3; ++i )
+			{
+				gGL->glGenBuffers( 1, &m_ringHandles[i] );
+				gGL->glBindBuffer( m_buffGLTarget, m_ringHandles[i] );
+				gGL->glBufferData( m_buffGLTarget, m_nSize, (const GLvoid*)NULL, hint );
+			}
+			m_nRingSlotCount = 3;
+		}
+
 		m_pCtx->BindBufferToCtx( m_type, NULL );	// unbind me
 	}
 }
@@ -569,6 +804,16 @@ CGLMBuffer::~CGLMBuffer( )
 	}
 	else
 	{
+		// Delete any multi-buffer ring handles beyond the primary one
+		// (m_nHandle is always one of the ring slots when the ring is on).
+		for ( uint i = 1; i < m_nRingSlotCount; ++i )
+		{
+			if ( m_ringHandles[i] && ( m_ringHandles[i] != m_nHandle ) )
+			{
+				gGL->glDeleteBuffers( 1, &m_ringHandles[i] );
+				m_ringHandles[i] = 0;
+			}
+		}
 		gGL->glDeleteBuffers( 1, &m_nHandle );
 	}
 	
@@ -652,6 +897,22 @@ void CGLMBuffer::Lock( GLMBuffLockParams *pParams, char **pAddressOut )
 	CScopedGLMPIXEvent glmPIXEvent( "CGLMBuffer::Lock" );
 	g_TelemetryGPUStats.m_nTotalBufferLocksAndUnlocks++;
 #endif
+#if GLM_BUFFER_PERF_ANALYSIS
+	CGLMBufferPerfTimer bufferLockTimer( s_BufferPerfStats.m_LockTime );
+	++s_BufferPerfStats.m_nLocks;
+	if ( m_bPseudo )
+	{
+		++s_BufferPerfStats.m_nPseudoLocks;
+	}
+	if ( pParams->m_bDiscard )
+	{
+		++s_BufferPerfStats.m_nDiscards;
+	}
+	if ( pParams->m_bNoOverwrite )
+	{
+		++s_BufferPerfStats.m_nNoOverwrites;
+	}
+#endif
 
 	char *resultPtr = NULL;
 	
@@ -689,25 +950,17 @@ void CGLMBuffer::Lock( GLMBuffLockParams *pParams, char **pAddressOut )
 	m_pStaticBuffer = NULL;
 	bool bUsingPersistentBuffer = false;
 
-	uint padding = 0;
-	if ( m_bDynamic && gGL->m_bHave_GL_EXT_buffer_storage )
-	{
-		// Compute padding to add to make sure the start offset is valid
-		CPersistentBuffer *pTempBuffer = m_pCtx->GetCurPersistentBuffer( m_type );
-		uint persistentBufferOffset = pTempBuffer->GetOffset();
-
-		if (pParams->m_nOffset > persistentBufferOffset)
-		{
-			// Make sure the start offset if valid (adding padding to the persistent buffer)
-			padding = pParams->m_nOffset - persistentBufferOffset;
-		}
-	}
-	
 	if ( m_bPseudo )
 	{
-		if ( pParams->m_bDiscard )
+		// The attrib-pointer cache (SetBufAndVertexAttribPointer) keys on the
+		// client pointer, which moves with the lock offset.  A NOOVERWRITE lock
+		// at a different offset would otherwise leave the previous draw's
+		// cached pointer stale (the flush's total-revision check never sees a
+		// change), so bump the revision whenever the lock address moves.
+		if ( pParams->m_bDiscard || ( pParams->m_nOffset != m_nPseudoLockOffset ) )
 		{
 			m_nRevision++;
+			m_nPseudoLockOffset = pParams->m_nOffset;
 		}
 
 		// async map modes are a no-op
@@ -750,32 +1003,50 @@ void CGLMBuffer::Lock( GLMBuffLockParams *pParams, char **pAddressOut )
 		}
 #endif
 	}
-	else if ( m_bDynamic && gGL->m_bHave_GL_EXT_buffer_storage && ( m_pCtx->GetCurPersistentBuffer( m_type )->GetBytesRemaining() >= ( pParams->m_nSize + padding ) ) )
+	else if ( m_bDynamic && gGL->m_bHave_GL_EXT_buffer_storage &&
+			  ( ( !pParams->m_bDiscard && m_bUsingPersistentBuffer && ( m_nPersistentBufferSlot == m_pCtx->GetCurPersistentBufferIndex() ) ) ||
+				( m_pCtx->GetCurPersistentBuffer( m_type )->GetBytesRemaining() >= m_nSize ) ) )
 	{
+		// Persistent ring path.  Every DISCARD - the frame-start reset or a
+		// mid-frame wrap when the engine's shared buffer fills up - starts a
+		// FRESH slice in the ring and latches a stable base for it.  The
+		// engine writes at offset 0 after a discard and keeps the previous
+		// slice's draws queued, so slices must never be reused within a frame.
+		// NOOVERWRITE appends resolve to base + lockOffset inside the live
+		// slice.  (The original append-per-lock model moved the base on every
+		// lock, breaking chunk draws; the first stable-base attempt reused the
+		// slice on mid-frame wraps, overwriting the queued geometry - the
+		// flicker.)
 		CPersistentBuffer *pTempBuffer = m_pCtx->GetCurPersistentBuffer( m_type );
+		const bool bHasLiveSlice = m_bUsingPersistentBuffer && ( m_nPersistentBufferSlot == m_pCtx->GetCurPersistentBufferIndex() );
 
-		// Make sure the start offset if valid (adding padding to the persistent buffer)
-		pTempBuffer->Append( padding );
-
-		uint persistentBufferOffset = pTempBuffer->GetOffset();
-		uint startOffset = persistentBufferOffset - pParams->m_nOffset;
-
-		if ( pParams->m_bDiscard || ( startOffset != m_nPersistentBufferStartOffset ) )
+		if ( !pParams->m_bDiscard && bHasLiveSlice )
 		{
-			m_nRevision++;
-			// Offset to be added to the vertex and index buffer when setting the vertex and index buffer (before drawing)
-			// Since we are using a immutable buffer storage, the persistent buffer is actually bigger than
-			// buffer size requested upon creation. We keep appending to the end of the persistent buffer 
-			// and therefore need to keep track of the start of the actual buffer (in the persistent one)
-			m_nPersistentBufferStartOffset = startOffset;
-
-			//DevMsg( "Discard (%s): startOffset = %d\n", pParams->m_bDiscard ? "true" : "false", m_nPersistentBufferStartOffset );
+			// NOOVERWRITE append into the live slice - the base is stable for
+			// the whole slice, so every draw resolves its own lock offset
+			// against the same ring region.
+			resultPtr = static_cast<char*>(pTempBuffer->GetPtr()) + m_nPersistentBufferStartOffset + pParams->m_nOffset;
+			bUsingPersistentBuffer = true;
 		}
+		else
+		{
+			// Fresh slice: DISCARD (frame-start reset or mid-frame wrap) or
+			// the first lock of the frame (capacity was verified above).
+			// Reserve the buffer's full size so every later append this frame
+			// lands inside the slice.  The revision bump re-issues the attrib
+			// pointers so the new base is used by the draws that follow.
+			pTempBuffer->Append( m_nSize );
+			m_nPersistentBufferStartOffset = pTempBuffer->GetOffset() - m_nSize;
+			m_nPersistentBufferSlot = m_pCtx->GetCurPersistentBufferIndex();
+			m_nRevision++;
 
-		resultPtr = static_cast<char*>(pTempBuffer->GetPtr()) + persistentBufferOffset;
-		bUsingPersistentBuffer = true;
+			// A DISCARD invalidates the previous slice's data, so any
+			// unflushed range from the old slice can never be drawn again.
+			m_bPendingPersistentFlush = false;
 
-		//DevMsg( " --> buff=%x, startOffset=%d, paramsOffset=%d, persistOffset = %d\n", this, m_nPersistentBufferStartOffset, pParams->m_nOffset, persistentBufferOffset );
+			resultPtr = static_cast<char*>(pTempBuffer->GetPtr()) + m_nPersistentBufferStartOffset + pParams->m_nOffset;
+			bUsingPersistentBuffer = true;
+		}
 	}
 	else if ( !g_bDisableStaticBuffer && ( pParams->m_bDiscard || pParams->m_bNoOverwrite ) && ( pParams->m_nSize <= GL_STATIC_BUFFER_SIZE ) )
 	{
@@ -822,20 +1093,60 @@ void CGLMBuffer::Lock( GLMBuffLockParams *pParams, char **pAddressOut )
 	}
 	else
 	{
+		// Multi-buffer ring: the slot advances ONCE PER FRAME (the first
+		// DISCARD of each frame), not per discard.  A single frame can
+		// discard + rewrap the shared dynamic VB many times (flexed and
+		// software-skinned meshes lock it repeatedly); advancing per
+		// discard recycled slot buffers while the GPU was still reading
+		// them - TBDR submits are deferred, so the GPU consumes a frame's
+		// geometry after the CPU has moved on.  One slot per frame gives
+		// each slot's data a 3-frame lifetime, matching the persistent
+		// ring's guarantee.  NOOVERWRITE appends stay on the current slot.
+		if ( g_bMultiBufferVBOs && m_bDynamic && pParams->m_bDiscard && ( m_nRingSlotCount > 1 ) )
+		{
+			const uint nFrame = m_pCtx->m_nCurFrame;
+			if ( nFrame != m_nRingSlotFrame )
+			{
+				m_nRingSlot = ( m_nRingSlot + 1 ) % m_nRingSlotCount;
+				m_nHandle = m_ringHandles[ m_nRingSlot ];
+				m_nRingSlotFrame = nFrame;
+				m_nRevision++;	// new GL buffer name - attrib pointers must re-issue
+			}
+		}
+
 		// bind (yes, even for pseudo - this binds name 0)
 		m_pCtx->BindBufferToCtx( m_type, this );
 
 		// perform discard if requested
 		if ( pParams->m_bDiscard )
 		{
-			// observe gl_bufmode on any orphan event.
-			// if orphaned and bufmode is nonzero, flip it to dynamic.
-			
-			// We always want to call glBufferData( ..., NULL ) on discards, even though we're using the GL_MAP_INVALIDATE_BUFFER_BIT flag, because this flag is actually only a hint according to AMD.
-			GLenum hint = gl_bufmode.GetInt() ? GL_DYNAMIC_DRAW : GL_STREAM_DRAW;
-			gGL->glBufferData( m_buffGLTarget, m_nSize, (const GLvoid*)NULL, hint );
+			// Multi-buffer: the slot advances once per frame (see above), so
+			// no per-discard orphan realloc is needed and the revision was
+			// already bumped at the slot swap.  Mid-frame discards that stay
+			// on the current slot rely on GL_MAP_INVALIDATE_BUFFER_BIT in
+			// the map below to rename storage while earlier draws of this
+			// frame's data are still in flight - the same contract the
+			// single-buffer path has used all along.
+			if ( !g_bMultiBufferVBOs || ( m_nRingSlotCount <= 1 ) )
+			{
+				// observe gl_bufmode on any orphan event.
+				// if orphaned and bufmode is nonzero, flip it to dynamic.
+				
+				// We always want to call glBufferData( ..., NULL ) on discards, even though we're using the GL_MAP_INVALIDATE_BUFFER_BIT flag, because this flag is actually only a hint according to AMD.
+				// On ARM/Mali (UMA) the orphan reallocates the shared dynamic VB
+				// (1.5MB) on every frame; the discard is usually satisfied cheaper
+				// by GL_MAP_INVALIDATE_BUFFER_BIT on the same storage (the flag is
+				// already set in the map below).  -gl_force_orphan restores the
+				// classic realloc behavior.
+				static bool s_bMali = ( gGL->m_nDriverProvider == cGLDriverProviderARM );
+				if ( !s_bMali || CommandLine()->CheckParm( "-gl_force_orphan" ) )
+				{
+					GLenum hint = gl_bufmode.GetInt() ? GL_DYNAMIC_DRAW : GL_STREAM_DRAW;
+					gGL->glBufferData( m_buffGLTarget, m_nSize, (const GLvoid*)NULL, hint );
+				}
 									
-			m_nRevision++;	// revision grows on orphan event
+				m_nRevision++;	// revision grows on orphan event
+			}
 		}
 
 		// adjust async map option appropriately, leave explicit flush unchanged
@@ -915,6 +1226,14 @@ void CGLMBuffer::Unlock( int nActualSize, const void *pActualData )
 	CScopedGLMPIXEvent glmPIXEvent( "CGLMBuffer::Unlock" );
 	g_TelemetryGPUStats.m_nTotalBufferLocksAndUnlocks++;
 #endif
+#if GLM_BUFFER_PERF_ANALYSIS
+	CGLMBufferPerfTimer bufferUnlockTimer( s_BufferPerfStats.m_UnlockTime );
+	++s_BufferPerfStats.m_nUnlocks;
+	if ( m_bPseudo )
+	{
+		++s_BufferPerfStats.m_nPseudoUnlocks;
+	}
+#endif
 
 	m_pCtx->CheckCurrent();
 	
@@ -934,6 +1253,21 @@ void CGLMBuffer::Unlock( int nActualSize, const void *pActualData )
 		DXABSTRACT_BREAK_ON_ERROR();
 		return;
 	}
+
+#if GLM_BUFFER_PERF_ANALYSIS
+	switch ( m_type )
+	{
+		case kGLMVertexBuffer:
+			s_BufferPerfStats.m_nVertexBytes += nActualSize;
+			break;
+		case kGLMIndexBuffer:
+			s_BufferPerfStats.m_nIndexBytes += nActualSize;
+			break;
+		default:
+			s_BufferPerfStats.m_nOtherBytes += nActualSize;
+			break;
+	}
+#endif
 
 #if GL_ENABLE_UNLOCK_BUFFER_OVERWRITE_DETECTION
 	if ( m_bPseudo )
@@ -1024,12 +1358,45 @@ void CGLMBuffer::Unlock( int nActualSize, const void *pActualData )
 #endif
 	if ( m_bUsingPersistentBuffer )
 	{
-		if ( nActualSize )
+		// Make the written range visible to the GPU.  The mapping is
+		// persistent+coherent, but an explicit flush costs one driver call and
+		// covers drivers whose "coherent" mapping is not actually write-
+		// through - without it, stale GPU reads produced random-triangle
+		// flicker on Mali r13p0 even though the equivalent map path (which
+		// flushes explicitly) rendered cleanly.  The region itself was
+		// reserved at lock time, so no ring accounting happens here.
+		//
+		// Instead of one bind+glFlushMappedBufferRange per unlock, accumulate
+		// the dirty span and let GetHandle() flush it once, right before the
+		// buffer is first handed to a draw.  The engine performs hundreds of
+		// dynamic locks per frame; flushing per unlock was thousands of
+		// redundant driver calls.
+		if ( nActualSize > 0 )
 		{
-			CPersistentBuffer *pTempBuffer = m_pCtx->GetCurPersistentBuffer( m_type );
-			pTempBuffer->Append( nActualSize );
+			const uint nRangeStart = m_nPersistentBufferStartOffset + m_LockParams.m_nOffset;
+			const uint nRangeEnd = nRangeStart + (uint)nActualSize;
+			if ( !m_bPendingPersistentFlush )
+			{
+				m_bPendingPersistentFlush = true;
+				m_nPendingPersistentFlushStart = nRangeStart;
+				m_nPendingPersistentFlushEnd = nRangeEnd;
+			}
+			else
+			{
+				m_nPendingPersistentFlushStart = MIN( m_nPendingPersistentFlushStart, nRangeStart );
+				m_nPendingPersistentFlushEnd = MAX( m_nPendingPersistentFlushEnd, nRangeEnd );
+			}
 
-			//DevMsg( "   <-- actualSize=%d, persistOffset = %d\n", nActualSize, pTempBuffer->GetOffset() );
+			if ( CommandLine()->FindParm( "-gl_persistent_unmap_publish" ) )
+			{
+				// Diagnostic: some drivers only publish mapped writes at
+				// glUnmapBuffer and ignore glFlushMappedBufferRange entirely
+				// on persistent mappings.  Cycle the mapping so the driver
+				// runs its normal unmap flush path.
+				CPersistentBuffer *pSlot = m_pCtx->GetPersistentBuffer( m_nPersistentBufferSlot, m_type );
+				gGL->glBindBuffer( m_buffGLTarget, pSlot->GetHandle() );
+				pSlot->Remap();
+			}
 		}
 	}
 	else if ( m_pStaticBuffer )
@@ -1072,6 +1439,11 @@ void CGLMBuffer::Unlock( int nActualSize, const void *pActualData )
 	{
 		if ( pActualData )
 		{
+#if GLM_BUFFER_PERF_ANALYSIS
+			CGLMBufferPerfTimer pseudoCopyTimer( s_BufferPerfStats.m_PseudoCopyTime );
+			++s_BufferPerfStats.m_nPseudoCopyCalls;
+			s_BufferPerfStats.m_nPseudoCopyBytes += nActualSize;
+#endif
 			memcpy( m_pLastMappedAddress, pActualData, nActualSize );
 		}
 
@@ -1133,7 +1505,44 @@ void CGLMBuffer::Unlock( int nActualSize, const void *pActualData )
 	m_bMapped = false;
 }
 
-GLuint CGLMBuffer::GetHandle() const
+void CGLMBuffer::FlushPendingPersistentRange()
+{
+	if ( !m_bUsingPersistentBuffer || !m_bPendingPersistentFlush )
+		return;
+
+	// Bind the slot directly and update the context mirror (cannot route
+	// through BindBufferToCtx - it calls GetHandle, which calls back here).
+	CPersistentBuffer *pSlot = m_pCtx->GetPersistentBuffer( m_nPersistentBufferSlot, m_type );
+	const GLuint nHandle = pSlot->GetHandle();
+	gGL->glBindBuffer( m_buffGLTarget, nHandle );
+	m_pCtx->m_nBoundGLBuffer[ m_type ] = nHandle;
+	gGL->glFlushMappedBufferRange( m_buffGLTarget,
+		m_nPendingPersistentFlushStart,
+		m_nPendingPersistentFlushEnd - m_nPendingPersistentFlushStart );
+	m_bPendingPersistentFlush = false;
+}
+
+GLuint CGLMBuffer::GetHandle()
 { 
-	return ( m_bUsingPersistentBuffer ? m_pCtx->GetCurPersistentBuffer( m_type )->GetHandle() : m_nHandle ); 
+	// The data was appended to the ring slot that was current at lock time;
+	// bind that slot's buffer so later-frame draws of the locked data (which
+	// D3D9 permits until the buffer is re-locked) read the right memory.  The
+	// slot stays resident until the ring wraps back to it two frames later.
+	if ( m_bUsingPersistentBuffer )
+	{
+		CPersistentBuffer *pSlot = m_pCtx->GetPersistentBuffer( m_nPersistentBufferSlot, m_type );
+		pSlot->MarkReferenced();
+
+		// Flush the write range accumulated across this frame's unlocks
+		// right before the buffer is handed to a draw.  This is the single
+		// choke point every draw path (attrib setup, index bind) passes
+		// through, so the pending range is always visible before the GPU
+		// reads the data - one flush per drawn buffer per frame instead of
+		// one per unlock.  (FlushDrawStates also calls
+		// FlushPendingPersistentRange for the NOOVERWRITE-append case where
+		// the attrib enumeration is skipped and GetHandle never runs.)
+		FlushPendingPersistentRange();
+		return pSlot->GetHandle();
+	}
+	return m_nHandle; 
 }
