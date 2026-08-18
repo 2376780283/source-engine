@@ -109,6 +109,7 @@ GL_FUNC_VOID(OpenGL,true,glTexImage2D,(GLenum a,GLint b,GLint c,GLsizei d,GLsize
 GL_FUNC_VOID(OpenGL,true,glTexImage3D,(GLenum a,GLint b,GLint c,GLsizei d,GLsizei e,GLsizei f,GLint g,GLenum h,GLenum i,const GLvoid *j),(a,b,c,d,e,f,g,h,i,j))
 GL_FUNC_VOID(OpenGL,true,glTexParameterfv,(GLenum a,GLenum b,const GLfloat *c),(a,b,c))
 GL_FUNC_VOID(OpenGL,true,glTexParameteri,(GLenum a,GLenum b,GLint c),(a,b,c))
+GL_FUNC_VOID(OpenGL,true,glTexParameterf,(GLenum a,GLenum b,GLfloat c),(a,b,c))
 GL_FUNC_VOID(OpenGL,true,glTexSubImage2D,(GLenum a,GLint b,GLint c,GLint d,GLsizei e,GLsizei f,GLenum g,GLenum h,const GLvoid *i),(a,b,c,d,e,f,g,h,i))
 GL_FUNC_VOID(OpenGL,true,glUniform1f,(GLint a,GLfloat b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glUniform1i,(GLint a,GLint b),(a,b))
@@ -259,6 +260,7 @@ GL_FUNC_VOID(OpenGL,true,glBindVertexArray,(GLuint a),(a))
 #endif // !OSX
 
 GL_EXT(GL_EXT_texture_sRGB_decode,-1,-1)
+GL_EXT(GL_EXT_texture_filter_anisotropic,-1,-1)
 GL_FUNC_VOID(OpenGL,true,glPushClientAttrib,(GLbitfield a),(a))
 GL_FUNC_VOID(OpenGL,true,glPopClientAttrib,(void),())
 GL_EXT(GL_NVX_gpu_memory_info,-1,-1)
@@ -270,6 +272,12 @@ GL_EXT(GL_ANGLE_texture_compression_dxt5,-1,-1)
 
 GL_EXT( GL_ARB_buffer_storage, 4, 4 )
 GL_FUNC_VOID( GL_ARB_buffer_storage, false, glBufferStorage, (GLenum target, GLsizeiptr size, const void *data, GLbitfield flags), (target, size, data, flags) )
+
+// GL_ARM_shader_framebuffer_fetch / GL_EXT_shader_framebuffer_fetch
+// On Mali TBDR, allows reading the current pixel's framebuffer color directly
+// from the on-chip tile buffer.  No entry points — shader-language extension only.
+GL_EXT( GL_ARM_shader_framebuffer_fetch, -1, -1 )
+GL_EXT( GL_EXT_shader_framebuffer_fetch, -1, -1 )
 
 // This one is an OS extension. We'll add a little helper function to look for it.
 #ifdef _WIN32

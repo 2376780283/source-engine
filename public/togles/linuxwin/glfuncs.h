@@ -26,7 +26,6 @@
 
 GL_FUNC(OpenGL,true,GLenum,glGetError,(void),())
 GL_FUNC_VOID(OpenGL,true,glActiveTexture,(GLenum a),(a))
-GL_FUNC_VOID(OpenGL,true,glAlphaFunc,(GLenum a,GLclampf b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glAttachShader,(GLuint a, GLuint b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glBindAttribLocation,(GLuint a,GLuint b,const GLchar *c),(a,b,c))
 GL_FUNC_VOID(OpenGL,true,glBindBuffer,(GLenum a,GLuint b),(a,b))
@@ -67,7 +66,8 @@ GL_FUNC_VOID(OpenGL,true,glDeleteSync,(GLsync a),(a))
 GL_FUNC(OpenGL,true,GLsync,glFenceSync,(GLenum a, GLbitfield b),(a,b))
 
 #if 1 //ifndef OSX // 10.6/GL 2.1 compatability
-GL_FUNC_VOID(OpenGL,false,glDrawRangeElementsBaseVertex,(GLenum a,GLuint b,GLuint c,GLsizei d,GLenum e,const GLvoid *f, GLenum g),(a,b,c,d,e,f,g))
+GL_FUNC_VOID(OpenGL,false,glDrawElementsBaseVertex,(GLenum a,GLsizei b,GLenum c,const GLvoid *d, GLint e),(a,b,c,d,e))
+GL_FUNC_VOID(OpenGL,true,glDrawRangeElementsBaseVertex,(GLenum a,GLuint b,GLuint c,GLsizei d,GLenum e,const GLvoid *f, GLint g),(a,b,c,d,e,f,g))
 #endif
 GL_FUNC_VOID(OpenGL,true,glEnable,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,true,glEnableVertexAttribArray,(GLuint a),(a))
@@ -82,13 +82,26 @@ GL_FUNC_VOID(OpenGL,true,glGetIntegerv,(GLenum a,GLint *b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glGetProgramiv,(GLenum a,GLenum b,GLint *c),(a,b,c))
 GL_FUNC(OpenGL,true,const GLubyte *,glGetString,(GLenum a),(a))
 GL_FUNC(OpenGL,true,GLint,glGetUniformLocation,(GLuint a,const GLchar *b),(a,b))
+GL_FUNC_VOID(OpenGL,true,glGetActiveUniform,(GLuint a,GLuint b,GLsizei c,GLsizei *d,GLint *e,GLenum *f,GLchar *g),(a,b,c,d,e,f,g))
 GL_FUNC(OpenGL,true,GLboolean,glIsEnabled,(GLenum a),(a))
 GL_FUNC(OpenGL,true,GLboolean,glIsTexture,(GLuint a),(a))
 GL_FUNC_VOID(OpenGL,true,glLinkProgram,(GLuint a),(a))
+// Program binary cache (core in GLES 3.0 / GL 4.1). Declared under a dedicated
+// capability flag (not "OpenGL") so that if the entry point is missing on some
+// context, only this flag is cleared instead of clobbering m_bHave_OpenGL.
+// Gated on a non-NULL pointer at the call site.
+GL_EXT( GL_ARB_get_program_binary, 3, 0 )
+GL_FUNC_VOID( GL_ARB_get_program_binary, false, glGetProgramBinary, (GLuint a,GLsizei b,GLsizei *c,GLenum *d,GLvoid *e),(a,b,c,d,e))
+GL_FUNC_VOID( GL_ARB_get_program_binary, false, glProgramBinary, (GLuint a,GLenum b,const GLvoid *c,GLsizei d),(a,b,c,d))
 //GL_FUNC_VOID(OpenGL,true,glOrtho,(GLdouble a,GLdouble b,GLdouble c,GLdouble d,GLdouble e,GLdouble f),(a,b,c,d,e,f))
 GL_FUNC_VOID(OpenGL,true,glPixelStorei,(GLenum a,GLint b),(a,b))
 //GL_FUNC_VOID(OpenGL,true,glPolygonMode,(GLenum a,GLenum b),(a,b))
-GL_FUNC_VOID(OpenGL,true,glReadBuffer,(GLenum a),(a))
+// glReadBuffer is not core in OpenGL ES (GLES read source is implicit).  Some
+// GLES drivers export it anyway, so keep it under a dedicated capability flag:
+// if it is missing, only this flag clears instead of clobbering m_bHave_OpenGL
+// (which would abort startup with "Missing basic required OpenGL functionality").
+GL_EXT(GL_EXT_read_buffer,-1,-1)
+GL_FUNC_VOID(GL_EXT_read_buffer,false,glReadBuffer,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,true,glScissor,(GLint a,GLint b,GLsizei c,GLsizei d),(a,b,c,d))
 GL_FUNC_VOID(OpenGL,true,glShaderSource,(GLuint a,GLsizei b,const GLchar **c,const GLint *d),(a,b,c,d))
 GL_FUNC_VOID(OpenGL,true,glStencilFunc,(GLenum a,GLint b,GLuint c),(a,b,c))
@@ -96,14 +109,19 @@ GL_FUNC_VOID(OpenGL,true,glStencilMask,(GLuint a),(a))
 GL_FUNC_VOID(OpenGL,true,glStencilOp,(GLenum a,GLenum b,GLenum c),(a,b,c))
 GL_FUNC_VOID(OpenGL,true,glTexImage2D,(GLenum a,GLint b,GLint c,GLsizei d,GLsizei e,GLint f,GLenum g,GLenum h,const GLvoid *i),(a,b,c,d,e,f,g,h,i))
 GL_FUNC_VOID(OpenGL,true,glTexImage3D,(GLenum a,GLint b,GLint c,GLsizei d,GLsizei e,GLsizei f,GLint g,GLenum h,GLenum i,const GLvoid *j),(a,b,c,d,e,f,g,h,i,j))
+// glGenerateMipmap is core GLES 2.0 / GL 3.0 - used by WriteTexels to regenerate the upper mip chain for
+// textures created with kGLMTexMippedAuto (D3DUSAGE_AUTOGENMIPMAP). Without this call on tile-based GLES
+// drivers (Mali-G31), the upper mips remain at uninitialized tile-buffer contents, producing harsh LOD
+// transitions at the spherical distance where the sampler starts sampling mip 1.
+GL_FUNC_VOID(OpenGL,true,glGenerateMipmap,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,true,glTexParameteri,(GLenum a,GLenum b,GLint c),(a,b,c))
+GL_FUNC_VOID(OpenGL,true,glTexParameterf,(GLenum a,GLenum b,GLfloat c),(a,b,c))
 GL_FUNC_VOID(OpenGL,true,glTexSubImage2D,(GLenum a,GLint b,GLint c,GLint d,GLsizei e,GLsizei f,GLenum g,GLenum h,const GLvoid *i),(a,b,c,d,e,f,g,h,i))
 GL_FUNC_VOID(OpenGL,true,glUniform1i,(GLint a,GLint b),(a,b))
 GL_FUNC(OpenGL,true,GLboolean,glUnmapBuffer,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,true,glUseProgram,(GLuint a),(a))
 GL_FUNC_VOID(OpenGL,true,glVertexAttribPointer,(GLuint a,GLint b,GLenum c,GLboolean d,GLsizei e,const GLvoid *f),(a,b,c,d,e,f))
 GL_FUNC_VOID(OpenGL,true,glViewport,(GLint a,GLint b,GLsizei c,GLsizei d),(a,b,c,d))
-GL_FUNC_VOID(OpenGL,true,glClientActiveTexture,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,true,glStencilOpSeparate,(GLenum a,GLenum b,GLenum c,GLenum d),(a,b,c,d))
 GL_FUNC_VOID(OpenGL,true,glStencilFuncSeparate,(GLenum a,GLenum b,GLint c,GLuint d),(a,b,c,d))
 GL_FUNC_VOID(OpenGL,true,glGetTexLevelParameteriv,(GLenum a,GLint b,GLenum c,GLint *d),(a,b,c,d))
@@ -142,6 +160,11 @@ GL_EXT(GL_APPLE_texture_range,-1,-1)
 GL_FUNC_VOID(GL_APPLE_texture_range,false,glTextureRangeAPPLE,(GLenum a,GLsizei b,void *c),(a,b,c))
 GL_FUNC_VOID(GL_APPLE_texture_range,false,glGetTexParameterPointervAPPLE,(GLenum a,GLenum b,void* *c),(a,b,c))
 GL_EXT(GL_APPLE_client_storage,-1,-1)
+// GL_APPLE_texture_max_level - enables GL_TEXTURE_MAX_LEVEL / GL_TEXTURE_BASE_LEVEL pnames in
+// glTexParameter* on OpenGL ES drivers (e.g. iOS, some Adreno). Desktop GL exposes these pnames
+// unconditionally; OpenGL ES 3.x exposes them only through this extension. Detection here lets
+// callers gate the texture-object MAX/BASE_LEVEL trim and fall back to sampler-side MAX_LOD.
+GL_EXT(GL_APPLE_texture_max_level,-1,-1)
 GL_EXT(GL_ARB_uniform_buffer,-1,-1)
 GL_EXT(GL_ARB_vertex_array_bgra,-1,-1)
 GL_EXT(GL_EXT_vertex_array_bgra,-1,-1)
@@ -162,6 +185,10 @@ GL_FUNC_VOID(GL_ARB_framebuffer_object,false,glBlitFramebuffer,(GLint a,GLint b,
 GL_FUNC_VOID(GL_ARB_framebuffer_object,false,glRenderbufferStorageMultisample,(GLenum a,GLsizei b,GLenum c,GLsizei d,GLsizei e),(a,b,c,d,e))
 */
 GL_FUNC_VOID(OpenGL,false,glBindFramebuffer,(GLenum a,GLuint b),(a,b))
+// Core in GLES 3.0. Keep it under a dedicated capability so a legacy desktop
+// context without the symbol cannot clear the base OpenGL capability flag.
+GL_EXT(GL_ES_framebuffer_invalidate,3,0)
+GL_FUNC_VOID(GL_ES_framebuffer_invalidate,false,glInvalidateFramebuffer,(GLenum a,GLsizei b,const GLenum *c),(a,b,c))
 GL_FUNC_VOID(OpenGL,false,glBindRenderbuffer,(GLenum a,GLuint b),(a,b))
 GL_FUNC(OpenGL,false,GLenum,glCheckFramebufferStatus,(GLenum a),(a))
 GL_FUNC_VOID(OpenGL,false,glDeleteRenderbuffers,(GLsizei a,const GLuint *b),(a,b))
@@ -217,6 +244,16 @@ GL_EXT(GL_QCOM_alpha_test,-1,-1)
 
 
 GL_EXT(GL_EXT_texture_sRGB_decode,-1,-1)
+// GL_FRAMEBUFFER_SRGB enable (sRGB write toggling) is not core in OpenGL ES;
+// only drivers exposing GL_EXT_sRGB_write_control can honor it.  When absent,
+// m_hasGammaWrites must be false so the engine uses the shader-side fake-SRGB
+// path instead of issuing an invalid glEnable(GL_FRAMEBUFFER_SRGB_EXT).
+GL_EXT(GL_EXT_sRGB_write_control,-1,-1)
+GL_EXT(GL_EXT_discard_framebuffer,-1,-1)
+GL_FUNC_VOID(GL_EXT_discard_framebuffer,false,glDiscardFramebufferEXT,(GLenum a,GLsizei b,const GLenum *c),(a,b,c))
+GL_EXT(GL_EXT_multisampled_render_to_texture,-1,-1)
+GL_FUNC_VOID(GL_EXT_multisampled_render_to_texture,false,glFramebufferTexture2DMultisampleEXT,(GLenum a,GLenum b,GLenum c,GLuint d,GLint e,GLsizei f),(a,b,c,d,e,f))
+GL_FUNC_VOID(GL_EXT_multisampled_render_to_texture,false,glRenderbufferStorageMultisampleEXT,(GLenum a,GLsizei b,GLenum c,GLsizei d,GLsizei e),(a,b,c,d,e))
 GL_EXT(GL_NVX_gpu_memory_info,-1,-1)
 GL_EXT(GL_ATI_meminfo,-1,-1)
 GL_EXT(GL_EXT_texture_compression_s3tc,-1,-1)
@@ -227,7 +264,36 @@ GL_EXT(GL_ANGLE_texture_compression_dxt5,-1,-1)
 GL_EXT( GL_EXT_color_buffer_half_float, -1, -1 )
 GL_EXT( GL_EXT_texture_norm16, -1, -1 )
 GL_EXT( GL_EXT_buffer_storage, -1, -1 )
+
+// GPU frame timing (gl_gpu_timing). Uses the core glBeginQuery/glEndQuery/
+// glGetQueryObjectuiv entry points with the GL_TIME_ELAPSED_EXT target.
+GL_EXT( GL_EXT_disjoint_timer_query, -1, -1 )
+
+// Anisotropic filtering. Optional on GLES2 (and absent on many mobile GPUs, e.g.
+// ARM Mali). When missing, the GL_TEXTURE_MAX_ANISOTROPY_EXT pname is invalid and
+// must not be passed to glTexParameteri/glSamplerParameteri (it raises GL_INVALID_ENUM).
+GL_EXT( GL_EXT_texture_filter_anisotropic, -1, -1 )
+
+// ASTC compressed texture support (ARM Mali and other GLES3.2+/desktop GPUs).
+// The engine advertises D3DFMT_ASTC4x4 to the materialsystem, but must only do so
+// when the GPU actually supports the KHR ASTC extensions - otherwise glCompressedTexImage2D
+// with GL_COMPRESSED_RGBA_ASTC_4x4_KHR fails and the texture uploads as black (fade to black at distance).
+GL_EXT( GL_KHR_texture_compression_astc_ldr, -1, -1 )
+GL_EXT( GL_KHR_texture_compression_astc_hdr, -1, -1 )
+// Full ASTC profile including 3D textures (OES_texture_compression_astc).
+// Required for COMPRESSED_RGBA_ASTC_*x*x*_OES 3D formats.
+GL_EXT( GL_OES_texture_compression_astc, -1, -1 )
 GL_FUNC_VOID( GL_EXT_buffer_storage, false, glBufferStorageEXT, (GLenum target, GLsizeiptr size, const void *data, GLbitfield flags), (target, size, data, flags) )
+
+// GL_ARM_shader_framebuffer_fetch / GL_EXT_shader_framebuffer_fetch
+// On Mali TBDR, allows reading the current pixel's framebuffer color directly
+// from the on-chip tile buffer via gl_LastFragColorARM (ARM) or
+// gl_LastFragDataARM (EXT MRT).  Eliminates FBO resolve+re-render for
+// post-processing passes (bloom, tonemap, color correction, blend).
+// No entry points needed — it's a shader-language extension, detected
+// purely from the extension string.
+GL_EXT( GL_ARM_shader_framebuffer_fetch, -1, -1 )
+GL_EXT( GL_EXT_shader_framebuffer_fetch, -1, -1 )
 //GL_FUNC_VOID(OpenGL, false,glGetTexImage,(GLenum a,GLint b,GLenum c,GLenum d,GLvoid *e),(a,b,c,d,e))
 
 
@@ -243,7 +309,6 @@ GL_FUNC_VOID(OpenGL,true,glPolygonOffset,(GLfloat a,GLfloat b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glTexParameterfv,(GLenum a,GLenum b,const GLfloat *c),(a,b,c))
 GL_FUNC_VOID(OpenGL,true,glUniform1f,(GLint a,GLfloat b),(a,b))
 GL_FUNC_VOID(OpenGL,true,glUniform4fv,(GLint a,GLsizei b,const GLfloat *c),(a,b,c))
-GL_FUNC_VOID(OpenGL,true,glColor4f,(GLfloat a,GLfloat b,GLfloat c,GLfloat d),(a,b,c,d))
 GL_FUNC_VOID(OpenGL,true,glSamplerParameterf,(GLuint a, GLenum b, GLfloat c), (a, b, c))
 GL_FUNC_VOID(OpenGL,true,glSamplerParameterfv,(GLuint a, GLenum b, const GLfloat *c), (a, b, c))
 GL_FUNC_VOID(OpenGL,false,glAlphaFuncQCOM,(GLenum a, GLfloat b),(a,b))

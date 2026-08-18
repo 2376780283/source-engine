@@ -38,6 +38,7 @@
 #include "iengine.h"
 #include "igame.h"
 #include "tier0/etwprof.h"
+#include "tier0/fasttimer.h"
 #include "tier0/vcrmode.h"
 #include "tier0/icommandline.h"
 #include "tier0/minidump.h"
@@ -113,6 +114,83 @@ IPhysics *g_pPhysics = NULL;
 ISourceVirtualReality *g_pSourceVR = NULL;
 #if defined( USE_SDL )
 ILauncherMgr *g_pLauncherMgr = NULL;
+#endif
+
+#define ENGINE_LOOP_PERF_ANALYSIS 0
+
+#if ENGINE_LOOP_PERF_ANALYSIS
+struct CEngineLoopPerfStats
+{
+	CCycleCount m_LoopTime;
+	CCycleCount m_PumpMessagesTime;
+	CCycleCount m_LauncherPumpTime;
+	CCycleCount m_InputPollTime;
+	CCycleCount m_DispatchMessagesTime;
+	CCycleCount m_EngineFrameTime;
+	double m_flResetTime;
+	uint64 m_nLoops;
+	uint64 m_nPumpCalls;
+
+	void Reset()
+	{
+		m_LoopTime.Init();
+		m_PumpMessagesTime.Init();
+		m_LauncherPumpTime.Init();
+		m_InputPollTime.Init();
+		m_DispatchMessagesTime.Init();
+		m_EngineFrameTime.Init();
+		m_flResetTime = Plat_FloatTime();
+		m_nLoops = 0;
+		m_nPumpCalls = 0;
+	}
+};
+
+static CEngineLoopPerfStats s_EngineLoopPerfStats;
+
+CON_COMMAND( engine_dump_loop_stats, "Print outer engine-loop timing; pass 1 to reset after printing." )
+{
+	const double flLoops = (double)s_EngineLoopPerfStats.m_nLoops;
+	const double flPumpCalls = (double)s_EngineLoopPerfStats.m_nPumpCalls;
+	const double flLoopMS = s_EngineLoopPerfStats.m_LoopTime.GetMillisecondsF();
+	const double flPumpMS = s_EngineLoopPerfStats.m_PumpMessagesTime.GetMillisecondsF();
+	const double flLauncherMS = s_EngineLoopPerfStats.m_LauncherPumpTime.GetMillisecondsF();
+	const double flInputMS = s_EngineLoopPerfStats.m_InputPollTime.GetMillisecondsF();
+	const double flDispatchMS = s_EngineLoopPerfStats.m_DispatchMessagesTime.GetMillisecondsF();
+	const double flEngineMS = s_EngineLoopPerfStats.m_EngineFrameTime.GetMillisecondsF();
+	const double flOtherLoopMS = MAX( 0.0, flLoopMS - flPumpMS - flEngineMS );
+	const double flOtherPumpMS = MAX( 0.0, flPumpMS - flLauncherMS - flInputMS - flDispatchMS );
+	const double flElapsedSeconds = s_EngineLoopPerfStats.m_flResetTime > 0.0 ?
+		Plat_FloatTime() - s_EngineLoopPerfStats.m_flResetTime : 0.0;
+
+	ConMsg( "Engine outer loop: Loops: %llu Wall: %4.3fs (%4.2f loops/sec) Timed: %4.3fms (%4.3fms/loop)\n",
+		(unsigned long long)s_EngineLoopPerfStats.m_nLoops,
+		flElapsedSeconds,
+		flElapsedSeconds > 0.0 ? flLoops / flElapsedSeconds : 0.0,
+		flLoopMS,
+		flLoops ? flLoopMS / flLoops : 0.0 );
+	ConMsg( "Engine outer split: PumpMessages: %4.3fms (%4.3fms/call) Engine::Frame call: %4.3fms (%4.3fms/loop) Other: %4.3fms (%4.3fms/loop)\n",
+		flPumpMS,
+		flPumpCalls ? flPumpMS / flPumpCalls : 0.0,
+		flEngineMS,
+		flLoops ? flEngineMS / flLoops : 0.0,
+		flOtherLoopMS,
+		flLoops ? flOtherLoopMS / flLoops : 0.0 );
+	ConMsg( "Engine message pump: Calls: %llu Launcher/SDL: %4.3fms (%4.3fms/call) Input: %4.3fms (%4.3fms/call) Game messages: %4.3fms (%4.3fms/call) Other: %4.3fms (%4.3fms/call)\n",
+		(unsigned long long)s_EngineLoopPerfStats.m_nPumpCalls,
+		flLauncherMS,
+		flPumpCalls ? flLauncherMS / flPumpCalls : 0.0,
+		flInputMS,
+		flPumpCalls ? flInputMS / flPumpCalls : 0.0,
+		flDispatchMS,
+		flPumpCalls ? flDispatchMS / flPumpCalls : 0.0,
+		flOtherPumpMS,
+		flPumpCalls ? flOtherPumpMS / flPumpCalls : 0.0 );
+
+	if ( args.ArgC() == 2 && args.Arg(1)[0] != '0' )
+	{
+		s_EngineLoopPerfStats.Reset();
+	}
+}
 #endif
 
 #ifndef SWDS
@@ -1319,6 +1397,11 @@ static void MoveConsoleWindowToFront()
 //-----------------------------------------------------------------------------
 void CEngineAPI::PumpMessages()
 {
+#if ENGINE_LOOP_PERF_ANALYSIS
+	CFastTimer pumpMessagesTimer;
+	pumpMessagesTimer.Start();
+#endif
+
 	// This message pumping happens in SDL if SDL is enabled.
 #if defined( PLATFORM_WINDOWS ) && !defined( USE_SDL )
 	MSG msg;
@@ -1330,11 +1413,27 @@ void CEngineAPI::PumpMessages()
 #endif
 
 #if defined( USE_SDL )
+#if ENGINE_LOOP_PERF_ANALYSIS
+	CFastTimer launcherPumpTimer;
+	launcherPumpTimer.Start();
+#endif
 	g_pLauncherMgr->PumpWindowsMessageLoop();
+#if ENGINE_LOOP_PERF_ANALYSIS
+	launcherPumpTimer.End();
+	s_EngineLoopPerfStats.m_LauncherPumpTime += launcherPumpTimer.GetDuration();
+#endif
 #endif
 
 	// Get input from attached devices
+#if ENGINE_LOOP_PERF_ANALYSIS
+	CFastTimer inputPollTimer;
+	inputPollTimer.Start();
+#endif
 	g_pInputSystem->PollInputState();
+#if ENGINE_LOOP_PERF_ANALYSIS
+	inputPollTimer.End();
+	s_EngineLoopPerfStats.m_InputPollTime += inputPollTimer.GetDuration();
+#endif
 
 	if ( IsX360() )
 	{
@@ -1349,7 +1448,15 @@ void CEngineAPI::PumpMessages()
 		SetupFPUControlWord();
 	}
 
+#if ENGINE_LOOP_PERF_ANALYSIS
+	CFastTimer dispatchMessagesTimer;
+	dispatchMessagesTimer.Start();
+#endif
 	game->DispatchAllStoredGameMessages();
+#if ENGINE_LOOP_PERF_ANALYSIS
+	dispatchMessagesTimer.End();
+	s_EngineLoopPerfStats.m_DispatchMessagesTime += dispatchMessagesTimer.GetDuration();
+#endif
 
 	if ( IsPC() )
 	{
@@ -1360,6 +1467,12 @@ void CEngineAPI::PumpMessages()
 			MoveConsoleWindowToFront();
 		}
 	}
+
+#if ENGINE_LOOP_PERF_ANALYSIS
+	pumpMessagesTimer.End();
+	s_EngineLoopPerfStats.m_PumpMessagesTime += pumpMessagesTimer.GetDuration();
+	++s_EngineLoopPerfStats.m_nPumpCalls;
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -1516,6 +1629,11 @@ bool CEngineAPI::MainLoop()
 			return false;
 		}
 
+#if ENGINE_LOOP_PERF_ANALYSIS
+		CFastTimer loopTimer;
+		loopTimer.Start();
+#endif
+
 		// Pump the message loop
 		if ( !InEditMode() )
 		{
@@ -1534,7 +1652,15 @@ bool CEngineAPI::MainLoop()
 		// Deactivate edit mode shaders
 		ActivateEditModeShaders( false );
 
+#if ENGINE_LOOP_PERF_ANALYSIS
+		CFastTimer engineFrameTimer;
+		engineFrameTimer.Start();
+#endif
 		eng->Frame();
+#if ENGINE_LOOP_PERF_ANALYSIS
+		engineFrameTimer.End();
+		s_EngineLoopPerfStats.m_EngineFrameTime += engineFrameTimer.GetDuration();
+#endif
 
 		// Reactivate edit mode shaders (in Edit mode only...)
 		ActivateEditModeShaders( true );
@@ -1544,6 +1670,12 @@ bool CEngineAPI::MainLoop()
 		{
 			g_pHammer->RunFrame();
 		}
+
+#if ENGINE_LOOP_PERF_ANALYSIS
+		loopTimer.End();
+		s_EngineLoopPerfStats.m_LoopTime += loopTimer.GetDuration();
+		++s_EngineLoopPerfStats.m_nLoops;
+#endif
 	}
 
 	return false;
