@@ -3182,6 +3182,24 @@ bool CTexture::ConvertToActualFormat( IVTFTexture *pVTFTexture )
 	ImageFormat fmt = m_ImageFormat;
 
 	ImageFormat dstFormat = ComputeActualFormat( pVTFTexture->Format() );
+#if defined(__aarch64__) || defined(__arm__) || defined(ANDROID)
+	{
+		switch (pVTFTexture->Format())
+			{
+				case IMAGE_FORMAT_DXT1:
+					dstFormat = IMAGE_FORMAT_RGB888;
+					break;
+
+				case IMAGE_FORMAT_DXT3:
+				case IMAGE_FORMAT_DXT5:
+					dstFormat = IMAGE_FORMAT_RGBA8888;
+					break;
+
+				default:
+					break;
+			}
+	}
+#endif
 	if ( fmt != dstFormat )
 	{
 		tmZone( TELEMETRY_LEVEL0, TMZF_NONE, "%s - conversion from (%d to %d)", __FUNCTION__, fmt, dstFormat );

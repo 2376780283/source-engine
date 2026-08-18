@@ -41,8 +41,26 @@ void GLMRendererInfo::Init( GLMRendererInfoFields *info )
         m_info.m_ati = true;
         m_info.m_atiNewer = true;
 
-        m_info.m_hasGammaWrites = true;
+#ifdef TOGLES
+	// GL_FRAMEBUFFER_SRGB is not core in OpenGL ES: the sRGB write encoding of
+	// sRGB attachments is always on and cannot be toggled.  Only drivers with
+	// GL_EXT_sRGB_write_control can honor D3DRS_SRGBWRITEENABLE.  When the
+	// extension is absent, report no gamma-write support so the engine uses the
+	// shader-side fake-SRGB path (FakeSRGBWrite) - WriteBlendEnableSRGB then
+	// shunts the state into m_FakeBlendEnableSRGB and the flush drives the
+	// flSRGBWrite uniform, instead of issuing an invalid
+	// glEnable(GL_FRAMEBUFFER_SRGB_EXT) every state change.
+	m_info.m_hasGammaWrites = gGL->m_bHave_GL_EXT_sRGB_write_control;
+#else
+	m_info.m_hasGammaWrites = true;
+#endif
 	m_info.m_cantAttachSRGB = false;
+
+	// Framebuffer fetch: GL_ARM_shader_framebuffer_fetch (Mali) or
+	// GL_EXT_shader_framebuffer_fetch (PowerVR/Adreno).  Lets the fragment
+	// shader read the current pixel's framebuffer color directly from the
+	// on-chip tile buffer — no FBO resolve needed for post-processing blends.
+	m_info.m_hasFramebufferFetch = gGL->m_bHave_GL_ARM_shader_framebuffer_fetch || gGL->m_bHave_GL_EXT_shader_framebuffer_fetch;
 
         // If you haven't created a GL context by now (and initialized gGL), you're about to crash.
 
@@ -76,7 +94,10 @@ void GLMRendererInfo::Init( GLMRendererInfoFields *info )
 #endif
 
         GLint nMaxAniso = 0;
-        gGL->glGetIntegerv( GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &nMaxAniso );
+        if ( gGL->m_bHave_GL_EXT_texture_filter_anisotropic )
+        {
+            gGL->glGetIntegerv( GL_MAX_TEXTURE_MAX_ANISOTROPY_EXT, &nMaxAniso );
+        }
         m_info.m_maxAniso = clamp<int>( nMaxAniso, 0, 16 );
         
         // We don't currently used bindable uniforms, but I've been experimenting with them so I might as well check this in just in case they turn out to be useful.
@@ -311,6 +332,13 @@ void GLMDisplayDB::PopulateRenderers( void )
         gGL->glGetIntegerv( GL_MAX_SAMPLES_EXT, &nMaxMultiSamples );
         fields.m_maxSamples = clamp<int>( nMaxMultiSamples, 0, 8 );
         DebugPrintf( "GL_MAX_SAMPLES_EXT: %i\n", nMaxMultiSamples );
+
+        // Mali G31 (and other Mali GPUs) have limited tile buffer; cap to 4x to avoid tile overflow.
+        if ( gGL->m_nDriverProvider == cGLDriverProviderARM )
+        {
+                fields.m_maxSamples = MIN( fields.m_maxSamples, 4 );
+                DebugPrintf( "ARM GPU detected, capping max MSAA samples to %i\n", fields.m_maxSamples );
+        }
 
         // We only have one GLMRendererInfo on Linux, unlike Mac OS X. Whatever libGL.so wants to do, we go with it.
         m_renderer.Init( &fields );

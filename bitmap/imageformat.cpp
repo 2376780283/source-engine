@@ -93,6 +93,63 @@ static const ImageFormatInfo_t g_ImageFormatInfo[] =
 
 	{ "DXT1_RUNTIME",				0, 0, 0, 0, 0, true, },			// IMAGE_FORMAT_DXT1_RUNTIME
 	{ "DXT5_RUNTIME",				0, 0, 0, 0, 8, true, },			// IMAGE_FORMAT_DXT5_RUNTIME
+
+	{ "ASTC4x4",					0, 0, 0, 0, 0, true },			// IMAGE_FORMAT_ASTC4x4
+	{ "ASTC4x4_HDR",				0, 0, 0, 0, 0, true },			// IMAGE_FORMAT_ASTC4x4_HDR
+
+	// 2D ASTC LDR block sizes
+	{ "ASTC5x4",					0, 0, 0, 0, 0, true },
+	{ "ASTC5x5",					0, 0, 0, 0, 0, true },
+	{ "ASTC6x5",					0, 0, 0, 0, 0, true },
+	{ "ASTC6x6",					0, 0, 0, 0, 0, true },
+	{ "ASTC8x5",					0, 0, 0, 0, 0, true },
+	{ "ASTC8x6",					0, 0, 0, 0, 0, true },
+	{ "ASTC8x8",					0, 0, 0, 0, 0, true },
+	{ "ASTC10x5",					0, 0, 0, 0, 0, true },
+	{ "ASTC10x6",					0, 0, 0, 0, 0, true },
+	{ "ASTC10x8",					0, 0, 0, 0, 0, true },
+	{ "ASTC10x10",					0, 0, 0, 0, 0, true },
+	{ "ASTC12x10",					0, 0, 0, 0, 0, true },
+	{ "ASTC12x12",					0, 0, 0, 0, 0, true },
+
+	// 3D ASTC LDR block sizes
+	{ "ASTC3x3x3",					0, 0, 0, 0, 0, true },
+	{ "ASTC4x3x3",					0, 0, 0, 0, 0, true },
+	{ "ASTC4x4x3",					0, 0, 0, 0, 0, true },
+	{ "ASTC4x4x4",					0, 0, 0, 0, 0, true },
+	{ "ASTC5x4x4",					0, 0, 0, 0, 0, true },
+	{ "ASTC5x5x4",					0, 0, 0, 0, 0, true },
+	{ "ASTC5x5x5",					0, 0, 0, 0, 0, true },
+	{ "ASTC6x5x5",					0, 0, 0, 0, 0, true },
+	{ "ASTC6x6x5",					0, 0, 0, 0, 0, true },
+	{ "ASTC6x6x6",					0, 0, 0, 0, 0, true },
+
+	// 2D ASTC HDR block sizes
+	{ "ASTC5x4_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC5x5_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC6x5_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC6x6_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC8x5_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC8x6_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC8x8_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC10x5_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC10x6_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC10x8_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC10x10_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC12x10_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC12x12_HDR",				0, 0, 0, 0, 0, true },
+
+	// 3D ASTC HDR block sizes
+	{ "ASTC3x3x3_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC4x3x3_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC4x4x3_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC4x4x4_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC5x4x4_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC5x5x4_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC5x5x5_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC6x5x5_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC6x6x5_HDR",				0, 0, 0, 0, 0, true },
+	{ "ASTC6x6x6_HDR",				0, 0, 0, 0, 0, true },
 };
 
 
@@ -122,51 +179,88 @@ int GetMemRequired( int width, int height, int depth, ImageFormat imageFormat, b
 		
 		if ( IsCompressed( imageFormat ) )
 		{
-/*
-			DDSURFACEDESC desc;
-			memset( &desc, 0, sizeof(desc) );
+			// All ASTC blocks are 16 bytes regardless of block dimensions.
+			// For ASTC, use per-format block dimensions. For DXT/ATI, use 4x4 blocks.
+			int blockW = 4, blockH = 4, blockDepth = 1;
+			int blockBytes = 16;
 
-			DWORD dwEncodeType;
-			dwEncodeType = GetDXTCEncodeType( imageFormat );
-			desc.dwSize = sizeof( desc );
-			desc.dwFlags = DDSD_WIDTH | DDSD_HEIGHT;
-			desc.dwWidth = width;
-			desc.dwHeight = height;
-			return S3TCgetEncodeSize( &desc, dwEncodeType );
-*/
-			Assert( ( width < 4 ) || !( width % 4 ) );
-			Assert( ( height < 4 ) || !( height % 4 ) );
-			Assert( ( depth < 4 ) || !( depth % 4 ) );
-			if ( width < 4 && width > 0 )
+			if ( IsASTC( imageFormat ) )
 			{
-				width = 4;
+				// ASTC block size lookup (w, h, d=1 for 2D, d=3/4/5/6 for 3D)
+				static const struct { ImageFormat fmt; int w; int h; int d; } astcBlocks[] = {
+					{ IMAGE_FORMAT_ASTC4x4, 4, 4, 1 },
+					{ IMAGE_FORMAT_ASTC5x4, 5, 4, 1 }, { IMAGE_FORMAT_ASTC5x5, 5, 5, 1 },
+					{ IMAGE_FORMAT_ASTC6x5, 6, 5, 1 }, { IMAGE_FORMAT_ASTC6x6, 6, 6, 1 },
+					{ IMAGE_FORMAT_ASTC8x5, 8, 5, 1 }, { IMAGE_FORMAT_ASTC8x6, 8, 6, 1 }, { IMAGE_FORMAT_ASTC8x8, 8, 8, 1 },
+					{ IMAGE_FORMAT_ASTC10x5, 10, 5, 1 }, { IMAGE_FORMAT_ASTC10x6, 10, 6, 1 },
+					{ IMAGE_FORMAT_ASTC10x8, 10, 8, 1 }, { IMAGE_FORMAT_ASTC10x10, 10, 10, 1 },
+					{ IMAGE_FORMAT_ASTC12x10, 12, 10, 1 }, { IMAGE_FORMAT_ASTC12x12, 12, 12, 1 },
+					{ IMAGE_FORMAT_ASTC3x3x3, 3, 3, 3 }, { IMAGE_FORMAT_ASTC4x3x3, 4, 3, 3 },
+					{ IMAGE_FORMAT_ASTC4x4x3, 4, 4, 3 }, { IMAGE_FORMAT_ASTC4x4x4, 4, 4, 4 },
+					{ IMAGE_FORMAT_ASTC5x4x4, 5, 4, 4 }, { IMAGE_FORMAT_ASTC5x5x4, 5, 5, 4 },
+					{ IMAGE_FORMAT_ASTC5x5x5, 5, 5, 5 }, { IMAGE_FORMAT_ASTC6x5x5, 6, 5, 5 },
+					{ IMAGE_FORMAT_ASTC6x6x5, 6, 6, 5 }, { IMAGE_FORMAT_ASTC6x6x6, 6, 6, 6 },
+				};
+				// HDR variants share the same block dimensions as their LDR counterparts
+				for ( auto &e : astcBlocks )
+				{
+					if ( e.fmt == imageFormat )
+					{
+						blockW = e.w;
+						blockH = e.h;
+						blockDepth = e.d;
+						break;
+					}
+				}
+				// Check HDR variants by subtracting the HDR offset
+				if ( blockW == 4 && blockH == 4 && imageFormat != IMAGE_FORMAT_ASTC4x4 )
+				{
+					// HDR formats are 23 enum slots after their LDR equivalents
+					// (except ASTC4x4_HDR at +1, which already mapped via default blockW=4 above)
+					int ldrFmt = (int)imageFormat - 23;
+					if ( ldrFmt >= (int)IMAGE_FORMAT_ASTC5x4 && ldrFmt <= (int)IMAGE_FORMAT_ASTC6x6x6 )
+					{
+						for ( auto &e : astcBlocks )
+						{
+							if ( (int)e.fmt == ldrFmt )
+							{
+								blockW = e.w;
+								blockH = e.h;
+								blockDepth = e.d;
+								break;
+							}
+						}
+					}
+				}
+				if ( depth < blockDepth && depth > 0 )
+					depth = blockDepth;
+				blockBytes = 16;
 			}
-			if ( height < 4 && height > 0 )
+			else
 			{
-				height = 4;
+				// DXT/ATI formats use 4x4 blocks
+				switch ( imageFormat )
+				{
+				case IMAGE_FORMAT_DXT1:
+				case IMAGE_FORMAT_DXT1_RUNTIME:
+				case IMAGE_FORMAT_ATI1N:
+					blockBytes = 8;
+					break;
+				default:
+					blockBytes = 16;
+					break;
+				}
 			}
-			if ( depth < 4 && depth > 1 )
-			{
-				depth = 4;
-			}
-			int numBlocks = ( width * height ) >> 4;
-			numBlocks *= depth;
-			switch ( imageFormat )
-			{
-			case IMAGE_FORMAT_DXT1:
-			case IMAGE_FORMAT_DXT1_RUNTIME:
-			case IMAGE_FORMAT_ATI1N:
-				return numBlocks * 8;
 
-			case IMAGE_FORMAT_DXT3:
-			case IMAGE_FORMAT_DXT5:
-			case IMAGE_FORMAT_DXT5_RUNTIME:
-			case IMAGE_FORMAT_ATI2N:
-				return numBlocks * 16;
-			}
+			if ( width < blockW && width > 0 )
+				width = blockW;
+			if ( height < blockH && height > 0 )
+				height = blockH;
 
-			Assert( 0 );
-			return 0;
+			int blocksW = (width + blockW - 1) / blockW;
+			int blocksH = (height + blockH - 1) / blockH;
+			int blocksD = (depth + blockDepth - 1) / blockDepth;
+			return blocksW * blocksH * blocksD * blockBytes;
 		}
 
 		return width * height * depth * SizeInBytes( imageFormat );
@@ -408,6 +502,67 @@ ImageFormat D3DFormatToImageFormat( D3DFORMAT format )
 	case D3DFMT_D24FS8:
 		return IMAGE_FORMAT_X360_DST24F;
 #endif
+
+	// ASTC format (for ToGL(ES) on ARM Mali)
+	case (D3DFORMAT)(MAKEFOURCC('A','S','T','4')):
+		return IMAGE_FORMAT_ASTC4x4;
+	case (D3DFORMAT)(MAKEFOURCC('A','S','H','4')):
+		return IMAGE_FORMAT_ASTC4x4_HDR;
+
+	// 2D ASTC LDR
+	case D3DFMT_ASTC5x4:   return IMAGE_FORMAT_ASTC5x4;
+	case D3DFMT_ASTC5x5:   return IMAGE_FORMAT_ASTC5x5;
+	case D3DFMT_ASTC6x5:   return IMAGE_FORMAT_ASTC6x5;
+	case D3DFMT_ASTC6x6:   return IMAGE_FORMAT_ASTC6x6;
+	case D3DFMT_ASTC8x5:   return IMAGE_FORMAT_ASTC8x5;
+	case D3DFMT_ASTC8x6:   return IMAGE_FORMAT_ASTC8x6;
+	case D3DFMT_ASTC8x8:   return IMAGE_FORMAT_ASTC8x8;
+	case D3DFMT_ASTC10x5:  return IMAGE_FORMAT_ASTC10x5;
+	case D3DFMT_ASTC10x6:  return IMAGE_FORMAT_ASTC10x6;
+	case D3DFMT_ASTC10x8:  return IMAGE_FORMAT_ASTC10x8;
+	case D3DFMT_ASTC10x10: return IMAGE_FORMAT_ASTC10x10;
+	case D3DFMT_ASTC12x10: return IMAGE_FORMAT_ASTC12x10;
+	case D3DFMT_ASTC12x12: return IMAGE_FORMAT_ASTC12x12;
+
+	// 3D ASTC LDR
+	case D3DFMT_ASTC3x3x3: return IMAGE_FORMAT_ASTC3x3x3;
+	case D3DFMT_ASTC4x3x3: return IMAGE_FORMAT_ASTC4x3x3;
+	case D3DFMT_ASTC4x4x3: return IMAGE_FORMAT_ASTC4x4x3;
+	case D3DFMT_ASTC4x4x4: return IMAGE_FORMAT_ASTC4x4x4;
+	case D3DFMT_ASTC5x4x4: return IMAGE_FORMAT_ASTC5x4x4;
+	case D3DFMT_ASTC5x5x4: return IMAGE_FORMAT_ASTC5x5x4;
+	case D3DFMT_ASTC5x5x5: return IMAGE_FORMAT_ASTC5x5x5;
+	case D3DFMT_ASTC6x5x5: return IMAGE_FORMAT_ASTC6x5x5;
+	case D3DFMT_ASTC6x6x5: return IMAGE_FORMAT_ASTC6x6x5;
+	case D3DFMT_ASTC6x6x6: return IMAGE_FORMAT_ASTC6x6x6;
+
+	// 2D ASTC HDR
+	case D3DFMT_ASTC5x4_HDR:   return IMAGE_FORMAT_ASTC5x4_HDR;
+	case D3DFMT_ASTC5x5_HDR:   return IMAGE_FORMAT_ASTC5x5_HDR;
+	case D3DFMT_ASTC6x5_HDR:   return IMAGE_FORMAT_ASTC6x5_HDR;
+	case D3DFMT_ASTC6x6_HDR:   return IMAGE_FORMAT_ASTC6x6_HDR;
+	case D3DFMT_ASTC8x5_HDR:   return IMAGE_FORMAT_ASTC8x5_HDR;
+	case D3DFMT_ASTC8x6_HDR:   return IMAGE_FORMAT_ASTC8x6_HDR;
+	case D3DFMT_ASTC8x8_HDR:   return IMAGE_FORMAT_ASTC8x8_HDR;
+	case D3DFMT_ASTC10x5_HDR:  return IMAGE_FORMAT_ASTC10x5_HDR;
+	case D3DFMT_ASTC10x6_HDR:  return IMAGE_FORMAT_ASTC10x6_HDR;
+	case D3DFMT_ASTC10x8_HDR:  return IMAGE_FORMAT_ASTC10x8_HDR;
+	case D3DFMT_ASTC10x10_HDR: return IMAGE_FORMAT_ASTC10x10_HDR;
+	case D3DFMT_ASTC12x10_HDR: return IMAGE_FORMAT_ASTC12x10_HDR;
+	case D3DFMT_ASTC12x12_HDR: return IMAGE_FORMAT_ASTC12x12_HDR;
+
+	// 3D ASTC HDR
+	case D3DFMT_ASTC3x3x3_HDR: return IMAGE_FORMAT_ASTC3x3x3_HDR;
+	case D3DFMT_ASTC4x3x3_HDR: return IMAGE_FORMAT_ASTC4x3x3_HDR;
+	case D3DFMT_ASTC4x4x3_HDR: return IMAGE_FORMAT_ASTC4x4x3_HDR;
+	case D3DFMT_ASTC4x4x4_HDR: return IMAGE_FORMAT_ASTC4x4x4_HDR;
+	case D3DFMT_ASTC5x4x4_HDR: return IMAGE_FORMAT_ASTC5x4x4_HDR;
+	case D3DFMT_ASTC5x5x4_HDR: return IMAGE_FORMAT_ASTC5x5x4_HDR;
+	case D3DFMT_ASTC5x5x5_HDR: return IMAGE_FORMAT_ASTC5x5x5_HDR;
+	case D3DFMT_ASTC6x5x5_HDR: return IMAGE_FORMAT_ASTC6x5x5_HDR;
+	case D3DFMT_ASTC6x6x5_HDR: return IMAGE_FORMAT_ASTC6x6x5_HDR;
+	case D3DFMT_ASTC6x6x6_HDR: return IMAGE_FORMAT_ASTC6x6x6_HDR;
+
 	}
 
 	Assert( 0 );
@@ -519,6 +674,67 @@ D3DFORMAT ImageFormatToD3DFormat( ImageFormat format )
 		return D3DFMT_DXT1;
 	case IMAGE_FORMAT_DXT5_RUNTIME:
 		return D3DFMT_DXT5;
+
+	// ASTC format (for ToGL(ES) on ARM Mali)
+	case IMAGE_FORMAT_ASTC4x4:
+		return (D3DFORMAT)(MAKEFOURCC('A','S','T','4'));
+	case IMAGE_FORMAT_ASTC4x4_HDR:
+		return (D3DFORMAT)(MAKEFOURCC('A','S','H','4'));
+
+	// 2D ASTC LDR
+	case IMAGE_FORMAT_ASTC5x4:   return D3DFMT_ASTC5x4;
+	case IMAGE_FORMAT_ASTC5x5:   return D3DFMT_ASTC5x5;
+	case IMAGE_FORMAT_ASTC6x5:   return D3DFMT_ASTC6x5;
+	case IMAGE_FORMAT_ASTC6x6:   return D3DFMT_ASTC6x6;
+	case IMAGE_FORMAT_ASTC8x5:   return D3DFMT_ASTC8x5;
+	case IMAGE_FORMAT_ASTC8x6:   return D3DFMT_ASTC8x6;
+	case IMAGE_FORMAT_ASTC8x8:   return D3DFMT_ASTC8x8;
+	case IMAGE_FORMAT_ASTC10x5:  return D3DFMT_ASTC10x5;
+	case IMAGE_FORMAT_ASTC10x6:  return D3DFMT_ASTC10x6;
+	case IMAGE_FORMAT_ASTC10x8:  return D3DFMT_ASTC10x8;
+	case IMAGE_FORMAT_ASTC10x10: return D3DFMT_ASTC10x10;
+	case IMAGE_FORMAT_ASTC12x10: return D3DFMT_ASTC12x10;
+	case IMAGE_FORMAT_ASTC12x12: return D3DFMT_ASTC12x12;
+
+	// 3D ASTC LDR
+	case IMAGE_FORMAT_ASTC3x3x3: return D3DFMT_ASTC3x3x3;
+	case IMAGE_FORMAT_ASTC4x3x3: return D3DFMT_ASTC4x3x3;
+	case IMAGE_FORMAT_ASTC4x4x3: return D3DFMT_ASTC4x4x3;
+	case IMAGE_FORMAT_ASTC4x4x4: return D3DFMT_ASTC4x4x4;
+	case IMAGE_FORMAT_ASTC5x4x4: return D3DFMT_ASTC5x4x4;
+	case IMAGE_FORMAT_ASTC5x5x4: return D3DFMT_ASTC5x5x4;
+	case IMAGE_FORMAT_ASTC5x5x5: return D3DFMT_ASTC5x5x5;
+	case IMAGE_FORMAT_ASTC6x5x5: return D3DFMT_ASTC6x5x5;
+	case IMAGE_FORMAT_ASTC6x6x5: return D3DFMT_ASTC6x6x5;
+	case IMAGE_FORMAT_ASTC6x6x6: return D3DFMT_ASTC6x6x6;
+
+	// 2D ASTC HDR
+	case IMAGE_FORMAT_ASTC5x4_HDR:   return D3DFMT_ASTC5x4_HDR;
+	case IMAGE_FORMAT_ASTC5x5_HDR:   return D3DFMT_ASTC5x5_HDR;
+	case IMAGE_FORMAT_ASTC6x5_HDR:   return D3DFMT_ASTC6x5_HDR;
+	case IMAGE_FORMAT_ASTC6x6_HDR:   return D3DFMT_ASTC6x6_HDR;
+	case IMAGE_FORMAT_ASTC8x5_HDR:   return D3DFMT_ASTC8x5_HDR;
+	case IMAGE_FORMAT_ASTC8x6_HDR:   return D3DFMT_ASTC8x6_HDR;
+	case IMAGE_FORMAT_ASTC8x8_HDR:   return D3DFMT_ASTC8x8_HDR;
+	case IMAGE_FORMAT_ASTC10x5_HDR:  return D3DFMT_ASTC10x5_HDR;
+	case IMAGE_FORMAT_ASTC10x6_HDR:  return D3DFMT_ASTC10x6_HDR;
+	case IMAGE_FORMAT_ASTC10x8_HDR:  return D3DFMT_ASTC10x8_HDR;
+	case IMAGE_FORMAT_ASTC10x10_HDR: return D3DFMT_ASTC10x10_HDR;
+	case IMAGE_FORMAT_ASTC12x10_HDR: return D3DFMT_ASTC12x10_HDR;
+	case IMAGE_FORMAT_ASTC12x12_HDR: return D3DFMT_ASTC12x12_HDR;
+
+	// 3D ASTC HDR
+	case IMAGE_FORMAT_ASTC3x3x3_HDR: return D3DFMT_ASTC3x3x3_HDR;
+	case IMAGE_FORMAT_ASTC4x3x3_HDR: return D3DFMT_ASTC4x3x3_HDR;
+	case IMAGE_FORMAT_ASTC4x4x3_HDR: return D3DFMT_ASTC4x4x3_HDR;
+	case IMAGE_FORMAT_ASTC4x4x4_HDR: return D3DFMT_ASTC4x4x4_HDR;
+	case IMAGE_FORMAT_ASTC5x4x4_HDR: return D3DFMT_ASTC5x4x4_HDR;
+	case IMAGE_FORMAT_ASTC5x5x4_HDR: return D3DFMT_ASTC5x5x4_HDR;
+	case IMAGE_FORMAT_ASTC5x5x5_HDR: return D3DFMT_ASTC5x5x5_HDR;
+	case IMAGE_FORMAT_ASTC6x5x5_HDR: return D3DFMT_ASTC6x5x5_HDR;
+	case IMAGE_FORMAT_ASTC6x6x5_HDR: return D3DFMT_ASTC6x6x5_HDR;
+	case IMAGE_FORMAT_ASTC6x6x6_HDR: return D3DFMT_ASTC6x6x6_HDR;
+
 	}
 
 	Assert( 0 );

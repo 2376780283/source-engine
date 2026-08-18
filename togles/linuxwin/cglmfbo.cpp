@@ -135,18 +135,23 @@ void	CGLMFBO::TexAttach( GLMFBOTexAttachParams *params, EGLMFBOAttachment attach
 			
 			if (layout->m_key.m_texFlags & kGLMTexMultisampled)
 			{
-				// it is an MSAA tex
-				if (fboBindPoint == GL_READ_FRAMEBUFFER)
+				if (tex->m_rboName != 0)
 				{
-					// I think you just want to read a resolved tex.
-					// But I will check that it is resolved first..
-					Assert( tex->IsRBODirty() == false );
+					// MSAA tex with an RBO backing (depth/stencil or non-extension path)
+					if (fboBindPoint == GL_READ_FRAMEBUFFER)
+					{
+						// I think you just want to read a resolved tex.
+						// But I will check that it is resolved first..
+						Assert( tex->IsRBODirty() == false );
+					}
+					else
+					{
+						// you want to draw into it.  You get the RBO bound instead of the tex.
+						useRBO = true;
+					}
 				}
-				else
-				{
-					// you want to draw into it.  You get the RBO bound instead of the tex.
-					useRBO = true;
-				}
+				// else: MSAA tex with no RBO (GL_EXT_multisampled_render_to_texture path)
+				// useRBO stays false; the texture is attached directly with the multisample variant below.
 			}
 
 			if (useRBO)
@@ -179,7 +184,9 @@ void	CGLMFBO::TexAttach( GLMFBOTexAttachParams *params, EGLMFBOAttachment attach
 			else
 			{
 				// regular path - attaching a texture2d
-				
+				// If this is an MSAA tex without an RBO, use GL_EXT_multisampled_render_to_texture
+				bool bMultiSampleTex = (layout->m_key.m_texFlags & kGLMTexMultisampled) && (tex->m_rboName == 0);
+
 				if (attachIndexGL==GL_DEPTH_STENCIL_ATTACHMENT)
 				{
 					// you have to attach it both places...
@@ -190,7 +197,14 @@ void	CGLMFBO::TexAttach( GLMFBOTexAttachParams *params, EGLMFBOAttachment attach
 				}
 				else
 				{
-					gGL->glFramebufferTexture2D( fboBindPoint, attachIndexGL, target, tex->m_texName, params->m_mip );
+					if (bMultiSampleTex)
+					{
+						gGL->glFramebufferTexture2DMultisampleEXT( fboBindPoint, attachIndexGL, target, tex->m_texName, params->m_mip, layout->m_key.m_texSamples );
+					}
+					else
+					{
+						gGL->glFramebufferTexture2D( fboBindPoint, attachIndexGL, target, tex->m_texName, params->m_mip );
+					}
 				}
 			}
 		}
@@ -239,29 +253,49 @@ void	CGLMFBO::TexDetach( EGLMFBOAttachment attachIndex, GLenum fboBindPoint )
 		{
 			case GL_TEXTURE_2D:
 			{
-				if (layout->m_key.m_texFlags & kGLMTexMultisampled)
+				if ((layout->m_key.m_texFlags & kGLMTexMultisampled) && (tex->m_rboName != 0))
 				{
-					// MSAA path - detach the RBO, not the texture
+					// MSAA path with RBO - detach the RBO, not the texture
 					// (is this the right time to resolve?  probably better to wait until someone tries to sample the texture)
 
+					// Discard depth/stencil before detaching — tile-based renderers
+					// can skip writing tile data back to memory.
+					if ( gGL->m_bHave_GL_EXT_discard_framebuffer && ( attachIndexGL == GL_DEPTH_ATTACHMENT || attachIndexGL == GL_DEPTH_STENCIL_ATTACHMENT ) )
+					{
+						GLenum discardList[2];
+						int numDiscard = 0;
+						if ( attachIndexGL == GL_DEPTH_STENCIL_ATTACHMENT )
+						{
+							discardList[numDiscard++] = GL_DEPTH_ATTACHMENT;
+							discardList[numDiscard++] = GL_STENCIL_ATTACHMENT;
+						}
+						else
+						{
+							discardList[numDiscard++] = attachIndexGL;
+						}
+						gGL->glDiscardFramebufferEXT( GL_FRAMEBUFFER, numDiscard, discardList );
+					}
+
 					gGL->glBindRenderbuffer( GL_RENDERBUFFER, 0 );
-						
+					
 					if (attachIndexGL==GL_DEPTH_STENCIL_ATTACHMENT)
 					{
 						// detach the GL_RENDERBUFFER target at depth and stencil attach points
-						gGL->glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);						
+						// (target the bind point this FBO is actually bound to; GL_FRAMEBUFFER
+						// is invalid on ES when the read and draw framebuffers differ)
+						gGL->glFramebufferRenderbuffer( fboBindPoint, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, 0);						
 							
-						gGL->glFramebufferRenderbuffer( GL_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
+						gGL->glFramebufferRenderbuffer( fboBindPoint, GL_STENCIL_ATTACHMENT, GL_RENDERBUFFER, 0);
 					}
 					else
 					{
 						// color attachment (likely 0)
-						gGL->glFramebufferRenderbuffer( GL_FRAMEBUFFER, attachIndexGL, GL_RENDERBUFFER, 0);
+						gGL->glFramebufferRenderbuffer( fboBindPoint, attachIndexGL, GL_RENDERBUFFER, 0);
 					}
 				}
 				else
 				{
-					// plain tex detach
+					// plain tex detach (also used for MSAA tex without RBO via GL_EXT_multisampled_render_to_texture)
 					if (attachIndexGL==GL_DEPTH_STENCIL_ATTACHMENT)
 					{
 						// you have to detach it both places...

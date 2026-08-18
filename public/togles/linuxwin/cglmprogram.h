@@ -31,6 +31,7 @@
 #define	CGLMPROGRAM_H
 
 #include <sys/stat.h>
+#include <string.h>
 
 #pragma once
 
@@ -76,6 +77,16 @@ enum EGLMProgramType
 	
 	kGLMNumProgramTypes
 };
+
+// D3D9 exposes one logical bank of 256 float4 constants per shader stage.
+// Keep these limits here because both GLMContext and each linked shader pair
+// need to track which logical slots have already reached that GL program.
+#define	kGLMProgramParamFloat4Limit	256
+#define	kGLMProgramParamBoolLimit	16
+#define	kGLMProgramParamInt4Limit	16
+
+#define	kGLMVertexProgramParamFloat4Limit	256
+#define	kGLMFragmentProgramParamFloat4Limit	256
 
 enum EGLMProgramLang
 {
@@ -264,6 +275,7 @@ public:
 	GLint					m_locVertexBoneParams;	// "vcbones"
 	GLint					m_locVertexInteger0;	// "i0"
 	GLint					m_locAlphaRef; // "alpha_ref"		
+	float					m_alphaRefValue; // shadow to avoid a redundant glUniform1f on every draw
 	
 	enum { cMaxVertexShaderBoolUniforms = 4, cMaxFragmentShaderBoolUniforms = 1 };
 
@@ -288,8 +300,43 @@ public:
 	bool					m_bCheckLinkStatus;
 	uint					m_revision;				// if this pair is relinked, bump this number.
 
+	// Uniform values live in the linked GL program, not in the individual vertex
+	// or fragment shader objects.  Remember the logical-slot revisions uploaded
+	// to this exact pair so switching away and back does not force full vc/pc
+	// arrays through the Mali driver again.
+	uint					m_nProgramParamRevisionEpoch;
+	uint					m_uploadedProgramParamRevisionF[kGLMNumProgramTypes][kGLMProgramParamFloat4Limit];
+	uint					m_uploadedProgramParamRevisionB[kGLMNumProgramTypes];
+	uint					m_uploadedProgramParamRevisionI[kGLMNumProgramTypes];
+
 	GLint					m_locVertexScreenParams; // vcscreen
 	uint					m_nScreenWidthHeight;
+
+	GLint					m_locClipPlane0; // uClipPlane0
+	GLint					m_locClipPlane1; // uClipPlane1
+
+	float					m_flClipPlaneUploaded[kGLMUserClipPlanes][4];
+	bool					m_bClipPlaneUploaded[kGLMUserClipPlanes];
+	uint					m_nClipPlaneStateRevision;
+
+	FORCEINLINE void UpdateClipPlaneUniforms( const float *pPlane0, const float *pPlane1 )
+	{
+		if ( pPlane0 && ( !m_bClipPlaneUploaded[0] || memcmp( pPlane0, m_flClipPlaneUploaded[0], sizeof(m_flClipPlaneUploaded[0]) ) != 0 ) )
+		{
+			if ( m_locClipPlane0 >= 0 )
+				gGL->glUniform4fv( m_locClipPlane0, 1, pPlane0 );
+			memcpy( m_flClipPlaneUploaded[0], pPlane0, sizeof(m_flClipPlaneUploaded[0]) );
+			m_bClipPlaneUploaded[0] = true;
+		}
+
+		if ( pPlane1 && ( !m_bClipPlaneUploaded[1] || memcmp( pPlane1, m_flClipPlaneUploaded[1], sizeof(m_flClipPlaneUploaded[1]) ) != 0 ) )
+		{
+			if ( m_locClipPlane1 >= 0 )
+				gGL->glUniform4fv( m_locClipPlane1, 1, pPlane1 );
+			memcpy( m_flClipPlaneUploaded[1], pPlane1, sizeof(m_flClipPlaneUploaded[1]) );
+			m_bClipPlaneUploaded[1] = true;
+		}
+	}
 		
 };	
 

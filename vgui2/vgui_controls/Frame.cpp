@@ -1236,13 +1236,8 @@ void Frame::PerformLayout()
 
 		scale = ((float)(screenH) / (float)(proH));
 	}
-//-------------------	
-// 改善用户界面适配性：确保在不同分辨率和缩放比例下，拖动区域和标题栏的尺寸一致，提升用户体验。
-// 增强跨平台兼容性：解决了不同平台之间的界面适配问题，提高了代码的跨平台兼容性。
-//-------------------
+
 #if !defined( _X360 )
-/*	int DRAGGER_SIZE = GetDraggerSize();
-	int CORNER_SIZE = GetCornerSize(); */
 	int DRAGGER_SIZE = GetDraggerSize() * scale;
 	int CORNER_SIZE = GetCornerSize() * scale;
 	int CORNER_SIZE2 = CORNER_SIZE * 2;
@@ -1607,7 +1602,7 @@ void Frame::PaintBackground()
 
 	if (_drawTitleBar)
 	{
-	    float scale = 1;
+		float scale = 1;
 		if (IsProportional())
         	{
                 	int screenW, screenH;
@@ -1618,14 +1613,12 @@ void Frame::PaintBackground()
 
                 	scale = ((float)(screenH) / (float)(proH));
         	}
+
 		int wide = GetWide();
-		// int tall = surface()->GetFontTall(_title->GetFont());
 		int tall = surface()->GetFontTall(_title->GetFont()) * scale;
 
 		// caption
 		surface()->DrawSetColor(titleColor);
-/*		int inset = m_bSmallCaption ? 3 : 5;
-		int captionHeight = m_bSmallCaption ? 14: 28;*/
 		int inset = (m_bSmallCaption ? 3 : 5) * scale;
 		int captionHeight = (m_bSmallCaption ? 14: 28) * scale;
 

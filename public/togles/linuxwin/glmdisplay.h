@@ -190,6 +190,8 @@ struct GLMRendererInfoFields
 	bool	m_cantResolveScaled;	// happens everywhere per GL spec but may be relaxed some day - console variable "gl_can_resolve_scaled" can overrule
 	bool	m_costlyGammaFlips;		// this means that sRGB sampling state affects shader code gen, resulting in state-dependent code regen
 
+	bool	m_hasFramebufferFetch;	// GL_ARM_shader_framebuffer_fetch or GL_EXT_shader_framebuffer_fetch — fragment shader can read current FB color from tile buffer (TBDR only)
+
 
 	//--------------------------- " bads " - known bad drivers
 	bool	m_badDriver1064NV;		// this is the bad NVIDIA driver on 10.6.4 - stutter, tex corruption, black screen issues

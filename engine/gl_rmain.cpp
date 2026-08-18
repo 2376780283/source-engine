@@ -48,6 +48,10 @@ ConVar r_aspectratio( "r_aspectratio", "0"
 #endif
 					 );
 ConVar r_dynamiclighting( "r_dynamiclighting", "1", FCVAR_CHEAT );
+ConVar r_dlightupdaterate( "r_dlightupdaterate", "0", FCVAR_NONE,
+	"Update dynamic-light lightmaps only every Nth frame (0 = every frame). "
+	"Reduces per-luxel relighting + lightmap page re-uploads on slow CPUs; "
+	"the light contribution lags by up to N-1 frames." );
 extern ConVar building_cubemaps;
 extern float scr_demo_override_fov;	
 
@@ -840,6 +844,15 @@ void CRender::EndUpdateLightmaps( void )
 
 			qsort( g_LightmapUpdateList.Base(), g_LightmapUpdateList.Count(), sizeof(g_LightmapUpdateList.Element(0)), LightmapPageCompareFunc );
 			int i;
+
+			// r_dlightupdaterate: only rebuild the dynamic lightmaps every Nth
+			// frame.  The per-luxel relight + lightmap page re-upload is the
+			// dominant CPU cost while dlights (muzzle flashes, explosions)
+			// are active; on a slow CPU a 2-3 frame update lag is far less
+			// visible than the frame time it buys back.
+			const int nUpdateRate = MAX( 1, r_dlightupdaterate.GetInt() );
+			const bool bUpdateLightmapsThisFrame = ( ( r_framecount % nUpdateRate ) == 0 );
+
 			for ( i = g_LightmapUpdateList.Count()-1; i >= 0; --i )
 			{
 				const LightmapUpdateInfo_t &lightmapUpdateInfo = g_LightmapUpdateList.Element(i);
@@ -847,7 +860,10 @@ void CRender::EndUpdateLightmaps( void )
 				// so check frame to make sure we only recompute once
 				if ( SurfaceLighting(lightmapUpdateInfo.m_SurfHandle)->m_nLastComputedFrame != r_framecount )
 				{
-					R_RenderDynamicLightmaps( pLights, pCallQueue, lightmapUpdateInfo.m_SurfHandle, g_LightmapTransformList[lightmapUpdateInfo.transformIndex].xform );
+					if ( bUpdateLightmapsThisFrame )
+					{
+						R_RenderDynamicLightmaps( pLights, pCallQueue, lightmapUpdateInfo.m_SurfHandle, g_LightmapTransformList[lightmapUpdateInfo.transformIndex].xform );
+					}
 				}
 			}
 		}
