@@ -54,7 +54,6 @@
 // behavior.
 ConVar gl_debug_output( "gl_debug_output", "1" );
 
-
 // Whether or not we should batch up our creation and deletion behavior. 
 ConVar gl_batch_tex_creates( "gl_batch_tex_creates", "0" );
 ConVar gl_batch_tex_destroys( "gl_batch_tex_destroys", "0" ); 
@@ -79,7 +78,7 @@ extern void convert_texture( GLenum &internalformat, GLsizei width, GLsizei heig
 
 char g_nullFragmentProgramText [] =
 {
-	"#version 300 es\n"
+	"#version 320 es\n"
 	"precision mediump float;\n"
 	"out vec4 _gl_FragColor;\n"
 	"void main()\n"
@@ -91,7 +90,7 @@ char g_nullFragmentProgramText [] =
 // make dummy programs for doing texture preload via dummy draw
 char g_preloadTexVertexProgramText[] = // Гроб гроб кладбище пидор
 {
-	"#version 300 es\n"
+	"#version 320 es\n"
 	"precision mediump float;\n"
 	"out vec4 otex;\n"
 	"void main()  \n"
@@ -106,7 +105,7 @@ char g_preloadTexVertexProgramText[] = // Гроб гроб кладбище п�
 
 char g_preload2DTexFragmentProgramText[] =
 {
-	"#version 300 es\n"
+	"#version 320 es\n"
 	"precision mediump float;\n"
 	"out vec4 _gl_FragColor;\n"		
 	"in vec4 otex;\n"
@@ -126,7 +125,7 @@ char g_preload2DTexFragmentProgramText[] =
 
 char g_preload3DTexFragmentProgramText[] =
 {
-	"#version 300 es\n"
+	"#version 320 es\n"
 	"precision mediump float;\n"
 	"out vec4 _gl_FragColor;\n"	
 	"in vec4 otex;\n"
@@ -147,7 +146,7 @@ char g_preload3DTexFragmentProgramText[] =
 
 char g_preloadCubeTexFragmentProgramText[] =
 {
-	"#version 300 es\n"
+	"#version 320 es\n"
 	"precision mediump float;\n"
 	"in vec4 otex;\n"
 	"out vec4 _gl_FragColor;\n"
@@ -620,12 +619,17 @@ void GLMContext::ForceFlushStates()
 	m_ColorMaskMultiple.Flush();
 	m_BlendEquation.Flush();
 	m_BlendColor.Flush();
+	m_bDirtyRenderStates = false;
+
 	// Reset various things so they get reset on the next batch flush
 	m_activeTexture = -1;
 
 	for ( int i = 0; i < GLM_SAMPLER_COUNT; i++ )
 	{
-		SetSamplerTex( i, m_samplers[i].m_pBoundTex );
+		// This is an explicit state restore after outside GL work.  SetSamplerTex
+		// normally skips an identical cached pointer, so use the unconditional
+		// helper here to put the cached texture back into the real GL context.
+		BindTexToTMU( m_samplers[i].m_pBoundTex, i );
 		SetSamplerDirty( i );
 	}
 
@@ -639,6 +643,12 @@ void GLMContext::ForceFlushStates()
 		gGL->glDisableVertexAttribArray( index );
 
 	// Program
+	// ForceFlushStates is used after code that can bypass GLM's state mirrors.
+	// Treat all pair-local uniform snapshots as untrusted as well; each linked
+	// pair will take one complete active-range refresh in the new epoch.
+	++m_nProgramParamRevisionEpoch;
+	if ( !m_nProgramParamRevisionEpoch )
+		m_nProgramParamRevisionEpoch = 1;
 	NullProgram();
 
 	// FBO
@@ -740,6 +750,7 @@ void GLMContext::DumpCaps( void )
 	dumpfield( m_cantResolveFlipped );
 	dumpfield( m_cantResolveScaled );
 	dumpfield( m_costlyGammaFlips );
+	dumpfield( m_hasFramebufferFetch );
 	dumpfield( m_badDriver1064NV );
 	dumpfield( m_badDriver108Intel );
 
@@ -894,12 +905,12 @@ void GLMContext::SaveColorMaskAndSetToDefault()
 
 	GLColorMaskSingle_t newColorMask;
 	newColorMask.r = newColorMask.g = newColorMask.b = newColorMask.a = -1;
-	m_ColorMaskSingle.Write( &newColorMask );
+	m_ColorMaskSingle.WriteAndFlush( &newColorMask );
 }
 
 void GLMContext::RestoreSavedColorMask()
 {
-	m_ColorMaskSingle.Write( &m_SavedColorMask );
+	m_ColorMaskSingle.WriteAndFlush( &m_SavedColorMask );
 }
 
 void GLMContext::Blit2( CGLMTex *srcTex, GLMRect *srcRect, int srcFace, int srcMip, CGLMTex *dstTex, GLMRect *dstRect, int dstFace, int dstMip, uint filter )
@@ -908,6 +919,8 @@ void GLMContext::Blit2( CGLMTex *srcTex, GLMRect *srcRect, int srcFace, int srcM
 	CScopedGLMPIXEvent glmPIXEvent( "Blit2" );
 	g_TelemetryGPUStats.m_nTotalBlit2++;
 #endif
+
+	m_nGpuFrameBlits++;
 	
 	SaveColorMaskAndSetToDefault();
 	
@@ -1028,7 +1041,7 @@ void GLMContext::Blit2( CGLMTex *srcTex, GLMRect *srcRect, int srcFace, int srcM
 	{
 		//	turn off scissor
 		newsciss.enable = false;
-		m_ScissorEnable.Write( &newsciss );
+		m_ScissorEnable.WriteAndFlush( &newsciss );
 	}
 
 	//----------------------------------------------------------------- fork in the road, depending on two-step or not
@@ -1046,8 +1059,12 @@ void GLMContext::Blit2( CGLMTex *srcTex, GLMRect *srcRect, int srcFace, int srcM
 		glScrubFBO			( GL_DRAW_FRAMEBUFFER );
 		glAttachTex2DtoFBO	( GL_DRAW_FRAMEBUFFER, formatClass, srcTex->m_texName, 0 );
 
-		// set read and draw buffers appropriately		
-		gGL->glReadBuffer( glAttachFromClass[formatClass] );
+		// set read and draw buffers appropriately
+		// glReadBuffer is not core in OpenGL ES; on ES the FBO read source is
+		// implicitly the first color attachment, so this is a no-op there.
+		// Guard the call for strict drivers that do not export the symbol.
+		if ( gGL->glReadBuffer )
+			gGL->glReadBuffer( glAttachFromClass[formatClass] );
 		gGL->glDrawBuffers( 1, &glAttachFromClass[formatClass] );
 		
 		// blit#1 - to resolve to scratch
@@ -1103,7 +1120,11 @@ void GLMContext::Blit2( CGLMTex *srcTex, GLMRect *srcRect, int srcFace, int srcM
 		}
 #endif
 
-		gGL->glReadBuffer( glAttachFromClass[formatClass] );
+		// glReadBuffer is not core in OpenGL ES; on ES the FBO read source is
+		// implicitly the first color attachment, so this is a no-op there.
+		// Guard the call for strict drivers that do not export the symbol.
+		if ( gGL->glReadBuffer )
+			gGL->glReadBuffer( glAttachFromClass[formatClass] );
 	}
 	
 	//----------------------------------------------------------------- zero or one blits may have happened above, whichever took place, FBO1 is now on read
@@ -1201,7 +1222,7 @@ void GLMContext::Blit2( CGLMTex *srcTex, GLMRect *srcRect, int srcFace, int srcM
 	//----------------------------------------------------------------- restore old scissor state
 	if (oldsciss.enable)
 	{
-		m_ScissorEnable.Write( &oldsciss );
+		m_ScissorEnable.WriteAndFlush( &oldsciss );
 	}
 
 	RestoreSavedColorMask();
@@ -1262,7 +1283,7 @@ void GLMContext::BlitTex( CGLMTex *srcTex, GLMRect *srcRect, int srcFace, int sr
 		// setup
 		//	turn off scissor
 		newsciss.enable = false;
-		m_ScissorEnable.Write( &newsciss );
+		m_ScissorEnable.WriteAndFlush( &newsciss );
 
 		// select which attachment enum we're going to use for the blit
 		// default to color0, unless it's a depth or stencil flava
@@ -1345,7 +1366,7 @@ void GLMContext::BlitTex( CGLMTex *srcTex, GLMRect *srcRect, int srcFace, int sr
 			//	set the read and write buffers back to... what ? does it matter for anything but copies ?  don't worry about it
 		
 		// restore the scissor state
-		m_ScissorEnable.Write( &oldsciss );
+		m_ScissorEnable.WriteAndFlush( &oldsciss );
 	}
 	else
 	{
@@ -1478,6 +1499,8 @@ void GLMContext::ResolveTex( CGLMTex *tex, bool forceDirty )
 	// only run resolve if it's (a) possible and (b) dirty or force-dirtied
 	if ( ( tex->m_rboName ) && ( tex->IsRBODirty() || forceDirty ) )
 	{
+		m_nGpuFrameResolves++;
+
 		// state we need to save
 		//	current setting of scissor
 		//	current setting of the drawing fbo (no explicit save, it's in the context)
@@ -1489,7 +1512,7 @@ void GLMContext::ResolveTex( CGLMTex *tex, bool forceDirty )
 		// setup
 		//	turn off scissor
 		newsciss.enable = false;
-		m_ScissorEnable.Write( &newsciss );
+		m_ScissorEnable.WriteAndFlush( &newsciss );
 
 		// select which attachment enum we're going to use for the blit
 		// default to color0, unless it's a depth or stencil flava
@@ -1591,7 +1614,32 @@ void GLMContext::ResolveTex( CGLMTex *tex, bool forceDirty )
 								0, 0,	tex->m_layout->m_key.m_xSize, tex->m_layout->m_key.m_ySize,
 								blitMask, GL_NEAREST );
 			// or should it be GL_LINEAR?  does it matter ?
-			
+
+		// After resolve, the source MSAA buffer (RBO) is no longer needed.
+		// glDiscardFramebufferEXT only accepts GL_FRAMEBUFFER; ES 3.x core
+		// invalidation is the API that accepts GL_READ_FRAMEBUFFER.
+		if ( gGL->glInvalidateFramebuffer )
+		{
+			GLenum invalidateList[3];
+			int numInvalidate = 0;
+			if ( blitMask & GL_COLOR_BUFFER_BIT )
+			{
+				invalidateList[numInvalidate++] = GL_COLOR_ATTACHMENT0;
+			}
+			if ( blitMask & GL_DEPTH_BUFFER_BIT )
+			{
+				invalidateList[numInvalidate++] = GL_DEPTH_ATTACHMENT;
+			}
+			if ( blitMask & GL_STENCIL_BUFFER_BIT )
+			{
+				invalidateList[numInvalidate++] = GL_STENCIL_ATTACHMENT;
+			}
+			if ( numInvalidate > 0 )
+			{
+				gGL->glInvalidateFramebuffer( GL_READ_FRAMEBUFFER, numInvalidate, invalidateList );
+			}
+		}
+
 		//-----------------------------------------------------------------------------------
 		// cleanup
 		//-----------------------------------------------------------------------------------
@@ -1633,7 +1681,7 @@ void GLMContext::ResolveTex( CGLMTex *tex, bool forceDirty )
 		//	set the read and write buffers back to... what ? does it matter for anything but copies ?  don't worry about it
 		
 		// restore the scissor state
-		m_ScissorEnable.Write( &oldsciss );
+		m_ScissorEnable.WriteAndFlush( &oldsciss );
 		
 		// mark the RBO clean on the resolved tex
 		tex->ForceRBONonDirty();
@@ -1646,6 +1694,21 @@ void GLMContext::PreloadTex( CGLMTex *tex, bool force )
 	// bind the texture on TMU 15
 	// set up a dummy program to sample it but not write (use 'discard')
 	// draw a teeny little triangle that won't generate a lot of fragments
+
+	// On Mali (tile-based deferred renderer) this dummy-draw preload is a net
+	// loss: it spends a full draw-call setup + 16 glDisableVertexAttribArray
+	// calls per first-seen texture, and it clobbers the vertex-attrib dirty
+	// cache (m_boundVertexAttribs / m_lastKnownVertexAttribMask), forcing the
+	// next real draw into the expensive re-issue branch in FlushDrawStates.
+	// Mali uploads textures on demand at tile-render time anyway, so the
+	// desktop-NV "warm into VRAM" rationale does not apply.  Skip it on ARM.
+	static bool s_bIsMali = ( V_stristr( gGL->m_pGLDriverStrings[cGLVendorString], "arm" ) != NULL );
+	if ( s_bIsMali )
+	{
+		tex->m_texPreloaded = true;
+		return;
+	}
+
 	if (!m_pairCache)
 		return;
 		
@@ -1714,6 +1777,7 @@ void GLMContext::PreloadTex( CGLMTex *tex, bool force )
 #ifndef OSX // 10.6
 	if ( m_bUseSamplerObjects )
 	{
+		m_nBoundSamplerObject[15] = 0;
 		gGL->glBindSampler( 15, 0 );
 	}
 #endif // !OSX
@@ -1800,8 +1864,12 @@ CGLMProgram	*GLMContext::NewProgram( EGLMProgramType type, char *progString, con
 	
 	prog->SetProgramText( progString );
 	prog->SetShaderName( pShaderName );
-	prog->CompileActiveSources();
-
+	// Deferred compilation: don't call CompileActiveSources() here.
+	// If a program binary cache hit occurs in SetProgramPair, the individual
+	// shader objects never need to be compiled at all — glProgramBinary loads
+	// a pre-linked program directly.  On cache miss, SetProgramPair calls
+	// CompileActiveSources() on both shaders before attaching+linking.
+	// This skips ~1241 glShaderSource+glCompileShader calls on warm starts.
 	return prog;
 }
 
@@ -1961,31 +2029,31 @@ void GLMContext::Clear( bool color, unsigned long colorValue, bool depth, float 
 			clearcol.b =	((colorValue      ) & 0xFF) / 255.0f;	//B
 			clearcol.a =	((colorValue >> 24) & 0xFF) / 255.0f;	//A
 
-			m_ClearColor.Write( &clearcol );	// no check, no wait
+			m_ClearColor.WriteAndFlush( &clearcol );
 			mask |= GL_COLOR_BUFFER_BIT;
 			
 			// save and set color mask
 			m_ColorMaskSingle.Read( &oldcolormask, 0 );			
-			m_ColorMaskSingle.Write( &newcolormask );			
+			m_ColorMaskSingle.WriteAndFlush( &newcolormask );
 		}
 
 		if (depth)
 		{
 			// get old depth write mask
 			m_DepthMask.Read( &olddepthmask, 0 );
-			m_DepthMask.Write( &newdepthmask );
-			m_ClearDepth.Write( &cleardep );	// no check, no wait
+			m_DepthMask.WriteAndFlush( &newdepthmask );
+			m_ClearDepth.WriteAndFlush( &cleardep );
 			mask |= GL_DEPTH_BUFFER_BIT;
 		}
 
 		if (stencil)
 		{
-			m_ClearStencil.Write( &clearsten );	// no check, no wait
+			m_ClearStencil.WriteAndFlush( &clearsten );
 			mask |= GL_STENCIL_BUFFER_BIT;
 
 			// save and set sten mask
 			m_StencilWriteMask.Read( &oldstenmask, 0 );			
-			m_StencilWriteMask.Write( &newstenmask );			
+			m_StencilWriteMask.WriteAndFlush( &newstenmask );
 		}
 
 		bool subrect = (box != NULL);
@@ -2021,8 +2089,28 @@ void GLMContext::Clear( bool color, unsigned long colorValue, bool depth, float 
 				scissorBoxNew = *box;
 			}
 			// set new box and enable
-			m_ScissorEnable.Write( &scissorEnableNew );
-			m_ScissorBox.Write( &scissorBoxNew );
+			m_ScissorEnable.WriteAndFlush( &scissorEnableNew );
+			m_ScissorBox.WriteAndFlush( &scissorBoxNew );
+		}
+
+		// GL_EXT_discard_framebuffer: before clearing, discard buffers we're
+		// about to overwrite so tile-based renderers skip the tile-buffer load
+		if ( gGL->m_bHave_GL_EXT_discard_framebuffer && !subrect )
+		{
+			GLenum discardAttachments[3];
+			int numDiscard = 0;
+			if ( mask & GL_DEPTH_BUFFER_BIT )
+			{
+				discardAttachments[numDiscard++] = m_drawingFBO ? GL_DEPTH_ATTACHMENT : GL_DEPTH_EXT;
+			}
+			if ( mask & GL_STENCIL_BUFFER_BIT )
+			{
+				discardAttachments[numDiscard++] = m_drawingFBO ? GL_STENCIL_ATTACHMENT : GL_STENCIL_EXT;
+			}
+			if ( numDiscard > 0 )
+			{
+				gGL->glDiscardFramebufferEXT( GL_FRAMEBUFFER, numDiscard, discardAttachments );
+			}
 		}
 
 		gGL->glClear( mask );
@@ -2030,26 +2118,26 @@ void GLMContext::Clear( bool color, unsigned long colorValue, bool depth, float 
 		if (subrect)
 		{
 			// put old scissor box and enable back
-			m_ScissorEnable.Write( &scissorEnableSave );
-			m_ScissorBox.Write( &scissorBoxSave );
+			m_ScissorEnable.WriteAndFlush( &scissorEnableSave );
+			m_ScissorBox.WriteAndFlush( &scissorBoxSave );
 		}
 		
 		if (depth)
 		{
 			// put old depth write mask
-			m_DepthMask.Write( &olddepthmask );
+			m_DepthMask.WriteAndFlush( &olddepthmask );
 		}
 		
 		if (color)
 		{
 			// put old color write mask
-			m_ColorMaskSingle.Write( &oldcolormask );			
+			m_ColorMaskSingle.WriteAndFlush( &oldcolormask );
 		}
 		
 		if (stencil)
 		{
 			// put old sten mask
-			m_StencilWriteMask.Write( &oldstenmask );			
+			m_StencilWriteMask.WriteAndFlush( &oldstenmask );
 		}
 
 #if GLMDEBUG
@@ -2083,10 +2171,39 @@ static	ConVar gl_flushpaircache ("gl_flushpaircache", "0");
 static	ConVar gl_paircachestats ("gl_paircachestats", "0");
 static	ConVar gl_mtglflush_at_tof ("gl_mtglflush_at_tof", "0");
 static	ConVar gl_texlayoutstats ("gl_texlayoutstats", "0" );
+// 0 = off, 1 = report once per second, 2 = report every frame.
+// Prints the command-stream thread's CPU time for the frame vs the GPU's
+// GL_TIME_ELAPSED time (previous frame's GPU time, read without stalling).
+static	ConVar gl_gpu_timing ("gl_gpu_timing", "0");
+
+static uint gPersistentBufferSize[kGLMNumBufferTypes] = 
+{
+	// Sized to hold the engine's shared dynamic buffers (1.5MB vertex, see
+	// imesh.h) plus mid-frame wrap slices with headroom; the ring advances one
+	// slot per frame, so each slot must fit a whole frame's worth of slices.
+	8 * 1024 * 1024,	// kGLMVertexBuffer
+	4 * 1024 * 1024,	// kGLMIndexBuffer
+	0,					// kGLMUniformBuffer
+	0,					// kGLMPixelBuffer
+};
 
 void GLMContext::BeginFrame( void )
 {
 	GLM_FUNC;
+	VPROF_BUDGET( "ToGL_BeginFrame", "ToGL_BeginFrame" );
+
+	// Start the GPU frame timer. It spans all GL work submitted between
+	// BeginFrame and Present, so it measures the whole frame on the GPU.
+	if ( gl_gpu_timing.GetInt() && m_bGpuTimerAvailable )
+	{
+		if ( m_gpuTimerQuery[0] == 0 )
+		{
+			gGL->glGenQueries( 2, m_gpuTimerQuery );
+		}
+		m_flGpuFrameStart = Plat_FloatTime();
+		gGL->glBeginQuery( GL_TIME_ELAPSED_EXT, m_gpuTimerQuery[m_nGpuTimerIndex] );
+		m_bGpuTimerArmed = true;
+	}
 
 	m_debugFrameIndex++;
 	
@@ -2103,17 +2220,48 @@ void GLMContext::BeginFrame( void )
 	}
 
 	// scrub some critical shock absorbers
-	for( int i=0; i< 16; i++)
+	// Only disable the attrib arrays that are actually enabled: the driver
+	// validates every glDisableVertexAttribArray call, and 16 unconditional
+	// calls per frame are measurable on the weak in-order cores paired with
+	// Mali-G31-class GPUs.  The mask is maintained by the flush's enable/
+	// disable bookkeeping, so it is always accurate at TOF.
+	//
+	// On ARM (Mali) the whole scrub is skipped: nothing outside FlushDrawStates
+	// touches attrib arrays or vertex/index buffer bindings between frames
+	// (PreloadTex early-returns on ARM, ForceFlushStates has no live callers),
+	// so the attrib state and the m_boundVertexAttribs mirror stay valid across
+	// frames.  The first draw of a frame then reuses the previous frame's
+	// attrib setup instead of re-issuing every pointer and enable.  The flush's
+	// own bookkeeping (m_lastKnownVertexAttribMask / m_nNumSetVertexAttributes)
+	// remains self-consistent: the disable loop in FlushDrawStates covers a new
+	// first-draw shader that uses fewer attribs.  Non-ARM keeps the scrub so
+	// external GL work (e.g. desktop preloads) cannot desync the mirrors.
+	if ( gGL->m_nDriverProvider != cGLDriverProviderARM )
 	{
-		gGL->glDisableVertexAttribArray( i );						// enable GLSL attribute- this is just client state - will be turned back off
-	}
-	m_lastKnownVertexAttribMask = 0;
-	m_nNumSetVertexAttributes = 0;
-	
-	//FIXME should we also zap the m_lastKnownAttribs array ? (worst case it just sets them all again on first batch)
+		uint nScrubMask = m_lastKnownVertexAttribMask;
+		for( int i=0; i< 16; i++)
+		{
+			if ( nScrubMask & ( 1u << i ) )
+			{
+				gGL->glDisableVertexAttribArray( i );						// enable GLSL attribute- this is just client state - will be turned back off
+			}
+		}
+		m_lastKnownVertexAttribMask = 0;
+		m_nNumSetVertexAttributes = 0;
 
-	BindBufferToCtx( kGLMVertexBuffer, NULL, true );
-	BindBufferToCtx( kGLMIndexBuffer, NULL, true );
+		// The scrub above disabled every enabled attrib array in the real GL
+		// context, but the flush's attrib setup only re-issues when m_CurAttribs
+		// disagrees with the device's current state.  If the first draw of this
+		// frame uses the exact same vertex input state (same shader, decl, streams
+		// and buffer revisions) as the last draw of the previous frame, the flush
+		// would skip the re-enable branch and the draw would run with NO attrib
+		// arrays enabled.  Invalidate the cached revisions so the first flush
+		// always re-issues the attrib setup.
+		ClearCurAttribs();
+
+		BindBufferToCtx( kGLMVertexBuffer, NULL, true );
+		BindBufferToCtx( kGLMIndexBuffer, NULL, true );
+	}
 
 	if (gl_flushpaircache.GetInt())
 	{
@@ -2139,10 +2287,19 @@ void GLMContext::BeginFrame( void )
 		gl_texlayoutstats.SetValue( 0 );
 	}
 	
+#if defined(USE_NATIVE_GLES)
+	// Mali GPU optimization: Skip TOF flush by default - batched commands are more efficient
+	// Mali drivers prefer command batching over explicit flushes
+	if (gl_mtglflush_at_tof.GetInt() && !GLM_NO_TOF_FLUSH)
+	{
+		gGL->glFlush();
+	}
+#else
 	if (gl_mtglflush_at_tof.GetInt())
 	{
 		gGL->glFlush();									// TOF flush - skip this if benchmarking, enable it if human playing (smoothness)
 	}
+#endif
 	
 #if GLMDEBUG
 	// init debug hook information
@@ -2162,6 +2319,7 @@ void GLMContext::BeginFrame( void )
 void GLMContext::EndFrame( void )
 {
 	GLM_FUNC;
+	VPROF_BUDGET( "ToGL_EndFrame", "ToGL_EndFrame" );
 
 #if GLMDEBUG
 	// init debug hook information
@@ -2174,6 +2332,60 @@ void GLMContext::EndFrame( void )
 		DebugHook( &info );
 	} while (info.m_loop);
 #endif
+
+	AdvancePersistentBuffer();
+}
+
+void GLMContext::AdvancePersistentBuffer( void )
+{
+	if ( !gGL->m_bHave_GL_EXT_buffer_storage )
+		return;
+
+	for ( int lpType = 0; lpType < kGLMNumBufferTypes; ++lpType )
+	{
+		if ( gPersistentBufferSize[lpType] == 0 )
+			continue;
+
+		// Only fence buffers that were actually written this frame AND
+		// actually referenced by a draw since the previous refresh.  Inserting
+		// a GL_SYNC_GPU_COMMANDS_COMPLETE fence for an idle ring forces the
+		// driver to flush the whole command stream at EndFrame, and the
+		// matching glClientWaitSync on the other end stalls the render thread -
+		// pure waste when no draw referenced the persistent path.
+		//
+		// Fence every referenced slot that still holds data, not just the
+		// current one: draws in THIS frame may reference older slots (a
+		// buffer locked in a previous frame and drawn again without re-lock -
+		// GetHandle binds the lock-time slot and marks it referenced).
+		// Refreshing the fence each frame makes the BlockUntilNotBusy below -
+		// which runs when the ring returns to that slot - wait for every draw
+		// that ever referenced it, including the ones submitted since the
+		// previous refresh.  Slots not drawn since the last refresh are
+		// already fully covered by their existing fence.
+		for ( uint nSlot = 0; nSlot < cNumPersistentBuffers; ++nSlot )
+		{
+			if ( m_persistentBuffer[nSlot][lpType].GetOffset() > 0 )
+			{
+				if ( m_persistentBuffer[nSlot][lpType].TakeReferencedSinceFence() )
+				{
+					m_persistentBuffer[nSlot][lpType].InsertFence();
+				}
+			}
+		}
+	}
+
+	// Advance to next buffer in the ring
+	m_nCurPersistentBuffer = ( m_nCurPersistentBuffer + 1 ) % cNumPersistentBuffers;
+
+	for ( int lpType = 0; lpType < kGLMNumBufferTypes; ++lpType )
+	{
+		if ( gPersistentBufferSize[lpType] == 0 )
+			continue;
+
+		// BlockUntilNotBusy no-ops when no fence was inserted for this buffer
+		// (i.e. it was idle the last time the ring passed through it).
+		m_persistentBuffer[m_nCurPersistentBuffer][lpType].BlockUntilNotBusy();
+	}
 }
 
 //===============================================================================
@@ -2203,6 +2415,7 @@ extern ConVar gl_blitmode;
 void GLMContext::Present( CGLMTex *tex )
 {
 	GLM_FUNC;
+	VPROF_BUDGET( "ToGL_Present", "ToGL_Present" );
 	
 	{
 #if GL_TELEMETRY_GPU_ZONES
@@ -2210,7 +2423,10 @@ void GLMContext::Present( CGLMTex *tex )
 		g_TelemetryGPUStats.m_nTotalPresent++;
 #endif
 
-		ProcessTextureDeletes();
+		{
+			VPROF_BUDGET( "ToGL_Present_TexDeletes", "ToGL_Present_TexDeletes" );
+			ProcessTextureDeletes();
+		}
 
 		bool newRefreshMode = false;
 		// two ways to go:
@@ -2259,6 +2475,26 @@ void GLMContext::Present( CGLMTex *tex )
 
 		if (refresh)
 		{
+			// The main scene depth/stencil is dead after all render passes have
+			// completed. Discard it before switching away from the scene FBO so
+			// a tile-based GPU does not write those tiles back to system memory.
+			// Color is preserved because it is the presentation-blit source.
+			if ( gGL->m_bHave_GL_EXT_discard_framebuffer && m_drawingFBO && ( m_boundDrawFBO == m_drawingFBO ) )
+			{
+				GLenum discardList[2];
+				int numDiscard = 0;
+				if ( m_drawingFBO->m_attach[kAttDepth].m_tex || m_drawingFBO->m_attach[kAttDepthStencil].m_tex )
+					discardList[numDiscard++] = GL_DEPTH_ATTACHMENT;
+				if ( m_drawingFBO->m_attach[kAttStencil].m_tex || m_drawingFBO->m_attach[kAttDepthStencil].m_tex )
+					discardList[numDiscard++] = GL_STENCIL_ATTACHMENT;
+
+				if ( numDiscard > 0 )
+				{
+					VPROF_BUDGET( "ToGL_Present_DiscardDepth", "ToGL_Present_DiscardDepth" );
+					gGL->glDiscardFramebufferEXT( GL_FRAMEBUFFER, numDiscard, discardList );
+				}
+			}
+
 			if (newRefreshMode)
 			{
 				// blit to GL_BACK done here, not in CocoaMgr, this lets us do resolve directly if conditions are right
@@ -2281,9 +2517,12 @@ void GLMContext::Present( CGLMTex *tex )
 				// do not ask for LINEAR if blit is unscaled
 				// NULL means targeting GL_BACK.  Blit2 will break it down into two steps if needed, and will handle resolve, scale, flip.
 				bool blitScales	=	(showparams.m_width != static_cast<int>(dstWidth)) || (showparams.m_height != static_cast<int>(dstHeight));
-				Blit2(	tex, &srcRect, 0,0,
-								NULL, &dstRect, 0,0,
-								blitScales ? GL_LINEAR : GL_NEAREST );
+				{
+					VPROF_BUDGET( "ToGL_Present_Blit", "ToGL_Present_Blit" );
+					Blit2(	tex, &srcRect, 0,0,
+									NULL, &dstRect, 0,0,
+									blitScales ? GL_LINEAR : GL_NEAREST );
+				}
 
 				// we set showparams.m_noBlit, and just let CocoaMgr handle the swap (flushbuffer / page flip)
 				showparams.m_noBlit = true;
@@ -2299,7 +2538,11 @@ void GLMContext::Present( CGLMTex *tex )
 				// showparams.m_noBlit is left set to 0.  CocoaMgr does the blit.
 			}
 
+		{
+			VPROF_BUDGET( "ToGL_Present_Swap", "ToGL_Present_Swap" );
+			m_flGpuFrameEndPreSwap = Plat_FloatTime();
 			ShowPixels(&showparams);
+		}
 		}
 
 		//	put the original FB back in place (both read and draw)
@@ -2307,17 +2550,90 @@ void GLMContext::Present( CGLMTex *tex )
 		BindFBOToCtx( m_drawingFBO, GL_FRAMEBUFFER );
 
 		// put em back !!
-		m_ScissorEnable.Flush();	
-		m_ScissorBox.Flush();
-		m_ViewportBox.Flush();		
+		m_ScissorEnable.FlushDirty();	
+		m_ScissorBox.FlushDirty();
+		m_ViewportBox.FlushDirty();		
 	}
 
 	m_nCurFrame++;
+
+	// End the GPU frame timer, then read the previous frame's result so the
+	// read never blocks the pipeline. Report CPU vs GPU time per gl_gpu_timing.
+	if ( m_bGpuTimerArmed )
+	{
+		m_bGpuTimerArmed = false;
+		gGL->glEndQuery( GL_TIME_ELAPSED_EXT );
+
+		if ( m_bGpuTimerHasRecorded )
+		{
+			const int nReadIndex = m_nGpuTimerIndex ^ 1;
+			GLuint nAvailable = 0;
+			gGL->glGetQueryObjectuiv( m_gpuTimerQuery[nReadIndex], GL_QUERY_RESULT_AVAILABLE, &nAvailable );
+			if ( nAvailable )
+			{
+				GLuint nResult = 0;
+				gGL->glGetQueryObjectuiv( m_gpuTimerQuery[nReadIndex], GL_QUERY_RESULT, &nResult );
+				m_nGpuTimeNanos = nResult;
+			}
+		}
+		else
+		{
+			m_bGpuTimerHasRecorded = true;
+		}
+
+		m_nGpuTimerIndex ^= 1;
+
+		UpdateGpuTimingReport();
+	}
 
 #if GL_BATCH_PERF_ANALYSIS
 	tmMessage( TELEMETRY_LEVEL2, TMMF_ICON_EXCLAMATION, "VS Uniform Calls: %u, VS Uniforms: %u|VS Uniform Bone Calls: %u, VS Bone Uniforms: %u|PS Uniform Calls: %u, PS Uniforms: %u", m_nTotalVSUniformCalls, m_nTotalVSUniformsSet, m_nTotalVSUniformBoneCalls, m_nTotalVSUniformsBoneSet, m_nTotalPSUniformCalls, m_nTotalPSUniformsSet );
 	m_nTotalVSUniformCalls = 0, m_nTotalVSUniformBoneCalls = 0, m_nTotalVSUniformsSet = 0, m_nTotalVSUniformsBoneSet = 0, m_nTotalPSUniformCalls = 0, m_nTotalPSUniformsSet = 0;
 #endif
+}
+
+void GLMContext::UpdateGpuTimingReport()
+{
+	// CPU = wall time the command-stream thread spent on this frame (includes
+	// any wait on the swap chain if the GPU is behind). GPU = GL_TIME_ELAPSED
+	// for the previous frame, from the ping-pong query we just read.
+	const float flNow = Plat_FloatTime();
+	const float flCpuMs = ( flNow - m_flGpuFrameStart ) * 1000.0f;
+	const float flCpuPreSwapMs = ( m_flGpuFrameEndPreSwap - m_flGpuFrameStart ) * 1000.0f;
+	const float flGpuMs = (float)( m_nGpuTimeNanos / 1000000.0 );
+
+	m_flGpuLastCpuMs = flCpuMs;
+	m_flGpuAccumMs += flGpuMs;
+	m_flCpuAccumMs += flCpuMs;
+	m_flCpuPreSwapAccumMs += flCpuPreSwapMs;
+	m_nGpuReportFrames++;
+
+	const bool bEveryFrame = ( gl_gpu_timing.GetInt() >= 2 );
+	if ( bEveryFrame || ( flNow - m_flGpuReportStart ) >= 1.0f )
+	{
+		const int nFrames = MAX( m_nGpuReportFrames, 1 );
+		Msg( "GPU timing: %d frames | CPU %4.2f ms | CPU(preswap) %4.2f ms | swap %4.2f ms | GPU %4.2f ms | draws %d | prog %d | uni %d (%d v4) | resolve %d | blit %d | last: CPU %4.2f ms, GPU %4.2f ms\n",
+			m_nGpuReportFrames,
+			m_flCpuAccumMs / nFrames,
+			m_flCpuPreSwapAccumMs / nFrames,
+			( m_flCpuAccumMs - m_flCpuPreSwapAccumMs ) / nFrames,
+			m_flGpuAccumMs / nFrames,
+			m_nGpuFrameDraws, m_nGpuFrameProgramChanges,
+			m_nGpuFrameUniformCalls, m_nGpuFrameUniformsSet,
+			m_nGpuFrameResolves, m_nGpuFrameBlits,
+			flCpuMs, flGpuMs );
+		m_nGpuReportFrames = 0;
+		m_flGpuAccumMs = 0.0f;
+		m_flCpuAccumMs = 0.0f;
+		m_flCpuPreSwapAccumMs = 0.0f;
+		m_flGpuReportStart = flNow;
+		m_nGpuFrameDraws = 0;
+		m_nGpuFrameProgramChanges = 0;
+		m_nGpuFrameUniformCalls = 0;
+		m_nGpuFrameUniformsSet = 0;
+		m_nGpuFrameResolves = 0;
+		m_nGpuFrameBlits = 0;
+	}
 }
 
 //===============================================================================
@@ -2349,17 +2665,11 @@ bool GLMContext::SetDisplayParams( GLMDisplayParams *params )
 
 ConVar gl_can_query_fast("gl_can_query_fast", "0");
 
-static uint gPersistentBufferSize[kGLMNumBufferTypes] = 
-{
-	2 * 1024 * 1024,	// kGLMVertexBuffer
-	1 * 1024 * 1024,	// kGLMIndexBuffer
-	0,					// kGLMUniformBuffer
-	0,					// kGLMPixelBuffer
-};
-
 GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
 {
 	m_nNumDirtySamplers = 0;
+	m_nClipPlaneStateRevision = 0;
+	m_bDirtyRenderStates = false;
 
 	if( gGL->m_nDriverProvider == cGLDriverProviderARM )
 		m_bUseSamplerObjects = true;
@@ -2368,6 +2678,19 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
 
 	if ( CommandLine()->CheckParm( "-gl_enablesamplerobjects" ) )
 		m_bUseSamplerObjects = true;
+
+	// Mali GLES drivers may spend less CPU validating the non-range entry point.
+	// GLES 3.2 guarantees glDrawElementsBaseVertex; retain an override so the
+	// range path can be selected for direct A/B testing without rebuilding.
+	m_bUseDrawElementsBaseVertex =
+		( gGL->m_nDriverProvider == cGLDriverProviderARM ) &&
+		( gGL->glDrawElementsBaseVertex != NULL );
+	if ( CommandLine()->CheckParm( "-gl_draw_range_elements" ) )
+		m_bUseDrawElementsBaseVertex = false;
+
+	m_bUseProgramParamRevisionCache =
+		( gGL->m_nDriverProvider == cGLDriverProviderARM ) &&
+		!CommandLine()->CheckParm( "-gl_disable_program_param_cache" );
 
 	// Try to get some more free memory by relying on driver host copies instead of ours.
 	//  In some cases the driver will be able to discard their own host copy and rely on GPU
@@ -2379,6 +2702,8 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
 		m_bTexClientStorage = true;
 
 	GLMDebugPrintf( "GL sampler object usage: %s\n", m_bUseSamplerObjects ? "ENABLED" : "DISABLED" );
+	GLMDebugPrintf( "GL base-vertex draw entry point: %s\n", m_bUseDrawElementsBaseVertex ? "DrawElements" : "DrawRangeElements" );
+	GLMDebugPrintf( "GL pair-local program parameter cache: %s\n", m_bUseProgramParamRevisionCache ? "ENABLED" : "DISABLED" );
 
 	m_nCurOwnerThreadId = ThreadGetCurrentId();
 	m_nThreadOwnershipReleaseCounter = 0;
@@ -2386,6 +2711,27 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
 	m_pDevice = pDevice;
 	m_nCurFrame = 0;
 	m_nBatchCounter = 0;
+
+	m_gpuTimerQuery[0] = m_gpuTimerQuery[1] = 0;
+	m_nGpuTimerIndex = 0;
+	m_bGpuTimerAvailable = gGL->m_bHave_GL_EXT_disjoint_timer_query;
+	m_bGpuTimerArmed = false;
+	m_bGpuTimerHasRecorded = false;
+	m_nGpuTimeNanos = 0;
+	m_flGpuFrameStart = 0.0f;
+	m_flGpuLastCpuMs = 0.0f;
+	m_flGpuReportStart = 0.0f;
+	m_nGpuReportFrames = 0;
+	m_flGpuAccumMs = 0.0f;
+	m_flCpuAccumMs = 0.0f;
+	m_flCpuPreSwapAccumMs = 0.0f;
+	m_flGpuFrameEndPreSwap = 0.0f;
+	m_nGpuFrameDraws = 0;
+	m_nGpuFrameProgramChanges = 0;
+	m_nGpuFrameUniformCalls = 0;
+	m_nGpuFrameUniformsSet = 0;
+	m_nGpuFrameResolves = 0;
+	m_nGpuFrameBlits = 0;
 
 	ClearCurAttribs();
 
@@ -2496,17 +2842,29 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
 #ifndef OSX
 	if ( m_bUseSamplerObjects )
 	{
-		memset( m_samplerObjectHash, 0, sizeof( m_samplerObjectHash ) );
+		m_samplerObjectHash = new SamplerHashEntry[cSamplerObjectHashSize];
+		memset( m_samplerObjectHash, 0, sizeof( SamplerHashEntry ) * cSamplerObjectHashSize );
+		m_nSamplerObjectHashSize = cSamplerObjectHashSize;
 		m_nSamplerObjectHashNumEntries = 0;
-	
+		m_nSamplerObjectHashEvictCursor = 0;
+
 		for ( uint i = 0; i < cSamplerObjectHashSize; ++i )
 		{
 			gGL->glGenSamplers( 1, &m_samplerObjectHash[i].m_samplerObject );
 		}
 	}
+	else
 #endif // !OSX
+	{
+		m_samplerObjectHash = NULL;
+		m_nSamplerObjectHashSize = cSamplerObjectHashSize;
+		m_nSamplerObjectHashNumEntries = 0;
+		m_nSamplerObjectHashEvictCursor = 0;
+	}
 
 	memset( m_samplers, 0, sizeof( m_samplers ) );
+	memset( m_nBoundSamplerObject, 0, sizeof( m_nBoundSamplerObject ) );
+	m_texScratchPoolBytes = 0;
 	for( int i=0; i< GLM_SAMPLER_COUNT; i++)
 	{
 		GLMTexSamplingParams &params = m_samplers[i].m_samp;
@@ -2516,6 +2874,8 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
 		params.m_packed.m_minFilter = D3DTEXF_POINT;
 		params.m_packed.m_magFilter = D3DTEXF_POINT;
 		params.m_packed.m_mipFilter = D3DTEXF_NONE;
+		params.m_packed.m_minLOD = 0;															// GL_TEXTURE_MIN_LOD: no fine cap (=D3DSAMP_MAXMIPLEVEL default of 0)
+		params.m_packed.m_maxLOD = ( 1 << GLM_PACKED_SAMPLER_PARAMS_MIN_LOD_BITS ) - 1;		// GL_TEXTURE_MAX_LOD: sentinel "no coarse cap". m_maxLOD is purely internal - D3D has no equivalent of the coarse cap; the engine never writes it. Without this init, the memset above leaves it at 0, which on GLES drivers (where commit 02aa9be1 wires actual GL_TEXTURE_MAX_LOD emission) clamps the sampler to base level only. Per-texture streaming (WriteTexels' m_maxActiveMip) intersects this at flush time via MIN(m_maxLOD, m_maxActiveMip).
 		params.m_packed.m_maxAniso = 1;
 		params.m_packed.m_isValid = true;
 		params.m_packed.m_compareMode = 0;
@@ -2532,12 +2892,18 @@ GLMContext::GLMContext( IDirect3DDevice9 *pDevice, GLMDisplayParams *params )
 	m_boundReadFBO = NULL;
 	m_boundDrawFBO = NULL;
 	m_drawingFBO = NULL;
+	m_nReadTexelsFBO = 0;
 											
 	memset( m_drawingProgram, 0, sizeof( m_drawingProgram ) );
 	m_bDirtyPrograms = true;
 	memset( m_programParamsF , 0, sizeof( m_programParamsF ) );
 	memset( m_programParamsB , 0, sizeof( m_programParamsB ) );
 	memset( m_programParamsI , 0, sizeof( m_programParamsI ) );
+	m_nProgramParamRevision = 0;
+	m_nProgramParamRevisionEpoch = 1;
+	memset( m_programParamRevisionF, 0, sizeof( m_programParamRevisionF ) );
+	memset( m_programParamRevisionB, 0, sizeof( m_programParamRevisionB ) );
+	memset( m_programParamRevisionI, 0, sizeof( m_programParamRevisionI ) );
 
 	for (uint i = 0; i < ARRAYSIZE(m_programParamsF); i++)
 	{
@@ -2728,8 +3094,41 @@ void GLMContext::Reset()
 {
 }
 
+void GLMContext::UpdateClipPlaneUniforms()
+{
+	if ( !m_pBoundPair )
+		return;
+
+	float plane0[4], plane1[4];
+	memcpy( plane0, m_flClipPlaneOrig[0], sizeof(plane0) );
+	memcpy( plane1, m_flClipPlaneOrig[1], sizeof(plane1) );
+
+	if ( !m_ClipPlaneEnable.GetDataIndex(0).enable )
+		memset( plane0, 0, sizeof(plane0) );
+
+	if ( !m_ClipPlaneEnable.GetDataIndex(1).enable )
+		memset( plane1, 0, sizeof(plane1) );
+
+	m_pBoundPair->UpdateClipPlaneUniforms( plane0, plane1 );
+}
+
 GLMContext::~GLMContext	()
 {
+	// The persistent ring buffers are member objects, so their destructors
+	// would run AFTER this dtor body - i.e. after DecrementWindowRefCount()
+	// at the bottom deletes the SDL GL context, making every GL call in
+	// CPersistentBuffer::Deinit crash on a dead context.  Deinit them now,
+	// while the context is still current.  Deinit is idempotent (early-outs
+	// when the buffer was never initialized), so the later member dtors are
+	// harmless.
+	for ( uint lpType = 0; lpType < kGLMNumBufferTypes; ++lpType )
+	{
+		for ( uint lpNum = 0; lpNum < cNumPersistentBuffers; ++lpNum )
+		{
+			m_persistentBuffer[lpNum][lpType].Deinit();
+		}
+	}
+
 	if (m_debugFontTex)
 	{
 		DelTex( m_debugFontTex );
@@ -2764,9 +3163,87 @@ GLMContext::~GLMContext	()
 
 	gGL->glDeleteBuffers( 1, &m_destroyPBO );
 
+	if ( m_gpuTimerQuery[0] )
+	{
+		gGL->glDeleteQueries( 2, m_gpuTimerQuery );
+		m_gpuTimerQuery[0] = m_gpuTimerQuery[1] = 0;
+	}
+
+	if ( m_nReadTexelsFBO )
+	{
+		gGL->glDeleteFramebuffers( 1, &m_nReadTexelsFBO );
+		m_nReadTexelsFBO = 0;
+	}
+
+#ifndef OSX
+	if ( m_samplerObjectHash )
+	{
+		for ( uint i = 0; i < m_nSamplerObjectHashSize; ++i )
+		{
+			if ( m_samplerObjectHash[i].m_samplerObject )
+			{
+				gGL->glDeleteSamplers( 1, &m_samplerObjectHash[i].m_samplerObject );
+				m_samplerObjectHash[i].m_samplerObject = 0;
+			}
+		}
+		delete[] m_samplerObjectHash;
+		m_samplerObjectHash = NULL;
+	}
+#endif
+
 	PurgeTexCache();
 
+	// Free the texture-lock scratch pool.
+	FOR_EACH_VEC( m_texScratchPool, i )
+	{
+		free( m_texScratchPool[i].m_pPtr );
+	}
+	m_texScratchPool.Purge();
+	m_texScratchPoolBytes = 0;
+
 	DecrementWindowRefCount();
+}
+
+// Scratch slabs for CGLMTex::Lock/Unlock backing stores.  Capped at
+// cMaxTexScratchPoolBytes so a run that touches many distinct textures
+// degrades to plain malloc/free instead of pinning unbounded RAM.
+#define cMaxTexScratchPoolBytes ( 32 * 1024 * 1024 )
+
+char *GLMContext::AcquireTexScratch( uint nSize )
+{
+	if ( nSize <= cMaxTexScratchPoolBytes )
+	{
+		FOR_EACH_VEC_BACK( m_texScratchPool, i )
+		{
+			TexScratchSlab_t &slab = m_texScratchPool[i];
+			if ( slab.m_nSize >= nSize )
+			{
+				char *pPtr = slab.m_pPtr;
+				m_texScratchPoolBytes -= slab.m_nSize;
+				m_texScratchPool.Remove( i );
+				return pPtr;
+			}
+		}
+	}
+	return (char *)malloc( nSize );
+}
+
+void GLMContext::ReleaseTexScratch( char *pPtr, uint nSize )
+{
+	if ( !pPtr )
+		return;
+
+	if ( ( m_texScratchPoolBytes + nSize ) > cMaxTexScratchPoolBytes )
+	{
+		free( pPtr );
+		return;
+	}
+
+	TexScratchSlab_t slab;
+	slab.m_pPtr = pPtr;
+	slab.m_nSize = nSize;
+	m_texScratchPool.AddToTail( slab );
+	m_texScratchPoolBytes += nSize;
 }
 
 // This method must call SelectTMU()/glActiveTexture() (it's expected as a side effect).
@@ -2812,9 +3289,16 @@ void GLMContext::BindFBOToCtx( CGLMFBO *fbo, GLenum bindPoint )
 
 	if ( bindPoint == GL_FRAMEBUFFER )
 	{
-		gGL->glBindFramebuffer( GL_FRAMEBUFFER, fbo ? fbo->m_name : 0 );
-		m_boundReadFBO = fbo;
-		m_boundDrawFBO = fbo;
+		// Delta-check: skip the glBindFramebuffer when both read and draw already
+		// bind this FBO.  Source re-binds the same FBO frequently (shadow maps,
+		// post-fx passes) and each redundant bind forces the Mali driver to
+		// re-validate framebuffer state for no reason.
+		if ( ( m_boundReadFBO != fbo ) || ( m_boundDrawFBO != fbo ) )
+		{
+			gGL->glBindFramebuffer( GL_FRAMEBUFFER, fbo ? fbo->m_name : 0 );
+			m_boundReadFBO = fbo;
+			m_boundDrawFBO = fbo;
+		}
 		return;
 	}
 	
@@ -2825,16 +3309,20 @@ void GLMContext::BindFBOToCtx( CGLMFBO *fbo, GLenum bindPoint )
 	{
 		if (fbo)	// you can pass NULL to go back to no-FBO
 		{
-			gGL->glBindFramebuffer( GL_READ_FRAMEBUFFER, fbo->m_name );
-			
-			m_boundReadFBO = fbo;
+			if ( m_boundReadFBO != fbo )
+			{
+				gGL->glBindFramebuffer( GL_READ_FRAMEBUFFER, fbo->m_name );
+				m_boundReadFBO = fbo;
+			}
 			//dontcare fbo->m_bound = true;
 		}
 		else
 		{
-			gGL->glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
-			
-			m_boundReadFBO = NULL;
+			if ( m_boundReadFBO != NULL )
+			{
+				gGL->glBindFramebuffer( GL_READ_FRAMEBUFFER, 0 );
+				m_boundReadFBO = NULL;
+			}
 		}
 	}
 	
@@ -2842,16 +3330,20 @@ void GLMContext::BindFBOToCtx( CGLMFBO *fbo, GLenum bindPoint )
 	{
 		if (fbo)	// you can pass NULL to go back to no-FBO
 		{
-			gGL->glBindFramebuffer( GL_DRAW_FRAMEBUFFER, fbo->m_name );
-			
-			m_boundDrawFBO = fbo;
+			if ( m_boundDrawFBO != fbo )
+			{
+				gGL->glBindFramebuffer( GL_DRAW_FRAMEBUFFER, fbo->m_name );
+				m_boundDrawFBO = fbo;
+			}
 			//dontcare fbo->m_bound = true;
 		}
 		else
 		{
-			gGL->glBindFramebuffer( GL_DRAW_FRAMEBUFFER, 0 );
-			
-			m_boundDrawFBO = NULL;
+			if ( m_boundDrawFBO != NULL )
+			{
+				gGL->glBindFramebuffer( GL_DRAW_FRAMEBUFFER, 0 );
+				m_boundDrawFBO = NULL;
+			}
 		}
 	}
 }
@@ -2929,7 +3421,7 @@ void GLMContext::CleanupTex( GLenum texBind, GLMTexLayout* pLayout, GLuint tex )
 		return;
 
 	const GLuint oldPBO = m_nBoundGLBuffer[ kGLMPixelBuffer ];
-	const GLuint oldTex = ( m_samplers[ m_activeTexture ].m_pBoundTex != NULL ) ? m_samplers[ m_activeTexture ].m_pBoundTex->GetTexName() : 0;
+	const GLuint oldTex = ( m_activeTexture >= 0 ) && m_samplers[ m_activeTexture ].m_pBoundTex ? m_samplers[ m_activeTexture ].m_pBoundTex->GetTexName() : 0;
 
 	gGL->glBindBuffer( GL_PIXEL_UNPACK_BUFFER, m_destroyPBO );
 	gGL->glBindTexture( texBind, tex );
@@ -2938,19 +3430,9 @@ void GLMContext::CleanupTex( GLenum texBind, GLMTexLayout* pLayout, GLuint tex )
 	for ( int i = 0; i < pLayout->m_mipCount; ++i )
 	{
 		int mipDim = ( i == 0 ) ? kDeletedTextureDim : 0;
-		if ( pLayout->m_format->m_chunkSize != 1 )
-		{
-			const int chunks = ( mipDim + ( pLayout->m_format->m_chunkSize - 1 ) ) / pLayout->m_format->m_chunkSize;
-			const int dataSize = ( chunks * chunks ) * pLayout->m_format->m_bytesPerSquareChunk;
-			Assert( dataSize <= ( sizeof( uint32) * ARRAYSIZE( g_garbageTextureBits ) ) );
-
-			CompressedTexImage2D( texBind, i, pLayout->m_format->m_glIntFormat, mipDim, mipDim, 0, dataSize, NULL );
-		}
-		else
-		{
-			convert_texture( pLayout->m_format->m_glIntFormat, mipDim, mipDim, pLayout->m_format->m_glDataFormat, pLayout->m_format->m_glDataType, NULL );
-			gGL->glTexImage2D( texBind, i, pLayout->m_format->m_glIntFormat, mipDim, mipDim, 0, pLayout->m_format->m_glDataFormat, pLayout->m_format->m_glDataType, NULL );
-		}
+		
+		convert_texture( pLayout->m_format->m_glIntFormat, mipDim, mipDim, pLayout->m_format->m_glDataFormat, pLayout->m_format->m_glDataType, NULL );
+		gGL->glTexImage2D( texBind, i, pLayout->m_format->m_glIntFormat, mipDim, mipDim, 0, pLayout->m_format->m_glDataFormat, pLayout->m_format->m_glDataType, NULL );
 	}
 
 	gGL->glBindTexture( texBind, oldTex );
@@ -3058,6 +3540,128 @@ void GLMContext::MarkAllSamplersDirty()
 	}
 }
 
+void GLMContext::InvalidateSamplersForTex( CGLMTex *pTex )
+{
+	// Mark every sampler currently bound to *pTex as dirty so the next FlushDrawStates re-emits
+	// sampling params for it. CGLMTex::WriteTexels calls this when m_maxActiveMip grows on GLES
+	// drivers without GL_APPLE_texture_max_level, where the per-texture coarse cap must reach the
+	// sampler via GL_TEXTURE_MAX_LOD instead of GL_TEXTURE_MAX_LEVEL. SetSamplerDirty already
+	// deduplicates against the in-flight dirty queue.
+	Assert( pTex );
+	for ( uint i = 0; i < GLM_SAMPLER_COUNT; ++i )
+	{
+		if ( m_samplers[i].m_pBoundTex == pTex )
+		{
+			SetSamplerDirty( i );
+		}
+	}
+}
+
+void GLMContext::GrowSamplerObjectHash()
+{
+	Assert( m_samplerObjectHash );
+	Assert( m_nSamplerObjectHashSize < cMaxSamplerObjectHashSize );
+
+	const uint nOldSize = m_nSamplerObjectHashSize;
+	const uint nNewSize = nOldSize * 2;
+	const uint nHashMask = nNewSize - 1;
+
+	// Do NOT glGenSamplers the whole new table here: growth previously
+	// happened inside a draw call (via FindSamplerObject) and a burst of
+	// 512-2048 glGenSamplers mid-frame was a visible hitch on Mali.  Slots
+	// now generate their sampler object lazily on first insert
+	// (FindSamplerObject gens when m_samplerObject == 0), so growth is a
+	// pure memory move on the CPU.
+	SamplerHashEntry *pNewTable = new SamplerHashEntry[nNewSize];
+	memset( pNewTable, 0, sizeof( SamplerHashEntry ) * nNewSize );
+
+	// Re-insert the live entries; keys must re-probe into their new slots.
+	// Tombstone and empty slots stay empty in the new table.  Carried-over
+	// live entries bring their own sampler object; the fresh slots stay at
+	// 0 and generate on demand.
+	for ( uint i = 0; i < nOldSize; ++i )
+	{
+		const GLMTexSamplingParams &params = m_samplerObjectHash[i].m_params;
+		if ( !params.m_packed.m_isValid )
+			continue;
+
+		uint32 lodBits;
+		memcpy( &lodBits, &params.m_lodBias, sizeof(lodBits) );
+		uint h = bitmix32( params.m_bits + params.m_borderColor + bitmix32(lodBits) ) & nHashMask;
+		while ( pNewTable[h].m_params.m_packed.m_isValid )
+		{
+			if ( ++h > nHashMask )
+				h = 0;
+		}
+
+		pNewTable[h].m_params = params;
+		pNewTable[h].m_samplerObject = m_samplerObjectHash[i].m_samplerObject;
+	}
+
+	delete[] m_samplerObjectHash;
+	m_samplerObjectHash = pNewTable;
+	m_nSamplerObjectHashSize = nNewSize;
+}
+
+void GLMContext::EvictSamplerObjectHashEntry()
+{
+	Assert( m_samplerObjectHash );
+	Assert( m_nSamplerObjectHashNumEntries > 0 );
+
+	const uint nSize = m_nSamplerObjectHashSize;
+
+	// Scan from the round-robin cursor for a live entry whose sampler object
+	// is NOT currently bound to any texture unit.  Deleting a bound sampler
+	// object silently reverts that unit to the texture's default sampler state
+	// for the rest of the frame (the flush's dirty flags have already been
+	// consumed), so bound entries are never evicted.  At most GLM_SAMPLER_COUNT
+	// entries can be bound at once, so the scan always finds a victim.
+	for ( uint nScan = 0; nScan < nSize; ++nScan )
+	{
+		const uint victim = ( m_nSamplerObjectHashEvictCursor + nScan ) % nSize;
+
+		if ( !m_samplerObjectHash[victim].m_params.m_packed.m_isValid )
+			continue;
+
+		bool bBound = false;
+		for ( uint i = 0; i < GLM_SAMPLER_COUNT; ++i )
+		{
+			if ( m_nBoundSamplerObject[i] == m_samplerObjectHash[victim].m_samplerObject )
+			{
+				bBound = true;
+				break;
+			}
+		}
+		if ( bBound )
+			continue;
+
+		if ( m_samplerObjectHash[victim].m_samplerObject )
+		{
+			gGL->glDeleteSamplers( 1, &m_samplerObjectHash[victim].m_samplerObject );
+			m_samplerObjectHash[victim].m_samplerObject = 0;
+		}
+
+		// Mark the slot as a tombstone instead of a plain empty slot: probes
+		// walk PAST tombstones, so no probe-chain hole is created and lookups
+		// of keys that hash earlier in the chain still find their entries (no
+		// duplicate inserts, no orphaned sampler objects).
+		m_samplerObjectHash[victim].m_params.m_packed.m_isValid = false;
+		m_samplerObjectHash[victim].m_params.m_packed.m_tombstone = true;
+		--m_nSamplerObjectHashNumEntries;
+		m_nSamplerObjectHashEvictCursor = ( victim + 1 ) % nSize;
+		return;
+	}
+
+	// Every live entry is currently bound (only possible when the table is
+	// smaller than GLM_SAMPLER_COUNT).  Reuse the cursor slot without deleting
+	// its object; the next insert reconfigures it in place.
+	const uint victim = m_nSamplerObjectHashEvictCursor;
+	m_nSamplerObjectHashEvictCursor = ( victim + 1 ) % nSize;
+	m_samplerObjectHash[victim].m_params.m_packed.m_isValid = false;
+	m_samplerObjectHash[victim].m_params.m_packed.m_tombstone = true;
+	--m_nSamplerObjectHashNumEntries;
+}
+
 void GLMContext::FlushDrawStatesNoShaders( )
 {
 	Assert( ( m_drawingFBO == m_boundDrawFBO ) && ( m_drawingFBO == m_boundReadFBO ) ); // this check MUST succeed
@@ -3065,7 +3669,10 @@ void GLMContext::FlushDrawStatesNoShaders( )
 	GLM_FUNC;
 
 	GL_BATCH_PERF( m_FlushStats.m_nTotalBatchFlushes++; )
-			
+
+	// Clears consume scissor, write-mask, and clear-value state even though no
+	// shaders are bound, so commit the same deferred state block here.
+	FlushRenderStates();
 	NullProgram();
 }
 
@@ -4378,7 +4985,7 @@ void GLMContext::DebugClear( void )
 	clearcol.g = m_autoClearColorValues[1];
 	clearcol.b = m_autoClearColorValues[2];
 	clearcol.a = m_autoClearColorValues[3];
-	m_ClearColor.Write( &clearcol ); // don't check, don't defer
+	m_ClearColor.WriteAndFlush( &clearcol );
 	
 	uint mask = 0;
 	
@@ -4390,7 +4997,7 @@ void GLMContext::DebugClear( void )
 	gGL->glFinish();
 
 	// put old color back
-	m_ClearColor.Write( &clearcol_orig ); // don't check, don't defer
+	m_ClearColor.WriteAndFlush( &clearcol_orig );
 }
 
 #endif
@@ -4492,6 +5099,7 @@ void GLMContext::GenDebugFontTex( void )
 		lockreq.m_region.zmax = slice->m_zSize;
 
 		lockreq.m_readback = false;
+		lockreq.m_readonly = false;
 		
 		char	*lockAddress;
 		int		yStride;
@@ -4706,7 +5314,11 @@ void GLMContext::DrawDebugText( float x, float y, float z, float drawCharWidth, 
 
 	SetVertexAttributes( &vertSetup );
 
-	gGL->glDrawArrays( GL_QUADS, 0, stringlen * 4 );
+	// GL_QUADS is not valid in OpenGL ES.  Each glyph is laid out as 4
+	// consecutive vertices, which a GL_TRIANGLE_STRIP turns into the same
+	// quad (this is GLMDEBUG-only diagnostics text).
+	for ( int nGlyph = 0; nGlyph < stringlen; ++nGlyph )
+		gGL->glDrawArrays( GL_TRIANGLE_STRIP, nGlyph * 4, 4 );
 
 	SetVertexAttributes( NULL );
 
@@ -4793,6 +5405,7 @@ void GLMContext::SetDefaultStates( void )
 
 	m_ClipPlaneEnable.Default();
 	m_ClipPlaneEquation.Default();
+	++m_nClipPlaneStateRevision;
 	
 	m_ScissorEnable.Default();	
 	m_ScissorBox.Default();
@@ -4820,7 +5433,8 @@ void GLMContext::SetDefaultStates( void )
 
 	m_ClearColor.Default();
 	m_ClearDepth.Default();
-	m_ClearStencil.Default();	
+	m_ClearStencil.Default();
+	m_bDirtyRenderStates = false;
 }
 
 void GLMContext::VerifyStates		( void )
@@ -5003,7 +5617,10 @@ void GLMContext::DrawRangeElementsNonInline( GLenum mode, GLuint start, GLuint e
 
 	if ( m_pBoundPair )
 	{
-		gGL->glDrawRangeElementsBaseVertex( mode, start, end, count, type, indicesActual, baseVertex );
+		if ( m_bUseDrawElementsBaseVertex )
+			gGL->glDrawElementsBaseVertex( mode, count, type, indicesActual, baseVertex );
+		else
+			gGL->glDrawRangeElementsBaseVertex( mode, start, end, count, type, indicesActual, baseVertex );
 
 #if GLMDEBUG
 		if ( m_slowCheckEnable )
@@ -5548,7 +6165,7 @@ void GLMTester::Test0( void )
 
 										gtp.m_format			=	ptex->m_layout->m_format->m_d3dFormat;
 										gtp.m_dest				=	lockAddress;
-										gtp.m_chunkCount		=	(slice->m_xSize * slice->m_ySize * slice->m_zSize) / (ptex->m_layout->m_format->m_chunkSize * ptex->m_layout->m_format->m_chunkSize);
+										gtp.m_chunkCount		=	((slice->m_xSize + ptex->m_layout->m_format->m_blockWidth - 1) / ptex->m_layout->m_format->m_blockWidth) * ((slice->m_ySize + ptex->m_layout->m_format->m_blockHeight - 1) / ptex->m_layout->m_format->m_blockHeight) * ((slice->m_zSize + MAX(ptex->m_layout->m_format->m_blockDepth, 1) - 1) / MAX(ptex->m_layout->m_format->m_blockDepth, 1));
 										gtp.m_byteCountLimit	=	slice->m_storageSize;
 										gtp.r = 0.75;
 										gtp.g = 0.40;

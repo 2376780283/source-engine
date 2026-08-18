@@ -307,6 +307,41 @@ public:
 	int m_nOpenGLVersionPatch;  // if GL_VERSION is 2.1.0, this will be set to 0.
 	bool m_bHave_OpenGL;
 
+	// Empirical per-target results of the GL_TEXTURE_BASE_LEVEL /
+	// GL_TEXTURE_MAX_LEVEL probe run at context creation (see the
+	// COpenGLEntryPoints constructor).  The pnames are core on desktop GL
+	// (1.2+) and GLES 3.0+, yet some mobile GLES drivers (e.g. Mali-G31 r13p0)
+	// reject them with GL_INVALID_ENUM even in an ES 3.2 context, so version
+	// checks are not sufficient.  Targets that fail the probe fall back to the
+	// sampler-side GL_TEXTURE_MAX_LOD clamp in FlushDrawStates.
+	bool m_bHaveCoreTexLevelClamp2D;
+	bool m_bHaveCoreTexLevelClamp3D;
+	bool m_bHaveCoreTexLevelClampCube;
+
+	FORCEINLINE bool HaveCoreTexLevelClamp( GLenum texGLTarget ) const
+	{
+		switch ( texGLTarget )
+		{
+			case GL_TEXTURE_2D:	return m_bHaveCoreTexLevelClamp2D;
+			case GL_TEXTURE_3D:	return m_bHaveCoreTexLevelClamp3D;
+			default:			return m_bHaveCoreTexLevelClampCube;	// cube map and per-face targets
+		}
+	}
+
+	// Runtime self-heal: called when a level-clamp glTexParameteri fails at
+	// texture-write time even though the startup probe accepted the pname.
+	// The target is latched off permanently so the renderer falls back to the
+	// sampler-side GL_TEXTURE_MAX_LOD clamp and never issues the call again.
+	void DisableCoreTexLevelClamp( GLenum texGLTarget )
+	{
+		switch ( texGLTarget )
+		{
+			case GL_TEXTURE_2D:	m_bHaveCoreTexLevelClamp2D = false; break;
+			case GL_TEXTURE_3D:	m_bHaveCoreTexLevelClamp3D = false; break;
+			default:			m_bHaveCoreTexLevelClampCube = false; break;
+		}
+	}
+
 	char *m_pGLDriverStrings[cGLTotalDriverStrings];
 	GLDriverProvider_t m_nDriverProvider;
 

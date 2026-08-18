@@ -9,6 +9,7 @@
 #include "inputsystem/ButtonCode.h"
 #include "inputsystem/AnalogCode.h"
 #include "tier0/etwprof.h"
+#include "tier0/fasttimer.h"
 #include "tier1/convar.h"
 #include "tier0/icommandline.h"
 
@@ -22,6 +23,76 @@ static void initKeymap(void);
 #include "xbox/xbox_win32stubs.h"
 #endif
 ConVar joy_xcontroller_found( "joy_xcontroller_found", "1", FCVAR_HIDDEN, "Automatically set to 1 if an xcontroller has been detected." );
+
+#define INPUT_POLL_PERF_ANALYSIS 0
+
+#if INPUT_POLL_PERF_ANALYSIS
+struct CInputPollPerfStats
+{
+	CCycleCount m_PollTime;
+	CCycleCount m_InitialCopyTime;
+	CCycleCount m_SampleDevicesTime;
+	CCycleCount m_JoystickTime;
+	CCycleCount m_SteamControllersTime;
+	CCycleCount m_PlatformTime;
+	CCycleCount m_FinalCopyTime;
+	uint64 m_nPolls;
+	uint64 m_nSamples;
+
+	void Reset()
+	{
+		m_PollTime.Init();
+		m_InitialCopyTime.Init();
+		m_SampleDevicesTime.Init();
+		m_JoystickTime.Init();
+		m_SteamControllersTime.Init();
+		m_PlatformTime.Init();
+		m_FinalCopyTime.Init();
+		m_nPolls = 0;
+		m_nSamples = 0;
+	}
+};
+
+static CInputPollPerfStats s_InputPollPerfStats;
+
+CON_COMMAND( input_dump_poll_stats, "Print input polling timing; pass 1 to reset after printing." )
+{
+	const double flPolls = (double)s_InputPollPerfStats.m_nPolls;
+	const double flSamples = (double)s_InputPollPerfStats.m_nSamples;
+	const double flPollMS = s_InputPollPerfStats.m_PollTime.GetMillisecondsF();
+	const double flInitialCopyMS = s_InputPollPerfStats.m_InitialCopyTime.GetMillisecondsF();
+	const double flSampleMS = s_InputPollPerfStats.m_SampleDevicesTime.GetMillisecondsF();
+	const double flJoystickMS = s_InputPollPerfStats.m_JoystickTime.GetMillisecondsF();
+	const double flSteamMS = s_InputPollPerfStats.m_SteamControllersTime.GetMillisecondsF();
+	const double flPlatformMS = s_InputPollPerfStats.m_PlatformTime.GetMillisecondsF();
+	const double flFinalCopyMS = s_InputPollPerfStats.m_FinalCopyTime.GetMillisecondsF();
+	const double flPollOtherMS = MAX( 0.0, flPollMS - flInitialCopyMS - flSampleMS - flPlatformMS - flFinalCopyMS );
+	const double flSampleOtherMS = MAX( 0.0, flSampleMS - flJoystickMS - flSteamMS );
+
+	ConMsg( "Input poll: Calls: %llu Total: %4.3fms (%4.3fms/call) InitialCopy: %4.3fms SampleDevices: %4.3fms Platform/events: %4.3fms FinalCopy: %4.3fms Other: %4.3fms\n",
+		(unsigned long long)s_InputPollPerfStats.m_nPolls,
+		flPollMS,
+		flPolls ? flPollMS / flPolls : 0.0,
+		flInitialCopyMS,
+		flSampleMS,
+		flPlatformMS,
+		flFinalCopyMS,
+		flPollOtherMS );
+	ConMsg( "Input sample: Calls: %llu Joystick: %4.3fms (%4.3fms/call) Steam controllers: %4.3fms (%4.3fms/call) Other: %4.3fms (%4.3fms/call)\n",
+		(unsigned long long)s_InputPollPerfStats.m_nSamples,
+		flJoystickMS,
+		flSamples ? flJoystickMS / flSamples : 0.0,
+		flSteamMS,
+		flSamples ? flSteamMS / flSamples : 0.0,
+		flSampleOtherMS,
+		flSamples ? flSampleOtherMS / flSamples : 0.0 );
+
+	if ( args.ArgC() == 2 && args.Arg(1)[0] != '0' )
+	{
+		s_InputPollPerfStats.Reset();
+	}
+}
+#endif
 
 //-----------------------------------------------------------------------------
 // Singleton instance
@@ -870,15 +941,36 @@ void CInputSystem::PollInputState_Platform()
 //-----------------------------------------------------------------------------
 void CInputSystem::PollInputState()
 {
+#if INPUT_POLL_PERF_ANALYSIS
+	CFastTimer pollTimer;
+	pollTimer.Start();
+#endif
+
 	m_bIsPolling = true;
 	++m_nPollCount;
 
 	// Deals with polled input events
 	InputState_t &queuedState = m_InputState[ INPUT_STATE_QUEUED ];
+#if INPUT_POLL_PERF_ANALYSIS
+	CFastTimer initialCopyTimer;
+	initialCopyTimer.Start();
+#endif
 	CopyInputState( &m_InputState[ INPUT_STATE_CURRENT ], queuedState, true );
+#if INPUT_POLL_PERF_ANALYSIS
+	initialCopyTimer.End();
+	s_InputPollPerfStats.m_InitialCopyTime += initialCopyTimer.GetDuration();
+#endif
 
 	// Sample the joystick
+#if INPUT_POLL_PERF_ANALYSIS
+	CFastTimer sampleDevicesTimer;
+	sampleDevicesTimer.Start();
+#endif
 	SampleDevices();
+#if INPUT_POLL_PERF_ANALYSIS
+	sampleDevicesTimer.End();
+	s_InputPollPerfStats.m_SampleDevicesTime += sampleDevicesTimer.GetDuration();
+#endif
 
 	// NOTE: This happens after SampleDevices since that updates LastSampleTick
 	// Also, I believe it's correct to post the joystick events with
@@ -890,13 +982,35 @@ void CInputSystem::PollInputState()
 #endif
 
 #if defined( USE_SDL )
+#if INPUT_POLL_PERF_ANALYSIS
+	CFastTimer platformTimer;
+	platformTimer.Start();
+#endif
 	PollInputState_Platform();
+#if INPUT_POLL_PERF_ANALYSIS
+	platformTimer.End();
+	s_InputPollPerfStats.m_PlatformTime += platformTimer.GetDuration();
+#endif
 #endif
 
 	// Leave the queued state up-to-date with the current
+#if INPUT_POLL_PERF_ANALYSIS
+	CFastTimer finalCopyTimer;
+	finalCopyTimer.Start();
+#endif
 	CopyInputState( &queuedState, m_InputState[ INPUT_STATE_CURRENT ], false );
+#if INPUT_POLL_PERF_ANALYSIS
+	finalCopyTimer.End();
+	s_InputPollPerfStats.m_FinalCopyTime += finalCopyTimer.GetDuration();
+#endif
 
 	m_bIsPolling = false;
+
+#if INPUT_POLL_PERF_ANALYSIS
+	pollTimer.End();
+	s_InputPollPerfStats.m_PollTime += pollTimer.GetDuration();
+	++s_InputPollPerfStats.m_nPolls;
+#endif
 }
 
 
@@ -938,7 +1052,15 @@ void CInputSystem::SampleDevices( void )
 {
 	m_nLastSampleTick = ComputeSampleTick();
 
+#if INPUT_POLL_PERF_ANALYSIS
+	CFastTimer joystickTimer;
+	joystickTimer.Start();
+#endif
 	PollJoystick();
+#if INPUT_POLL_PERF_ANALYSIS
+	joystickTimer.End();
+	s_InputPollPerfStats.m_JoystickTime += joystickTimer.GetDuration();
+#endif
 
 #if defined( PLATFORM_WINDOWS_PC )
 	// NVNT if we have device/s poll them.
@@ -948,7 +1070,16 @@ void CInputSystem::SampleDevices( void )
 	}
 #endif
 
+#if INPUT_POLL_PERF_ANALYSIS
+	CFastTimer steamControllersTimer;
+	steamControllersTimer.Start();
+#endif
 	PollSteamControllers();
+#if INPUT_POLL_PERF_ANALYSIS
+	steamControllersTimer.End();
+	s_InputPollPerfStats.m_SteamControllersTime += steamControllersTimer.GetDuration();
+	++s_InputPollPerfStats.m_nSamples;
+#endif
 }
 
 //-----------------------------------------------------------------------------

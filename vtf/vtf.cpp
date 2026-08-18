@@ -399,6 +399,78 @@ inline bool IsMultipleOf4( int value )
 	return ( value <= 2 ) || ( (value & 0x3) == 0 );
 }
 
+inline void GetASTCBlockDimensions( ImageFormat fmt, int &bw, int &bh )
+{
+	switch ( fmt )
+	{
+	case IMAGE_FORMAT_ASTC4x4:
+	case IMAGE_FORMAT_ASTC4x4_HDR:
+	case IMAGE_FORMAT_ASTC4x4x3:
+	case IMAGE_FORMAT_ASTC4x4x3_HDR:
+	case IMAGE_FORMAT_ASTC4x4x4:
+	case IMAGE_FORMAT_ASTC4x4x4_HDR:
+		bw = 4; bh = 4; break;
+	case IMAGE_FORMAT_ASTC5x4:
+	case IMAGE_FORMAT_ASTC5x4_HDR:
+	case IMAGE_FORMAT_ASTC5x4x4:
+	case IMAGE_FORMAT_ASTC5x4x4_HDR:
+		bw = 5; bh = 4; break;
+	case IMAGE_FORMAT_ASTC5x5:
+	case IMAGE_FORMAT_ASTC5x5_HDR:
+	case IMAGE_FORMAT_ASTC5x5x4:
+	case IMAGE_FORMAT_ASTC5x5x4_HDR:
+	case IMAGE_FORMAT_ASTC5x5x5:
+	case IMAGE_FORMAT_ASTC5x5x5_HDR:
+		bw = 5; bh = 5; break;
+	case IMAGE_FORMAT_ASTC6x5:
+	case IMAGE_FORMAT_ASTC6x5_HDR:
+	case IMAGE_FORMAT_ASTC6x5x5:
+	case IMAGE_FORMAT_ASTC6x5x5_HDR:
+		bw = 6; bh = 5; break;
+	case IMAGE_FORMAT_ASTC6x6:
+	case IMAGE_FORMAT_ASTC6x6_HDR:
+	case IMAGE_FORMAT_ASTC6x6x5:
+	case IMAGE_FORMAT_ASTC6x6x5_HDR:
+	case IMAGE_FORMAT_ASTC6x6x6:
+	case IMAGE_FORMAT_ASTC6x6x6_HDR:
+		bw = 6; bh = 6; break;
+	case IMAGE_FORMAT_ASTC8x5:
+	case IMAGE_FORMAT_ASTC8x5_HDR:
+		bw = 8; bh = 5; break;
+	case IMAGE_FORMAT_ASTC8x6:
+	case IMAGE_FORMAT_ASTC8x6_HDR:
+		bw = 8; bh = 6; break;
+	case IMAGE_FORMAT_ASTC8x8:
+	case IMAGE_FORMAT_ASTC8x8_HDR:
+		bw = 8; bh = 8; break;
+	case IMAGE_FORMAT_ASTC10x5:
+	case IMAGE_FORMAT_ASTC10x5_HDR:
+		bw = 10; bh = 5; break;
+	case IMAGE_FORMAT_ASTC10x6:
+	case IMAGE_FORMAT_ASTC10x6_HDR:
+		bw = 10; bh = 6; break;
+	case IMAGE_FORMAT_ASTC10x8:
+	case IMAGE_FORMAT_ASTC10x8_HDR:
+		bw = 10; bh = 8; break;
+	case IMAGE_FORMAT_ASTC10x10:
+	case IMAGE_FORMAT_ASTC10x10_HDR:
+		bw = 10; bh = 10; break;
+	case IMAGE_FORMAT_ASTC12x10:
+	case IMAGE_FORMAT_ASTC12x10_HDR:
+		bw = 12; bh = 10; break;
+	case IMAGE_FORMAT_ASTC12x12:
+	case IMAGE_FORMAT_ASTC12x12_HDR:
+		bw = 12; bh = 12; break;
+	case IMAGE_FORMAT_ASTC3x3x3:
+	case IMAGE_FORMAT_ASTC3x3x3_HDR:
+		bw = 3; bh = 3; break;
+	case IMAGE_FORMAT_ASTC4x3x3:
+	case IMAGE_FORMAT_ASTC4x3x3_HDR:
+		bw = 4; bh = 3; break;
+	default:
+		bw = 4; bh = 4; break;
+	}
+}
 
 //-----------------------------------------------------------------------------
 // Initialization
@@ -430,6 +502,17 @@ bool CVTFTexture::Init( int nWidth, int nHeight, int nDepth, ImageFormat fmt, in
 		if ( !IsMultipleOf4( nWidth ) || !IsMultipleOf4( nHeight ) || !IsMultipleOf4( nDepth ) )
 		{
 			Warning( "Image dimensions must be multiple of 4!\n" );
+			return false;
+		}
+	}
+
+	if ( ImageLoader::IsASTC( fmt ) )
+	{
+		int bw, bh;
+		GetASTCBlockDimensions( fmt, bw, bh );
+		if ( ( nWidth % bw != 0 ) || ( nHeight % bh != 0 ) )
+		{
+			Warning( "ASTC: dimensions must be multiples of %dx%d!\n", bw, bh );
 			return false;
 		}
 	}
@@ -696,15 +779,17 @@ bool CVTFTexture::LoadImageData( CUtlBuffer &buf, const VTFFileHeader_t &header,
 	if (nSkipMipLevels > 0)
 	{
 		Assert( m_nMipCount > nSkipMipLevels );
-		if (header.numMipLevels < nSkipMipLevels)
+		if ( header.numMipLevels <= nSkipMipLevels )
 		{
-			// NOTE: This can only happen with older format .vtf files
-			Warning("Warning! Encountered old format VTF file; please rebuild it!\n");
+			Warning( "VTF file has fewer mip levels (%d) than requested skip (%d). Rebuild with all mip levels.\n",
+				(int)header.numMipLevels, nSkipMipLevels );
 			return false;
 		}
-
-		ComputeMipLevelDimensions( nSkipMipLevels, &m_nWidth, &m_nHeight, &m_nDepth );
-		m_nMipCount -= nSkipMipLevels;
+		else
+		{
+			ComputeMipLevelDimensions( nSkipMipLevels, &m_nWidth, &m_nHeight, &m_nDepth );
+			m_nMipCount -= nSkipMipLevels;
+		}
 	}
 
 	// read the texture image (including mipmaps if they are there and needed.)
@@ -720,7 +805,7 @@ bool CVTFTexture::LoadImageData( CUtlBuffer &buf, const VTFFileHeader_t &header,
 	// NOTE: I checked in a bad version 4 where it stripped out the spheremap.
 	// To make it all work, need to check for that bad case.
 	bool bNoSkip = false;
-	if ( IsCubeMap() && ( header.version[0] == 7 ) && ( header.version[1] == 4 ) )
+	if ( IsCubeMap() && ( header.version[0] == 7 ) && ( header.version[1] >= 1 ) && ( header.version[1] <= 5 ) )
 	{
 		int nBytesRemaining = buf.TellMaxPut() - buf.TellGet();
 		int nFileSize = ComputeFaceSize( nSkipMipLevels ) * m_nFaceCount * m_nFrameCount;
@@ -745,7 +830,6 @@ retryCubemapLoad:
 		{
 			for (int iFace = 0; iFace < m_nFaceCount; ++iFace)
 			{
-				// printf("\n tex %p mip %i frame %i face %i  size %i  buf offset %i", this, iMip, iFrame, iFace, iMipSize, buf.TellGet() );
 				unsigned char *pMipBits = ImageData( iFrame, iFace, iMip );
 				buf.Get( pMipBits, iMipSize );
 			}
@@ -759,7 +843,7 @@ retryCubemapLoad:
 	}
 
 	bool bOk = buf.IsValid();
-	if ( !bOk && IsCubeMap() && ( header.version[0] == 7 ) && ( header.version[1] <= 4 ) )
+	if ( !bOk && IsCubeMap() && ( header.version[0] == 7 ) && ( header.version[1] <= 5 ) )
 	{
 		if ( !bNoSkip )
 		{
@@ -1086,12 +1170,11 @@ bool CVTFTexture::UnserializeEx( CUtlBuffer &buf, bool bHeaderOnly, int nForceFl
 	m_nFlags = header.flags;
 	m_nFrameCount = header.numFrames;
 
-
-	m_nFaceCount = (m_nFlags & TEXTUREFLAGS_ENVMAP) ? CUBEMAP_FACE_COUNT : 1;
-
 	// NOTE: We're going to store space for all mip levels, even if we don't 
 	// have data on disk for them. This is for backward compatibility
 	m_nMipCount = ComputeMipCount();
+
+	m_nFaceCount = (m_nFlags & TEXTUREFLAGS_ENVMAP) ? CUBEMAP_FACE_COUNT : 1;
 
 	m_nFinestMipmapLevel = 0;
 	m_nCoarsestMipmapLevel = m_nMipCount - 1;
