@@ -120,4 +120,3 @@
 #ifndef GL_MAP_COHERENT_BIT
 #define GL_MAP_COHERENT_BIT					0x0080
 #endif
-

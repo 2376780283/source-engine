@@ -1863,11 +1863,7 @@ void CMaterialSystem::ReadConfigFromConVars( MaterialSystem_Config_t *pConfig )
 	pConfig->m_fGammaTVExponent = mat_monitorgamma_tv_exp.GetFloat();
 	pConfig->m_bGammaTVEnabled = mat_monitorgamma_tv_enabled.GetBool();
 
-#ifdef TOGLES
-	pConfig->m_nAASamples = 0;
-#else
 	pConfig->m_nAASamples = mat_antialias.GetInt();
-#endif
 
 	pConfig->m_nAAQuality = mat_aaquality.GetInt();
 	pConfig->bShowDiffuse = mat_diffuse.GetInt() ? true : false;	
@@ -3109,8 +3105,7 @@ void CMaterialSystem::CacheUsedMaterials( )
 	for (MaterialHandle_t i = FirstMaterial(); i != InvalidMaterial(); i = NextMaterial(i) )
 	{
 		IMaterialInternal* pMat = GetMaterialInternal(i);
-		Assert( pMat->GetReferenceCount() >= 0 );
-		if( pMat->GetReferenceCount() > 0 )
+		if( pMat && pMat->GetReferenceCount() > 0 )
 		{
 			pMat->Precache();
 		}
@@ -3522,8 +3517,56 @@ ConVar mat_queue_mode( "mat_queue_mode", "-1", FCVAR_ARCHIVE, "The queue/thread 
 
 ConVar mat_queue_report( "mat_queue_report", "0", FCVAR_ARCHIVE, "Report thread stalls.  Positive number will filter by stalls >= time in ms.  -1 reports all locks." );
 
+#define MAT_WORKER_PERF_ANALYSIS 0
+
+#if MAT_WORKER_PERF_ANALYSIS
+static CThreadFastMutex s_MatWorkerPerfMutex;
+static CCycleCount s_MatWorkerPerfTime;
+static CCycleCount s_MatWorkerEndQueueTime;
+static double s_flMatWorkerPerfResetTime;
+static uint64 s_nMatWorkerPerfJobs;
+static uint64 s_nMatWorkerQueuedCalls;
+static uint64 s_nMatWorkerQueueBytes;
+
+CON_COMMAND( mat_dump_worker_stats, "Print queued material-worker time; pass 1 to reset after printing." )
+{
+	AUTO_LOCK( s_MatWorkerPerfMutex );
+	const double flTotalMS = s_MatWorkerPerfTime.GetMillisecondsF();
+	const double flEndQueueMS = s_MatWorkerEndQueueTime.GetMillisecondsF();
+	const double flElapsedMS = s_flMatWorkerPerfResetTime > 0.0 ?
+		( Plat_FloatTime() - s_flMatWorkerPerfResetTime ) * 1000.0 : 0.0;
+	ConMsg( "Material worker: Jobs: %llu Time: %4.3fms (%4.3fms/job, %4.1f%% capture busy)\n",
+		(unsigned long long)s_nMatWorkerPerfJobs,
+		flTotalMS,
+		s_nMatWorkerPerfJobs ? flTotalMS / s_nMatWorkerPerfJobs : 0.0,
+		flElapsedMS > 0.0 ? 100.0 * flTotalMS / flElapsedMS : 0.0 );
+	ConMsg( "Material worker queue: Calls: %llu (%4.2f/job) Memory: %llu bytes (%4.2f KB/job) EndQueue: %4.3fms (%4.3fms/job)\n",
+		(unsigned long long)s_nMatWorkerQueuedCalls,
+		s_nMatWorkerPerfJobs ? (double)s_nMatWorkerQueuedCalls / s_nMatWorkerPerfJobs : 0.0,
+		(unsigned long long)s_nMatWorkerQueueBytes,
+		s_nMatWorkerPerfJobs ? (double)s_nMatWorkerQueueBytes / ( 1024.0 * s_nMatWorkerPerfJobs ) : 0.0,
+		flEndQueueMS,
+		s_nMatWorkerPerfJobs ? flEndQueueMS / s_nMatWorkerPerfJobs : 0.0 );
+
+	if ( args.ArgC() == 2 && args.Arg(1)[0] != '0' )
+	{
+		s_MatWorkerPerfTime.Init();
+		s_MatWorkerEndQueueTime.Init();
+		s_flMatWorkerPerfResetTime = Plat_FloatTime();
+		s_nMatWorkerPerfJobs = 0;
+		s_nMatWorkerQueuedCalls = 0;
+		s_nMatWorkerQueueBytes = 0;
+	}
+}
+#endif
+
 void CMaterialSystem::ThreadExecuteQueuedContext( CMatQueuedRenderContext *pContext )
 {
+#if MAT_WORKER_PERF_ANALYSIS
+	CFastTimer workerTimer;
+	workerTimer.Start();
+#endif
+
 #ifdef RAD_TELEMETRY_ENABLED
 	tmZone( TELEMETRY_LEVEL0, TMZF_NONE, "%s-%s", __FUNCTION__, GetMatString( m_ThreadMode ) );
 	CTelemetrySpikeDetector Spike( "ThreadExecuteQueuedContext", 1 );
@@ -3534,9 +3577,30 @@ void CMaterialSystem::ThreadExecuteQueuedContext( CMatQueuedRenderContext *pCont
 	m_nRenderThreadID = ThreadGetCurrentId(); 
 	IMatRenderContextInternal* pSavedRenderContext = m_pRenderContext.Get();
 	m_pRenderContext.Set( &m_HardwareRenderContext );
+#if MAT_WORKER_PERF_ANALYSIS
+	const uint64 nQueuedCalls = pContext->GetCallQueueInternal()->Count();
+	const uint64 nQueueBytes = pContext->GetCallQueueInternal()->GetMemoryUsed();
+	CFastTimer endQueueTimer;
+	endQueueTimer.Start();
+#endif
 	pContext->EndQueue( true );
+#if MAT_WORKER_PERF_ANALYSIS
+	endQueueTimer.End();
+#endif
 	m_pRenderContext.Set( pSavedRenderContext );
 	m_nRenderThreadID = (uintp)-1;
+
+#if MAT_WORKER_PERF_ANALYSIS
+	workerTimer.End();
+	{
+		AUTO_LOCK( s_MatWorkerPerfMutex );
+		s_MatWorkerPerfTime += workerTimer.GetDuration();
+		s_MatWorkerEndQueueTime += endQueueTimer.GetDuration();
+		++s_nMatWorkerPerfJobs;
+		s_nMatWorkerQueuedCalls += nQueuedCalls;
+		s_nMatWorkerQueueBytes += nQueueBytes;
+	}
+#endif
 }
 
 IThreadPool *CMaterialSystem::CreateMatQueueThreadPool()
