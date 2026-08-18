@@ -248,6 +248,206 @@ D3DFORMAT GetNearestD3DColorFormat( ImageFormat fmt,
 		if (TestTextureFormat(D3DFMT_DXT5, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ))
 			return D3DFMT_DXT5;
 		break;
+	case IMAGE_FORMAT_ASTC4x4:
+		if ( TestTextureFormat( D3DFMT_ASTC4x4, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC4x4;
+		break;
+
+	case IMAGE_FORMAT_ASTC4x4_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC4x4_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC4x4_HDR;
+		break;
+
+	case IMAGE_FORMAT_ASTC5x4:
+		if ( TestTextureFormat( D3DFMT_ASTC5x4, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC5x4;
+		break;
+	case IMAGE_FORMAT_ASTC5x5:
+		if ( TestTextureFormat( D3DFMT_ASTC5x5, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC5x5;
+		break;
+	case IMAGE_FORMAT_ASTC6x5:
+		if ( TestTextureFormat( D3DFMT_ASTC6x5, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC6x5;
+		break;
+	case IMAGE_FORMAT_ASTC6x6:
+		if ( TestTextureFormat( D3DFMT_ASTC6x6, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC6x6;
+		break;
+	case IMAGE_FORMAT_ASTC8x5:
+		if ( TestTextureFormat( D3DFMT_ASTC8x5, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC8x5;
+		break;
+	case IMAGE_FORMAT_ASTC8x6:
+		if ( TestTextureFormat( D3DFMT_ASTC8x6, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC8x6;
+		break;
+	case IMAGE_FORMAT_ASTC8x8:
+		if ( TestTextureFormat( D3DFMT_ASTC8x8, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC8x8;
+		break;
+	case IMAGE_FORMAT_ASTC10x5:
+		if ( TestTextureFormat( D3DFMT_ASTC10x5, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC10x5;
+		break;
+	case IMAGE_FORMAT_ASTC10x6:
+		if ( TestTextureFormat( D3DFMT_ASTC10x6, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC10x6;
+		break;
+	case IMAGE_FORMAT_ASTC10x8:
+		if ( TestTextureFormat( D3DFMT_ASTC10x8, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC10x8;
+		break;
+	case IMAGE_FORMAT_ASTC10x10:
+		if ( TestTextureFormat( D3DFMT_ASTC10x10, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC10x10;
+		break;
+	case IMAGE_FORMAT_ASTC12x10:
+		if ( TestTextureFormat( D3DFMT_ASTC12x10, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC12x10;
+		break;
+	case IMAGE_FORMAT_ASTC12x12:
+		if ( TestTextureFormat( D3DFMT_ASTC12x12, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC12x12;
+		break;
+
+	// 3D ASTC LDR
+	case IMAGE_FORMAT_ASTC3x3x3:
+		if ( TestTextureFormat( D3DFMT_ASTC3x3x3, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC3x3x3;
+		break;
+	case IMAGE_FORMAT_ASTC4x3x3:
+		if ( TestTextureFormat( D3DFMT_ASTC4x3x3, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC4x3x3;
+		break;
+	case IMAGE_FORMAT_ASTC4x4x3:
+		if ( TestTextureFormat( D3DFMT_ASTC4x4x3, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC4x4x3;
+		break;
+	case IMAGE_FORMAT_ASTC4x4x4:
+		if ( TestTextureFormat( D3DFMT_ASTC4x4x4, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC4x4x4;
+		break;
+	case IMAGE_FORMAT_ASTC5x4x4:
+		if ( TestTextureFormat( D3DFMT_ASTC5x4x4, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC5x4x4;
+		break;
+	case IMAGE_FORMAT_ASTC5x5x4:
+		if ( TestTextureFormat( D3DFMT_ASTC5x5x4, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC5x5x4;
+		break;
+	case IMAGE_FORMAT_ASTC5x5x5:
+		if ( TestTextureFormat( D3DFMT_ASTC5x5x5, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC5x5x5;
+		break;
+	case IMAGE_FORMAT_ASTC6x5x5:
+		if ( TestTextureFormat( D3DFMT_ASTC6x5x5, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC6x5x5;
+		break;
+	case IMAGE_FORMAT_ASTC6x6x5:
+		if ( TestTextureFormat( D3DFMT_ASTC6x6x5, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC6x6x5;
+		break;
+	case IMAGE_FORMAT_ASTC6x6x6:
+		if ( TestTextureFormat( D3DFMT_ASTC6x6x6, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC6x6x6;
+		break;
+
+	// 2D ASTC HDR
+	case IMAGE_FORMAT_ASTC5x4_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC5x4_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC5x4_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC5x5_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC5x5_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC5x5_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC6x5_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC6x5_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC6x5_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC6x6_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC6x6_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC6x6_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC8x5_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC8x5_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC8x5_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC8x6_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC8x6_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC8x6_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC8x8_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC8x8_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC8x8_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC10x5_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC10x5_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC10x5_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC10x6_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC10x6_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC10x6_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC10x8_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC10x8_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC10x8_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC10x10_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC10x10_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC10x10_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC12x10_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC12x10_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC12x10_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC12x12_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC12x12_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC12x12_HDR;
+		break;
+
+	// 3D ASTC HDR
+	case IMAGE_FORMAT_ASTC3x3x3_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC3x3x3_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC3x3x3_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC4x3x3_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC4x3x3_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC4x3x3_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC4x4x3_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC4x4x3_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC4x4x3_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC4x4x4_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC4x4x4_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC4x4x4_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC5x4x4_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC5x4x4_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC5x4x4_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC5x5x4_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC5x5x4_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC5x5x4_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC5x5x5_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC5x5x5_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC5x5x5_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC6x5x5_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC6x5x5_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC6x5x5_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC6x6x5_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC6x6x5_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC6x6x5_HDR;
+		break;
+	case IMAGE_FORMAT_ASTC6x6x6_HDR:
+		if ( TestTextureFormat( D3DFMT_ASTC6x6x6_HDR, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ) )
+			return D3DFMT_ASTC6x6x6_HDR;
+		break;
 
 	case IMAGE_FORMAT_UV88:
 		if (TestTextureFormat(D3DFMT_V8U8, isRenderTarget, bIsVertexTexture, bIsFilterableRequired ))

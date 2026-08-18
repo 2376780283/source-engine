@@ -301,6 +301,23 @@ void	CGLMQuery::Complete( uint *result )
 			}
 			else
 			{
+				// Avoid a full CPU/GPU sync when the result is already available.
+				// On a tile-based GPU like Mali G31, GL_QUERY_RESULT blocks until the
+				// queried tile has been resolved, which can stall the render thread
+				// for a long time.  Poll GL_QUERY_RESULT_AVAILABLE first; only fall
+				// back to the blocking GL_QUERY_RESULT if it is genuinely not ready.
+				GLuint available = 0;
+				gGL->glGetQueryObjectuiv( m_name, GL_QUERY_RESULT_AVAILABLE, &available );
+				if ( !available )
+				{
+					// Result not ready yet.  Yield the CPU a few times before
+					// committing to the blocking read, to give the GPU a chance to
+					// catch up without a hard stall.
+					for ( int spin = 0; spin < 4 && !available; ++spin )
+					{
+						gGL->glGetQueryObjectuiv( m_name, GL_QUERY_RESULT_AVAILABLE, &available );
+					}
+				}
 				gGL->glGetQueryObjectuiv( m_name, GL_QUERY_RESULT, &resultval);
 				m_done = true;
 			}
@@ -316,12 +333,14 @@ void	CGLMQuery::Complete( uint *result )
 				{
 					if (gGL->glClientWaitSync( m_syncobj, 0, 0 ) != GL_ALREADY_SIGNALED)
 					{
-						GLenum syncstate;
-						do {
-							const GLuint64 timeout = 10 * ((GLuint64)1000 * 1000 * 1000);  // 10 seconds in nanoseconds.
-							(void)timeout;
-							syncstate = gGL->glClientWaitSync( m_syncobj, GL_SYNC_FLUSH_COMMANDS_BIT, 0 );
-						} while (syncstate == GL_TIMEOUT_EXPIRED);  // any errors or success break out of this loop.
+						// Flush the command stream once, then wait with a real
+						// timeout instead of a zero-timeout busy-spin.  The old
+						// code spinned glClientWaitSync(FLUSH_COMMANDS_BIT, 0),
+						// re-flushing every iteration and burning the CPU on a
+						// 2-core part.  1s is plenty for a frame's worth of work;
+						// if it actually times out something is very wrong.
+						GLenum syncstate = gGL->glClientWaitSync( m_syncobj, GL_SYNC_FLUSH_COMMANDS_BIT, 1000 * 1000 * 1000 );
+						(void)syncstate;
 					}
 				}
 				else

@@ -117,6 +117,69 @@ mat_fullbright 1 doesn't work properly on alpha materials in testroom_standards
 #pragma warning (disable:4189)
 #endif
 
+#define SHADERAPI_DRAW_PERF_ANALYSIS 0
+
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+struct CShaderAPIDrawPerfStats
+{
+	CCycleCount m_DrawMeshTime;
+	CCycleCount m_SetVertexDeclTime;
+	CCycleCount m_CommitStateChangesTime;
+	CCycleCount m_MaterialDrawTime;
+	CCycleCount m_SetDefaultStateTime;
+	CCycleCount m_BindTime;
+	uint64 m_nDrawMeshes;
+	uint64 m_nSetDefaultStates;
+	uint64 m_nBinds;
+
+	void Reset()
+	{
+		m_DrawMeshTime.Init();
+		m_SetVertexDeclTime.Init();
+		m_CommitStateChangesTime.Init();
+		m_MaterialDrawTime.Init();
+		m_SetDefaultStateTime.Init();
+		m_BindTime.Init();
+		m_nDrawMeshes = 0;
+		m_nSetDefaultStates = 0;
+		m_nBinds = 0;
+	}
+};
+
+static CShaderAPIDrawPerfStats s_ShaderAPIDrawPerfStats;
+
+CON_COMMAND( mat_dump_shaderapi_stats, "Print shader API draw setup timing; pass 1 to reset after printing." )
+{
+	const double flDraws = (double)s_ShaderAPIDrawPerfStats.m_nDrawMeshes;
+	const double flDrawMS = s_ShaderAPIDrawPerfStats.m_DrawMeshTime.GetMillisecondsF();
+	const double flDeclMS = s_ShaderAPIDrawPerfStats.m_SetVertexDeclTime.GetMillisecondsF();
+	const double flCommitMS = s_ShaderAPIDrawPerfStats.m_CommitStateChangesTime.GetMillisecondsF();
+	const double flMaterialMS = s_ShaderAPIDrawPerfStats.m_MaterialDrawTime.GetMillisecondsF();
+	const double flDefaultMS = s_ShaderAPIDrawPerfStats.m_SetDefaultStateTime.GetMillisecondsF();
+	const double flBindMS = s_ShaderAPIDrawPerfStats.m_BindTime.GetMillisecondsF();
+
+	ConMsg( "ShaderAPI draws: %llu total, %4.3fms (%4.6fms/draw); SetVertexDecl: %4.3fms; CommitStateChanges: %4.3fms; MaterialDraw: %4.3fms\n",
+		(unsigned long long)s_ShaderAPIDrawPerfStats.m_nDrawMeshes,
+		flDrawMS,
+		flDraws ? flDrawMS / flDraws : 0.0,
+		flDeclMS,
+		flCommitMS,
+		flMaterialMS );
+	ConMsg( "ShaderAPI state: SetDefaultState: %llu calls, %4.3fms (%4.6fms/call); Bind: %llu calls, %4.3fms (%4.6fms/call)\n",
+		(unsigned long long)s_ShaderAPIDrawPerfStats.m_nSetDefaultStates,
+		flDefaultMS,
+		s_ShaderAPIDrawPerfStats.m_nSetDefaultStates ? flDefaultMS / s_ShaderAPIDrawPerfStats.m_nSetDefaultStates : 0.0,
+		(unsigned long long)s_ShaderAPIDrawPerfStats.m_nBinds,
+		flBindMS,
+		s_ShaderAPIDrawPerfStats.m_nBinds ? flBindMS / s_ShaderAPIDrawPerfStats.m_nBinds : 0.0 );
+
+	if ( args.ArgC() == 2 && args.Arg(1)[0] != '0' )
+	{
+		s_ShaderAPIDrawPerfStats.Reset();
+	}
+}
+#endif
+
 ConVar mat_texture_limit( "mat_texture_limit", "-1", FCVAR_NEVER_AS_STRING, 
 	"If this value is not -1, the material system will limit the amount of texture memory it uses in a frame."
 	" Useful for identifying performance cliffs. The value is in kilobytes." );
@@ -3774,6 +3837,11 @@ void CShaderAPIDx8::ResetRenderState( bool bFullReset )
 //-----------------------------------------------------------------------------
 void CShaderAPIDx8::SetDefaultState()
 {
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	CFastTimer setDefaultStateTimer;
+	setDefaultStateTimer.Start();
+	++s_ShaderAPIDrawPerfStats.m_nSetDefaultStates;
+#endif
 	LOCK_SHADERAPI();
 
 	// NOTE: This used to be in the material system, but I want to avoid all the per pass/batch
@@ -3801,6 +3869,10 @@ void CShaderAPIDx8::SetDefaultState()
 	CShaderAPIDx8::SetPixelShaderIndex( );
 
 	MeshMgr()->MarkUnusedVertexFields( 0, 0, NULL );
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	setDefaultStateTimer.End();
+	s_ShaderAPIDrawPerfStats.m_SetDefaultStateTime += setDefaultStateTimer.GetDuration();
+#endif
 }
 
 
@@ -3901,6 +3973,12 @@ void CShaderAPIDx8::DrawMesh( CMeshBase *pMesh )
 	if ( ShaderUtil()->GetConfig().m_bSuppressRendering )
 		return;
 
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	CFastTimer shaderAPIDrawTimer;
+	shaderAPIDrawTimer.Start();
+	++s_ShaderAPIDrawPerfStats.m_nDrawMeshes;
+#endif
+
 #if defined( PIX_INSTRUMENTATION ) || defined( NVPERFHUD )
 	PIXifyName( s_pPIXMaterialName, sizeof( s_pPIXMaterialName ), m_pMaterial->GetName() );
 	BeginPIXEvent( PIX_VALVE_ORANGE, s_pPIXMaterialName );
@@ -3908,14 +3986,40 @@ void CShaderAPIDx8::DrawMesh( CMeshBase *pMesh )
 
 	m_pRenderMesh = pMesh;
 	VertexFormat_t vertexFormat = m_pRenderMesh->GetVertexFormat();
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	CFastTimer setVertexDeclTimer;
+	setVertexDeclTimer.Start();
+#endif
 	SetVertexDecl( vertexFormat, m_pRenderMesh->HasColorMesh(), m_pRenderMesh->HasFlexMesh(), m_pMaterial->IsUsingVertexID() );
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	setVertexDeclTimer.End();
+	s_ShaderAPIDrawPerfStats.m_SetVertexDeclTime += setVertexDeclTimer.GetDuration();
+	CFastTimer commitStateChangesTimer;
+	commitStateChangesTimer.Start();
+#endif
 	CommitStateChanges();
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	commitStateChangesTimer.End();
+	s_ShaderAPIDrawPerfStats.m_CommitStateChangesTime += commitStateChangesTimer.GetDuration();
+#endif
 	Assert( m_pRenderMesh && m_pMaterial );
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	CFastTimer materialDrawTimer;
+	materialDrawTimer.Start();
+#endif
 	m_pMaterial->DrawMesh( CompressionType( vertexFormat ) );
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	materialDrawTimer.End();
+	s_ShaderAPIDrawPerfStats.m_MaterialDrawTime += materialDrawTimer.GetDuration();
+#endif
 	m_pRenderMesh = NULL;
 
 #if defined( PIX_INSTRUMENTATION ) || defined( NVPERFHUD )
 	EndPIXEvent();
+#endif
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	shaderAPIDrawTimer.End();
+	s_ShaderAPIDrawPerfStats.m_DrawMeshTime += shaderAPIDrawTimer.GetDuration();
 #endif
 }
 
@@ -3925,6 +4029,12 @@ void CShaderAPIDx8::DrawWithVertexAndIndexBuffers( void )
 	if ( ShaderUtil()->GetConfig().m_bSuppressRendering )
 		return;
 
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	CFastTimer shaderAPIDrawTimer;
+	shaderAPIDrawTimer.Start();
+	++s_ShaderAPIDrawPerfStats.m_nDrawMeshes;
+#endif
+
 #if defined( PIX_INSTRUMENTATION ) || defined( NVPERFHUD )
 	PIXifyName( s_pPIXMaterialName, sizeof( s_pPIXMaterialName ), m_pMaterial->GetName());
 	BeginPIXEvent( PIX_VALVE_ORANGE, s_pPIXMaterialName );
@@ -3933,9 +4043,25 @@ void CShaderAPIDx8::DrawWithVertexAndIndexBuffers( void )
 //	m_pRenderMesh = pMesh;
 	// FIXME: need to make this deal with multiple streams, etc.
 	VertexFormat_t vertexFormat = MeshMgr()->GetCurrentVertexFormat();
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	CFastTimer setVertexDeclTimer;
+	setVertexDeclTimer.Start();
+#endif
 	SetVertexDecl( vertexFormat, false /*m_pRenderMesh->HasColorMesh()*/, 
 		false /*m_pRenderMesh->HasFlexMesh()*/, false /*m_pRenderMesh->IsUsingMorphData()*/ );
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	setVertexDeclTimer.End();
+	s_ShaderAPIDrawPerfStats.m_SetVertexDeclTime += setVertexDeclTimer.GetDuration();
+	CFastTimer commitStateChangesTimer;
+	commitStateChangesTimer.Start();
+#endif
 	CommitStateChanges();
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	commitStateChangesTimer.End();
+	s_ShaderAPIDrawPerfStats.m_CommitStateChangesTime += commitStateChangesTimer.GetDuration();
+	CFastTimer materialDrawTimer;
+	materialDrawTimer.Start();
+#endif
 	if ( m_pMaterial )
 	{
 		m_pMaterial->DrawMesh( CompressionType( vertexFormat ) );
@@ -3944,10 +4070,18 @@ void CShaderAPIDx8::DrawWithVertexAndIndexBuffers( void )
 	{
 		MeshMgr()->RenderPassWithVertexAndIndexBuffers();
 	}
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	materialDrawTimer.End();
+	s_ShaderAPIDrawPerfStats.m_MaterialDrawTime += materialDrawTimer.GetDuration();
+#endif
 //	m_pRenderMesh = NULL;
 
 #if defined( PIX_INSTRUMENTATION ) || defined( NVPERFHUD )
 	EndPIXEvent();
+#endif
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	shaderAPIDrawTimer.End();
+	s_ShaderAPIDrawPerfStats.m_DrawMeshTime += shaderAPIDrawTimer.GetDuration();
 #endif
 }
 
@@ -6308,8 +6442,28 @@ FORCEINLINE void CShaderAPIDx8::SetVertexShaderConstantInternal( int var, float 
 	{
 		Assert( var + numVecs <= g_pHardwareConfig->NumVertexShaderConstants() );
 
-		if ( !bForce && memcmp( pVec, &m_DynamicState.m_pVectorVertexShaderConstant[var], numVecs * 4 * sizeof( float ) ) == 0 )
-			return;
+		if ( !bForce )
+		{
+			// Skip the unchanged head, then submit only the changed tail -
+			// same trick as the pixel-shader path.  Bone matrices and other
+			// large constant blocks get resubmitted every draw with only a
+			// few trailing vectors actually changing; comparing + copying +
+			// uploading the whole range every time was measurable on ARM.
+			const uint32 *pSrc = (const uint32*)pVec;
+			const uint32 *pDst = (const uint32*)&m_DynamicState.m_pVectorVertexShaderConstant[var];
+			int nCmpVecs = numVecs;
+			while ( nCmpVecs && ( pSrc[0] == pDst[0] ) && ( pSrc[1] == pDst[1] ) && ( pSrc[2] == pDst[2] ) && ( pSrc[3] == pDst[3] ) )
+			{
+				pSrc += 4;
+				pDst += 4;
+				nCmpVecs--;
+				var++;
+			}
+			if ( !nCmpVecs )
+				return;
+			pVec = (const float*)pSrc;
+			numVecs = nCmpVecs;
+		}
 
 		Dx9Device()->SetVertexShaderConstantF( var, pVec, numVecs );
 		memcpy( &m_DynamicState.m_pVectorVertexShaderConstant[var], pVec, numVecs * 4 * sizeof(float) );
@@ -12354,6 +12508,11 @@ void CShaderAPIDx8::ReadPixels( int x, int y, int width, int height, unsigned ch
 //-----------------------------------------------------------------------------
 void CShaderAPIDx8::Bind( IMaterial* pMaterial )
 {
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	CFastTimer bindTimer;
+	bindTimer.Start();
+	++s_ShaderAPIDrawPerfStats.m_nBinds;
+#endif
 	LOCK_SHADERAPI();
 	IMaterialInternal* pMatInt = static_cast<IMaterialInternal*>( pMaterial );
 
@@ -12388,6 +12547,10 @@ void CShaderAPIDx8::Bind( IMaterial* pMaterial )
 		PIXifyName( s_pPIXMaterialName, sizeof( s_pPIXMaterialName ), m_pMaterial->GetName() );
 #endif
 	}
+#if SHADERAPI_DRAW_PERF_ANALYSIS
+	bindTimer.End();
+	s_ShaderAPIDrawPerfStats.m_BindTime += bindTimer.GetDuration();
+#endif
 }
 
 // Get the currently bound material

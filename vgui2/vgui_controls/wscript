@@ -12,8 +12,7 @@ def options(opt):
 	return
 
 def configure(conf):
-	conf.define('MAPBASE', 1)
-	conf.define('MAPBASE_VSCRIPT',1)
+	return
 
 def build(bld):
 	source = [
