@@ -155,6 +155,7 @@ struct HardwareCaps_t : public MaterialAdapterInfo_t
 	bool m_FakeSRGBWrite : 1;						// Gotta do this on OpenGL.  Mostly hidden, but some high level code needs to know
 	bool m_CanDoSRGBReadFromRTs : 1;				// Gotta do this on OpenGL.  Mostly hidden, but some high level code needs to know
 	bool m_bSupportsGLMixedSizeTargets : 1;			// on OpenGL, are mixed size depth buffers supported - aka ARB_framebuffer_object
+	bool m_bHasFramebufferFetch : 1;				// GL_ARM_shader_framebuffer_fetch — fragment shader can read FB color from tile buffer (Mali TBDR)
 	bool m_bCanStretchRectFromTextures : 1;			// Does the device expose D3DDEVCAPS2_CAN_STRETCHRECT_FROM_TEXTURES (or is it >DX9?)
 
 	HDRType_t m_MaxHDRType;
@@ -234,6 +235,7 @@ public:
 	virtual bool FakeSRGBWrite() const;
 	virtual bool CanDoSRGBReadFromRTs() const;
 	virtual bool SupportsGLMixedSizeTargets() const;
+	virtual bool HasFramebufferFetch() const;
 	virtual bool IsAAEnabled() const;
 	virtual int  GetVertexTextureCount() const;
 	virtual int  GetMaxVertexTextureDimension() const;

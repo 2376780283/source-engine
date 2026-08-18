@@ -52,12 +52,10 @@
 
 #include "tier0/tslist.h"
 #include "tier0/vprof_telemetry.h"
+#include "tier0/vprof.h"
 #include "materialsystem/IShader.h"
 #include "dxabstract_types.h"
 #include "tier0/icommandline.h"
-
-#undef FORCEINLINE
-#define FORCEINLINE inline
 
 //===============================================================================
 
@@ -69,7 +67,7 @@
 #define GL_ALPHA_TEST_FUNC_QCOM 0x0BC1
 #define GL_ALPHA_TEST_REF_QCOM 0x0BC2
 
-#define GLSL_VERSION "#version 300 es\n"
+#define GLSL_VERSION "#version 320 es\n"
 
 extern void GLMDebugPrintf( const char *pMsg, ... );
 
@@ -553,7 +551,9 @@ FORCEINLINE void GLContextSetIndexed( GLClipPlaneEnable_t *src, int index )
 		}
 	}
 #endif
-	glSetEnable( GL_CLIP_PLANE0 + index, src->enable != 0 );
+	// Clip planes are implemented in shader on GLES2; GL_CLIP_PLANE0 is not a valid capability here.
+	(void)src;
+	(void)index;
 }
 
 FORCEINLINE void GLContextGetIndexed( GLClipPlaneEnable_t *dst, int index )
@@ -716,6 +716,11 @@ FORCEINLINE void GLContextGetDefault( GLBlendColor_t *dst )
 
 #define GL_FRAMEBUFFER_ATTACHMENT_COLOR_ENCODING	0x8210
 #define GL_COLOR_ATTACHMENT0						0x8CE0
+
+// GL_EXT_discard_framebuffer tokens (for default framebuffer attachments)
+#define GL_COLOR_EXT								0x1800
+#define GL_DEPTH_EXT								0x1801
+#define GL_STENCIL_EXT								0x1802
 
 FORCEINLINE void GLContextSet( GLBlendEnableSRGB_t *src )
 {
@@ -946,21 +951,43 @@ template<typename T> class GLState
 		inline GLState()
 		{
 			memset( &data, 0, sizeof(data) );
+			memset( &applied, 0, sizeof(applied) );
+			m_dirty = false;
 			Default();
 		}
 		
 		FORCEINLINE void Flush()
 		{
-			// immediately blast out the state - it makes no sense to delta it or do anything fancy because shaderapi, dxabstract, and OpenGL itself does this for us (and OpenGL calls with multithreaded drivers are very cheap)
 			GLContextSet( &data );
+			applied = data;
+			m_dirty = false;
 		}
-				
-		// write: client src into cache
-		// common case is both false.  dirty is calculated, context write is deferred.
-		FORCEINLINE void Write( const T *src )
+
+		FORCEINLINE void FlushDirty()
 		{
-			data = *src;
-			Flush();
+			if ( m_dirty )
+				Flush();
+		}
+
+		// Keep desired state separate from the state applied to GL. This mirrors
+		// DXVK's dirty-state model: multiple D3D changes before a draw collapse
+		// into one driver call, and changing a value back cancels the pending call.
+		FORCEINLINE bool Write( const T *src )
+		{
+			if ( !( data == *src ) )
+			{
+				data = *src;
+				m_dirty = !( data == applied );
+			}
+			return m_dirty;
+		}
+
+		// Temporary internal state changes used by clear/blit operations must
+		// reach GL before the operation rather than waiting for the next draw.
+		FORCEINLINE void WriteAndFlush( const T *src )
+		{
+			Write( src );
+			FlushDirty();
 		}
 						
 		// default: write default value to cache, optionally write through
@@ -994,6 +1021,8 @@ template<typename T> class GLState
 		
 	protected:
 		T data;
+		T applied;
+		bool m_dirty;
 };
 
 // caching state object template - with multiple values behind it that are indexed
@@ -1003,23 +1032,50 @@ template<typename T, int COUNT> class GLStateArray
 		inline GLStateArray()
 		{
 			memset( &data, 0, sizeof(data) );
+			memset( &applied, 0, sizeof(applied) );
+			m_dirtyMask = 0;
 			Default();
 		}
 
 		// write cache->context if dirty or forced.
 		FORCEINLINE void FlushIndex( int index )
 		{
-			// immediately blast out the state - it makes no sense to delta it or do anything fancy because shaderapi, dxabstract, and OpenGL itself does this for us (and OpenGL calls with multithreaded drivers are very cheap)
 			GLContextSetIndexed( &data[index], index );
+			applied[index] = data[index];
+			m_dirtyMask &= ~( 1u << index );
 		};
 
-		// write: client src into cache
-		// common case is both false.  dirty is calculated, context write is deferred.
-		FORCEINLINE void WriteIndex( T *src, int index )
+		FORCEINLINE bool WriteIndex( T *src, int index )
+		{
+			if ( !( data[index] == *src ) )
+			{
+				data[index] = *src;
+				if ( data[index] == applied[index] )
+					m_dirtyMask &= ~( 1u << index );
+				else
+					m_dirtyMask |= ( 1u << index );
+			}
+			return ( m_dirtyMask & ( 1u << index ) ) != 0;
+		};
+
+		// direct cache access (no GL call) - used by combined front+back writers
+		FORCEINLINE const T &GetDataIndex( int index ) const { return data[index]; }
+		FORCEINLINE void SetDataIndex( const T *src, int index )
 		{
 			data[index] = *src;
-			FlushIndex( index );	// dirty becomes false
-		};
+			applied[index] = *src;
+			m_dirtyMask &= ~( 1u << index );
+		}
+
+		FORCEINLINE void FlushDirty()
+		{
+			uint dirtyMask = m_dirtyMask;
+			for ( int i = 0; dirtyMask; ++i, dirtyMask >>= 1 )
+			{
+				if ( dirtyMask & 1u )
+					FlushIndex( i );
+			}
+		}
 						
 		// write all slots in the array
 		FORCEINLINE void Flush()
@@ -1034,7 +1090,7 @@ template<typename T, int COUNT> class GLStateArray
 		inline void DefaultIndex( int index )
 		{
 			GLContextGetDefaultIndexed( &data[index], index );	// read default values directly to our cache copy
-			Flush();
+			FlushIndex( index );
 		};
 		
 		inline void Default( void )
@@ -1081,6 +1137,8 @@ template<typename T, int COUNT> class GLStateArray
 		
 	protected:
 		T		data[COUNT];
+		T		applied[COUNT];
+		uint	m_dirtyMask;
 };
 
 
@@ -1134,13 +1192,6 @@ struct GLMVertexSetup
 //===========================================================================//
 
 //FIXME magic numbers here
-
-#define	kGLMProgramParamFloat4Limit	256
-#define	kGLMProgramParamBoolLimit	16
-#define	kGLMProgramParamInt4Limit	16
-
-#define	kGLMVertexProgramParamFloat4Limit	256
-#define	kGLMFragmentProgramParamFloat4Limit	256
 
 struct GLMProgramParamsF
 {
@@ -1291,21 +1342,27 @@ class GLMContext
 
 		// samplers
 		FORCEINLINE void SetSamplerTex( int sampler, CGLMTex *tex );
-				
+
+		// Mark every sampler currently bound to *pTex as dirty so the next FlushDrawStates re-emits
+		// sampling params for it. Used by WriteTexels when m_maxActiveMip grows on drivers where
+		// GL_TEXTURE_MAX_LEVEL is unavailable (GLES without GL_APPLE_texture_max_level) - the per-
+		// texture streaming coarse cap has to reach the sampler via GL_TEXTURE_MAX_LOD instead.
+		void InvalidateSamplersForTex( CGLMTex *pTex );
+
 		FORCEINLINE void SetSamplerDirty( int sampler );
-		FORCEINLINE void SetSamplerMinFilter( int sampler, GLenum Value );
-		FORCEINLINE void SetSamplerMagFilter( int sampler, GLenum Value );
-		FORCEINLINE void SetSamplerMipFilter( int sampler, GLenum Value );
-		FORCEINLINE void SetSamplerAddressU( int sampler, GLenum Value );
-		FORCEINLINE void SetSamplerAddressV( int sampler, GLenum Value );
-		FORCEINLINE void SetSamplerAddressW( int sampler, GLenum Value );
-		FORCEINLINE void SetSamplerStates( int sampler, GLenum AddressU, GLenum AddressV, GLenum AddressW, GLenum minFilter, GLenum magFilter, GLenum mipFilter, int minLod, float lodBias );
-		FORCEINLINE void SetSamplerBorderColor( int sampler, DWORD Value );
-		FORCEINLINE void SetSamplerMipMapLODBias( int sampler, DWORD Value );
-		FORCEINLINE void SetSamplerMaxMipLevel( int sampler, DWORD Value );
-		FORCEINLINE void SetSamplerMaxAnisotropy( int sampler, DWORD Value );
-		FORCEINLINE void SetSamplerSRGBTexture( int sampler, DWORD Value );
-		FORCEINLINE void SetShadowFilter( int sampler, DWORD Value );
+		FORCEINLINE bool SetSamplerMinFilter( int sampler, GLenum Value );
+		FORCEINLINE bool SetSamplerMagFilter( int sampler, GLenum Value );
+		FORCEINLINE bool SetSamplerMipFilter( int sampler, GLenum Value );
+		FORCEINLINE bool SetSamplerAddressU( int sampler, GLenum Value );
+		FORCEINLINE bool SetSamplerAddressV( int sampler, GLenum Value );
+		FORCEINLINE bool SetSamplerAddressW( int sampler, GLenum Value );
+		FORCEINLINE bool SetSamplerStates( int sampler, GLenum AddressU, GLenum AddressV, GLenum AddressW, GLenum minFilter, GLenum magFilter, GLenum mipFilter, int minLod, float lodBias );
+		FORCEINLINE bool SetSamplerBorderColor( int sampler, DWORD Value );
+		FORCEINLINE bool SetSamplerMipMapLODBias( int sampler, DWORD Value );
+		FORCEINLINE bool SetSamplerMaxMipLevel( int sampler, DWORD Value );
+		FORCEINLINE bool SetSamplerMaxAnisotropy( int sampler, DWORD Value );
+		FORCEINLINE bool SetSamplerSRGBTexture( int sampler, DWORD Value );
+		FORCEINLINE bool SetShadowFilter( int sampler, DWORD Value );
 		
 		// render targets (FBO's)
 		CGLMFBO	*NewFBO( void );
@@ -1354,15 +1411,20 @@ class GLMContext
 		// Queries
 		CGLMQuery *NewQuery( GLMQueryParams *params );
 		void DelQuery( CGLMQuery *query );
+
+		// GPU frame timing (gl_gpu_timing convar)
+		void UpdateGpuTimingReport();
 			
 		// "slot" means a vec4-sized thing
 		// these write into .env parameter space
 		FORCEINLINE void SetProgramParametersF( EGLMProgramType type, uint baseSlot, float *slotData, uint slotCount );
 		FORCEINLINE void SetProgramParametersB( EGLMProgramType type, uint baseSlot, int  *slotData, uint boolCount );	// take "BOOL" aka int
 		FORCEINLINE void SetProgramParametersI( EGLMProgramType type, uint baseSlot, int  *slotData, uint slotCount );	// take int4s
+		FORCEINLINE uint NewProgramParamRevision();
 
 		// state sync
 		// If lazyUnbinding is true, unbound samplers will not actually be unbound to the GL device.
+		FORCEINLINE void FlushRenderStates();
 		FORCEINLINE void FlushDrawStates( uint nStartIndex, uint nEndIndex, uint nBaseVertex );				// pushes all drawing state - samplers, tex, programs, etc.
 		void FlushDrawStatesNoShaders();
 				
@@ -1390,33 +1452,40 @@ class GLMContext
 		// Called when IDirect3DDevice9::Reset() is called.
 		void	Reset();							
 
+		void	UpdateClipPlaneUniforms();
+
 		// writers for the state block inputs
 		
-		FORCEINLINE void	WriteAlphaTestEnable( GLAlphaTestEnable_t *src ) { m_AlphaTestEnable.Write( src ); }
-		FORCEINLINE void	WriteAlphaTestFunc( GLAlphaTestFunc_t *src ) { m_AlphaTestFunc.Write( src ); }
-		FORCEINLINE void	WriteAlphaToCoverageEnable( GLAlphaToCoverageEnable_t *src ) { m_AlphaToCoverageEnable.Write( src ); }
-		FORCEINLINE void	WriteCullFaceEnable( GLCullFaceEnable_t *src ) { m_CullFaceEnable.Write( src ); }
-		FORCEINLINE void	WriteCullFrontFace( GLCullFrontFace_t *src ) { m_CullFrontFace.Write( src ); }
-		FORCEINLINE void	WritePolygonMode( GLPolygonMode_t *src ) { m_PolygonMode.Write( src ); }
-		FORCEINLINE void	WriteDepthBias( GLDepthBias_t *src ) { m_DepthBias.Write( src ); }
-		FORCEINLINE void	WriteClipPlaneEnable( GLClipPlaneEnable_t *src, int which ) { m_ClipPlaneEnable.WriteIndex( src, which ); }
-		FORCEINLINE void	WriteClipPlaneEquation( GLClipPlaneEquation_t *src, int which ) { m_ClipPlaneEquation.WriteIndex( src, which ); }
-		FORCEINLINE void	WriteScissorEnable( GLScissorEnable_t *src ) { m_ScissorEnable.Write( src ); }
-		FORCEINLINE void	WriteScissorBox( GLScissorBox_t *src ) { m_ScissorBox.Write( src ); }
-		FORCEINLINE void	WriteViewportBox( GLViewportBox_t *src ) { m_ViewportBox.Write( src ); }
-		FORCEINLINE void	WriteViewportDepthRange( GLViewportDepthRange_t *src ) { m_ViewportDepthRange.Write( src ); }
-		FORCEINLINE void	WriteColorMaskSingle( GLColorMaskSingle_t *src ) { m_ColorMaskSingle.Write( src ); }
-		FORCEINLINE void	WriteColorMaskMultiple( GLColorMaskMultiple_t *src, int which ) { m_ColorMaskMultiple.WriteIndex( src, which ); }
-		FORCEINLINE void	WriteBlendEnable( GLBlendEnable_t *src ) { m_BlendEnable.Write( src ); }
-		FORCEINLINE void	WriteBlendFactor( GLBlendFactor_t *src ) { m_BlendFactor.Write( src ); }
-		FORCEINLINE void	WriteBlendEquation( GLBlendEquation_t *src ) { m_BlendEquation.Write( src ); }
-		FORCEINLINE void	WriteBlendColor( GLBlendColor_t *src ) { m_BlendColor.Write( src ); }
+		FORCEINLINE void	WriteAlphaTestEnable( GLAlphaTestEnable_t *src ) { m_bDirtyRenderStates |= m_AlphaTestEnable.Write( src ); }
+		FORCEINLINE void	WriteAlphaTestFunc( GLAlphaTestFunc_t *src ) { m_bDirtyRenderStates |= m_AlphaTestFunc.Write( src ); }
+		FORCEINLINE void	WriteAlphaToCoverageEnable( GLAlphaToCoverageEnable_t *src ) { m_bDirtyRenderStates |= m_AlphaToCoverageEnable.Write( src ); }
+		FORCEINLINE void	WriteCullFaceEnable( GLCullFaceEnable_t *src ) { m_bDirtyRenderStates |= m_CullFaceEnable.Write( src ); }
+		FORCEINLINE void	WriteCullFrontFace( GLCullFrontFace_t *src ) { m_bDirtyRenderStates |= m_CullFrontFace.Write( src ); }
+		FORCEINLINE void	WritePolygonMode( GLPolygonMode_t *src ) { m_bDirtyRenderStates |= m_PolygonMode.Write( src ); }
+		FORCEINLINE void	WriteDepthBias( GLDepthBias_t *src ) { m_bDirtyRenderStates |= m_DepthBias.Write( src ); }
+		FORCEINLINE void	WriteClipPlaneEnable( GLClipPlaneEnable_t *src, int which )
+		{
+			if ( !( m_ClipPlaneEnable.GetDataIndex( which ) == *src ) )
+				++m_nClipPlaneStateRevision;
+			m_bDirtyRenderStates |= m_ClipPlaneEnable.WriteIndex( src, which );
+		}
+		FORCEINLINE void	WriteClipPlaneEquation( GLClipPlaneEquation_t *src, int which ) { m_bDirtyRenderStates |= m_ClipPlaneEquation.WriteIndex( src, which ); }
+		FORCEINLINE void	WriteScissorEnable( GLScissorEnable_t *src ) { m_bDirtyRenderStates |= m_ScissorEnable.Write( src ); }
+		FORCEINLINE void	WriteScissorBox( GLScissorBox_t *src ) { m_bDirtyRenderStates |= m_ScissorBox.Write( src ); }
+		FORCEINLINE void	WriteViewportBox( GLViewportBox_t *src ) { m_bDirtyRenderStates |= m_ViewportBox.Write( src ); }
+		FORCEINLINE void	WriteViewportDepthRange( GLViewportDepthRange_t *src ) { m_bDirtyRenderStates |= m_ViewportDepthRange.Write( src ); }
+		FORCEINLINE void	WriteColorMaskSingle( GLColorMaskSingle_t *src ) { m_bDirtyRenderStates |= m_ColorMaskSingle.Write( src ); }
+		FORCEINLINE void	WriteColorMaskMultiple( GLColorMaskMultiple_t *src, int which ) { m_bDirtyRenderStates |= m_ColorMaskMultiple.WriteIndex( src, which ); }
+		FORCEINLINE void	WriteBlendEnable( GLBlendEnable_t *src ) { m_bDirtyRenderStates |= m_BlendEnable.Write( src ); }
+		FORCEINLINE void	WriteBlendFactor( GLBlendFactor_t *src ) { m_bDirtyRenderStates |= m_BlendFactor.Write( src ); }
+		FORCEINLINE void	WriteBlendEquation( GLBlendEquation_t *src ) { m_bDirtyRenderStates |= m_BlendEquation.Write( src ); }
+		FORCEINLINE void	WriteBlendColor( GLBlendColor_t *src ) { m_bDirtyRenderStates |= m_BlendColor.Write( src ); }
 
 		FORCEINLINE void	WriteBlendEnableSRGB( GLBlendEnableSRGB_t *src ) 
 		{
 			if (m_caps.m_hasGammaWrites)	// only if caps allow do we actually push it through to the extension
 			{
-				m_BlendEnableSRGB.Write( src );
+				m_bDirtyRenderStates |= m_BlendEnableSRGB.Write( src );
 			}
 			else
 			{
@@ -1426,20 +1495,33 @@ class GLMContext
 			// if fake SRGB mode is in place (m_caps.m_hasGammaWrites is false)
 		}
 
-		FORCEINLINE void	WriteDepthTestEnable( GLDepthTestEnable_t *src ) { m_DepthTestEnable.Write( src ); }
-		FORCEINLINE void	WriteDepthFunc( GLDepthFunc_t *src ) { m_DepthFunc.Write( src ); }
-		FORCEINLINE void	WriteDepthMask( GLDepthMask_t *src ) { m_DepthMask.Write( src ); }
-		FORCEINLINE void	WriteStencilTestEnable( GLStencilTestEnable_t *src ) { m_StencilTestEnable.Write( src ); }
-		FORCEINLINE void	WriteStencilFunc( GLStencilFunc_t *src ) { m_StencilFunc.Write( src ); }
-		FORCEINLINE void	WriteStencilOp( GLStencilOp_t *src, int which ) { m_StencilOp.WriteIndex( src, which ); }
-		FORCEINLINE void	WriteStencilWriteMask( GLStencilWriteMask_t *src ) { m_StencilWriteMask.Write( src ); }
-		FORCEINLINE void	WriteClearColor( GLClearColor_t *src ) { m_ClearColor.Write( src ); }
-		FORCEINLINE void	WriteClearDepth( GLClearDepth_t *src ) { m_ClearDepth.Write( src ); }
-		FORCEINLINE void	WriteClearStencil( GLClearStencil_t *src ) { m_ClearStencil.Write( src ); }
+		FORCEINLINE void	WriteDepthTestEnable( GLDepthTestEnable_t *src ) { m_bDirtyRenderStates |= m_DepthTestEnable.Write( src ); }
+		FORCEINLINE void	WriteDepthFunc( GLDepthFunc_t *src ) { m_bDirtyRenderStates |= m_DepthFunc.Write( src ); }
+		FORCEINLINE void	WriteDepthMask( GLDepthMask_t *src ) { m_bDirtyRenderStates |= m_DepthMask.Write( src ); }
+		FORCEINLINE void	WriteStencilTestEnable( GLStencilTestEnable_t *src ) { m_bDirtyRenderStates |= m_StencilTestEnable.Write( src ); }
+		FORCEINLINE void	WriteStencilFunc( GLStencilFunc_t *src ) { m_bDirtyRenderStates |= m_StencilFunc.Write( src ); }
+		FORCEINLINE void	WriteStencilOp( GLStencilOp_t *src, int which ) { m_bDirtyRenderStates |= m_StencilOp.WriteIndex( src, which ); }
+		// D3D9 has no separate front/back stencil ops, so the D3D layer always sets
+		// both faces identically. Emit a single glStencilOpSeparate(GL_FRONT_AND_BACK)
+		// instead of two per-face calls, and keep both cache slots consistent.
+		FORCEINLINE void	WriteStencilOpBoth( GLStencilOp_t *src )
+		{
+			if ( !( m_StencilOp.GetDataIndex(0) == *src ) || !( m_StencilOp.GetDataIndex(1) == *src ) )
+			{
+				gGL->glStencilOpSeparate( GL_FRONT_AND_BACK, src->sfail, src->dpfail, src->dppass );
+			}
+			m_StencilOp.SetDataIndex( src, 0 );
+			m_StencilOp.SetDataIndex( src, 1 );
+		}
+		FORCEINLINE void	WriteStencilWriteMask( GLStencilWriteMask_t *src ) { m_bDirtyRenderStates |= m_StencilWriteMask.Write( src ); }
+		FORCEINLINE void	WriteClearColor( GLClearColor_t *src ) { m_bDirtyRenderStates |= m_ClearColor.Write( src ); }
+		FORCEINLINE void	WriteClearDepth( GLClearDepth_t *src ) { m_bDirtyRenderStates |= m_ClearDepth.Write( src ); }
+		FORCEINLINE void	WriteClearStencil( GLClearStencil_t *src ) { m_bDirtyRenderStates |= m_ClearStencil.Write( src ); }
 
 		// debug stuff
 		void	BeginFrame( void );
 		void	EndFrame( void );
+		void	AdvancePersistentBuffer( void );
 		
 		// new interactive debug stuff
 #if GLMDEBUG
@@ -1450,7 +1532,14 @@ class GLMContext
 #endif
 
 		FORCEINLINE void SetMaxUsedVertexShaderConstantsHint( uint nMaxConstants );
-		FORCEINLINE uintp GetCurrentOwnerThreadId() const { return m_nCurOwnerThreadId; }
+		FORCEINLINE ThreadId_t GetCurrentOwnerThreadId() const { return m_nCurOwnerThreadId; }
+
+		// Scratch slab pool for texture locks.  CGLMTex::Lock/Unlock used to
+		// malloc+free a full-mip-chain backing buffer per lock cycle (client
+		// storage is off on Mali), churning the heap on every streaming /
+		// procedural texture update.  These recycle the slabs instead.
+		char *AcquireTexScratch( uint nSize );
+		void ReleaseTexScratch( char *pPtr, uint nSize );
 								
 	protected:
 		friend class GLMgr;				// only GLMgr can make GLMContext objects
@@ -1486,8 +1575,9 @@ class GLMContext
 				m_nBoundGLBuffer[kGLMVertexBuffer] = nGLName;
 				gGL->glBindBuffer( GL_ARRAY_BUFFER, nGLName );
 			}
-			else if ( ( curAttribs.m_pPtr == pBuf ) && 
-					  ( curAttribs.m_revision == nRevision ) &&
+			if ( ( curAttribs.m_nGLName == nGLName ) &&
+				( curAttribs.m_pPtr == pBuf ) &&
+				( curAttribs.m_revision == nRevision ) &&
 				( curAttribs.m_stride == stride ) &&
 				( curAttribs.m_datatype == datatype ) &&
 				( curAttribs.m_normalized == normalized ) &&
@@ -1502,6 +1592,7 @@ class GLMContext
 			curAttribs.m_stride = stride;
 			curAttribs.m_pPtr = pBuf;
 			curAttribs.m_revision = nRevision;
+			curAttribs.m_nGLName = nGLName;
 			
 			gGL->glVertexAttribPointer( nIndex, nCompCount, datatype, normalized, stride, pBuf );
 		}
@@ -1509,9 +1600,8 @@ class GLMContext
 		struct CurAttribs_t
 		{
 			uint m_nTotalBufferRevision;
-			IDirect3DVertexDeclaration9	*m_pVertDecl;
-			D3DStreamDesc m_streams[ D3D_MAX_STREAMS ];
-			uint64 m_vtxAttribMap[2];
+			uint m_nVertexInputRevision;
+			uint m_nUsedStreamsMask;	// bitmask of streams referenced by the current decl+shader, captured at the last full attrib pass
 		};
 
 		CurAttribs_t m_CurAttribs;
@@ -1519,10 +1609,8 @@ class GLMContext
 		FORCEINLINE void ClearCurAttribs() 
 		{ 
 			m_CurAttribs.m_nTotalBufferRevision = 0;
-			m_CurAttribs.m_pVertDecl = NULL;
-			memset( m_CurAttribs.m_streams, 0, sizeof( m_CurAttribs.m_streams ) );
-			m_CurAttribs.m_vtxAttribMap[0] = 0xBBBBBBBBBBBBBBBBULL;
-			m_CurAttribs.m_vtxAttribMap[1] = 0xBBBBBBBBBBBBBBBBULL;
+			m_CurAttribs.m_nVertexInputRevision = 0xFFFFFFFF;
+			m_CurAttribs.m_nUsedStreamsMask = 0;
 		}
 		
 		FORCEINLINE void ReleasedShader() {	NullProgram(); }
@@ -1571,14 +1659,18 @@ class GLMContext
 		void DrawDebugText( float x, float y, float z, float drawCharWidth, float drawCharHeight, char *string );
 
 		CPersistentBuffer* GetCurPersistentBuffer( EGLMBufferType type ) { return &( m_persistentBuffer[m_nCurPersistentBuffer][type] ); }
+		uint GetCurPersistentBufferIndex() { return m_nCurPersistentBuffer; }
+		CPersistentBuffer* GetPersistentBuffer( uint nSlot, EGLMBufferType type ) { return &( m_persistentBuffer[nSlot][type] ); }
 
 		// members------------------------------------------
 						
 		// context
-		uintp							m_nCurOwnerThreadId;
+		ThreadId_t						m_nCurOwnerThreadId;
 		uint							m_nThreadOwnershipReleaseCounter;
 
 		bool							m_bUseSamplerObjects;
+		bool							m_bUseDrawElementsBaseVertex;
+		bool							m_bUseProgramParamRevisionCache;
 		bool							m_bTexClientStorage;
 
 		IDirect3DDevice9				*m_pDevice;
@@ -1611,6 +1703,8 @@ class GLMContext
 		
 		GLStateArray<GLClipPlaneEnable_t,kGLMUserClipPlanes> m_ClipPlaneEnable;
 		GLStateArray<GLClipPlaneEquation_t,kGLMUserClipPlanes> m_ClipPlaneEquation;	// dxabstract puts them directly into param slot 253(0) and 254(1)
+		float						m_flClipPlaneOrig[kGLMUserClipPlanes][4];	// original (pre-munge) clip plane equations for shader uniforms
+		uint						m_nClipPlaneStateRevision;
 		
 		GLState<GLScissorEnable_t>		m_ScissorEnable;	
 		GLState<GLScissorBox_t>			m_ScissorBox;
@@ -1642,6 +1736,7 @@ class GLMContext
 		GLState<GLClearColor_t>			m_ClearColor;		
 		GLState<GLClearDepth_t>			m_ClearDepth;		
 		GLState<GLClearStencil_t>		m_ClearStencil;		
+		bool							m_bDirtyRenderStates;
 		
 		// texture bindings and sampler setup
 		int								m_activeTexture;		// mirror for glActiveTexture
@@ -1661,10 +1756,29 @@ class GLMContext
 
 		enum 
 		{ 
-			cSamplerObjectHashBits = 9, cSamplerObjectHashSize = 1 << cSamplerObjectHashBits 
+			cSamplerObjectHashBits = 10, cSamplerObjectHashSize = 1 << cSamplerObjectHashBits,
+			cMaxSamplerObjectHashBits = 12, cMaxSamplerObjectHashSize = 1 << cMaxSamplerObjectHashBits 
 		};
-		SamplerHashEntry				m_samplerObjectHash[cSamplerObjectHashSize];
+		// The table is heap-allocated and grows on demand.  Entries are never
+		// freed on their own - the GL sampler objects are shared, cheap state -
+		// but once the table hits cMaxSamplerObjectHashSize the oldest entries
+		// are evicted (and their sampler objects deleted) so a pathological
+		// stream of distinct sampling states can neither leak forever nor spin
+		// the old fixed-size linear probe.
+		SamplerHashEntry				*m_samplerObjectHash;
+		uint							m_nSamplerObjectHashSize;	// power of two
 		uint							m_nSamplerObjectHashNumEntries;
+		uint							m_nSamplerObjectHashEvictCursor;	// round-robin victim for eviction at the cap
+
+		// Which sampler object is currently bound to each texture unit (GLES
+		// has no glGetSamplerBinding query for this in core ES 2.0/3.x).  The
+		// flush updates it on every glBindSampler; eviction uses it to avoid
+		// deleting a sampler object that is still bound to a unit (which would
+		// silently revert that unit to the texture's default sampler state).
+		GLuint							m_nBoundSamplerObject[GLM_SAMPLER_COUNT];
+
+		void GrowSamplerObjectHash();
+		void EvictSamplerObjectHashEntry();
 					
 		// texture lock tracking - CGLMTex objects share usage of this
 		CUtlVector< GLMTexLockDesc >	m_texLocks;
@@ -1676,6 +1790,7 @@ class GLMContext
 		CGLMFBO							*m_boundDrawFBO;		// FBO on GL_DRAW_FRAMEBUFFER bind point
 		CGLMFBO							*m_boundReadFBO;		// FBO on GL_READ_FRAMEBUFFER bind point
 																// ^ both are set if you bind to GL_FRAMEBUFFER_EXT
+		GLuint							m_nReadTexelsFBO;		// cached FBO for ReadTexels glReadPixels path (avoids gen/delete per readback)
 		
 		CGLMFBO							*m_drawingFBO;			// what FBO should be bound at draw time (to both read/draw bp's).
 
@@ -1697,6 +1812,11 @@ class GLMContext
 		GLMProgramParamsF				m_programParamsF[ kGLMNumProgramTypes ];
 		GLMProgramParamsB				m_programParamsB[ kGLMNumProgramTypes ];
 		GLMProgramParamsI				m_programParamsI[ kGLMNumProgramTypes ];	// two banks, but only the vertex one is used
+		uint							m_nProgramParamRevision;
+		uint							m_nProgramParamRevisionEpoch;
+		uint							m_programParamRevisionF[kGLMNumProgramTypes][kGLMProgramParamFloat4Limit];
+		uint							m_programParamRevisionB[kGLMNumProgramTypes];
+		uint							m_programParamRevisionI[kGLMNumProgramTypes];
 		EGLMParamWriteMode				m_paramWriteMode;
 		
 		CGLMProgram						*m_pNullFragmentProgram;		// write opaque black.  Activate when caller asks for null FP
@@ -1729,6 +1849,7 @@ class GLMContext
 			GLuint m_stride;
 			const void *m_pPtr;
 			uint m_revision;
+			GLuint m_nGLName;
 		};
 
 		VertexAttribs_t					m_boundVertexAttribs[ kGLMVertexAttributeIndexMax ];	// tracked per attrib for dupe-set-absorb
@@ -1761,6 +1882,30 @@ class GLMContext
 		uint m_nCurFrame;
 		uint m_nBatchCounter;
 
+		// GPU frame timing (gl_gpu_timing). Uses GL_EXT_disjoint_timer_query
+		// (GL_TIME_ELAPSED_EXT) to report command-stream CPU time vs GPU time
+		// per frame. Ping-pong query objects so result reads never stall.
+		GLuint							m_gpuTimerQuery[2];		// ping-pong query objects
+		int								m_nGpuTimerIndex;		// slot currently being recorded into
+		bool							m_bGpuTimerAvailable;	// driver exposes GL_EXT_disjoint_timer_query
+		bool							m_bGpuTimerArmed;		// a timer query is open for the current frame
+		bool							m_bGpuTimerHasRecorded;	// at least one frame has been recorded
+		uint64							m_nGpuTimeNanos;		// last completed GPU frame time (ns)
+		float							m_flGpuFrameStart;		// Plat_FloatTime at BeginFrame
+		float							m_flGpuLastCpuMs;		// last frame command-stream CPU time
+		float							m_flGpuReportStart;		// Plat_FloatTime at last report
+		int								m_nGpuReportFrames;		// frames since last report
+		float							m_flGpuAccumMs;			// GPU ms accumulated since last report
+		float							m_flCpuAccumMs;			// CPU ms accumulated since last report
+		float							m_flCpuPreSwapAccumMs;	// CPU ms excl. swap, accumulated since last report
+		float							m_flGpuFrameEndPreSwap;	// Plat_FloatTime right before the swap in Present
+		int								m_nGpuFrameDraws;		// draw calls + clears this frame
+		int								m_nGpuFrameProgramChanges;	// glUseProgram calls this frame
+		int								m_nGpuFrameUniformCalls;	// uniform upload GL calls this frame
+		int								m_nGpuFrameUniformsSet;		// float4 constants uploaded this frame
+		int								m_nGpuFrameResolves;		// MSAA resolves this frame
+		int								m_nGpuFrameBlits;			// blit operations this frame
+
 		struct TextureEntry_t
 		{
 			GLenum m_nTexBind;
@@ -1770,6 +1915,14 @@ class GLMContext
 
 		GLuint							m_destroyPBO;
 		CUtlVector< TextureEntry_t >	m_availableTextures;
+
+		struct TexScratchSlab_t
+		{
+			char *m_pPtr;
+			uint m_nSize;
+		};
+		CUtlVector< TexScratchSlab_t >	m_texScratchPool;
+		uint							m_texScratchPoolBytes;
 
 		enum { cNumPersistentBuffers = 3 };
 		CPersistentBuffer	m_persistentBuffer[cNumPersistentBuffers][kGLMNumBufferTypes];
@@ -1817,6 +1970,45 @@ class GLMContext
 	CTSQueue<CGLMTex*> m_DeleteTextureQueue;
 };
 
+FORCEINLINE void GLMContext::FlushRenderStates()
+{
+	if ( !m_bDirtyRenderStates )
+		return;
+
+	m_AlphaTestEnable.FlushDirty();
+	m_AlphaTestFunc.FlushDirty();
+	m_AlphaToCoverageEnable.FlushDirty();
+	m_CullFaceEnable.FlushDirty();
+	m_CullFrontFace.FlushDirty();
+	m_PolygonMode.FlushDirty();
+	m_DepthBias.FlushDirty();
+	m_ClipPlaneEnable.FlushDirty();
+	m_ClipPlaneEquation.FlushDirty();
+	m_ScissorEnable.FlushDirty();
+	m_ScissorBox.FlushDirty();
+	m_ViewportBox.FlushDirty();
+	m_ViewportDepthRange.FlushDirty();
+	m_ColorMaskSingle.FlushDirty();
+	m_ColorMaskMultiple.FlushDirty();
+	m_BlendEnable.FlushDirty();
+	m_BlendFactor.FlushDirty();
+	m_BlendEquation.FlushDirty();
+	m_BlendColor.FlushDirty();
+	m_BlendEnableSRGB.FlushDirty();
+	m_DepthTestEnable.FlushDirty();
+	m_DepthFunc.FlushDirty();
+	m_DepthMask.FlushDirty();
+	m_StencilTestEnable.FlushDirty();
+	m_StencilFunc.FlushDirty();
+	m_StencilOp.FlushDirty();
+	m_StencilWriteMask.FlushDirty();
+	m_ClearColor.FlushDirty();
+	m_ClearDepth.FlushDirty();
+	m_ClearStencil.FlushDirty();
+
+	m_bDirtyRenderStates = false;
+}
+
 #if 1 //ifndef OSX
 
 FORCEINLINE void GLMContext::DrawRangeElements(	GLenum mode, GLuint start, GLuint end, GLsizei count, GLenum type, const GLvoid *indices, uint baseVertex, CGLMBuffer *pIndexBuf )
@@ -1831,6 +2023,7 @@ FORCEINLINE void GLMContext::DrawRangeElements(	GLenum mode, GLuint start, GLuin
 	//tmZone( TELEMETRY_LEVEL0, TMZF_NONE, "%s %d-%d count:%d mode:%d type:%d", __FUNCTION__, start, end, count, mode, type );
 #endif
 
+	VPROF_BUDGET( "ToGL_DrawRangeElements", "ToGL_DrawRangeElements" );
 	++m_nBatchCounter;
 
 	SetIndexBuffer( pIndexBuf );
@@ -1901,9 +2094,14 @@ FORCEINLINE void GLMContext::DrawRangeElements(	GLenum mode, GLuint start, GLuin
 		// do the drawing
 		if (hasVP && hasFP)
 		{
-			if ( gGL->glDrawRangeElementsBaseVertex )
-		{
-			gGL->glDrawRangeElementsBaseVertex( mode, start, end, count, type, indicesActual, baseVertex );
+			VPROF_BUDGET( "ToGL_GLDraw", "ToGL_GLDraw" );
+			if ( m_bUseDrawElementsBaseVertex )
+			{
+				gGL->glDrawElementsBaseVertex( mode, count, type, indicesActual, baseVertex );
+			}
+			else if ( gGL->glDrawRangeElementsBaseVertex )
+			{
+				gGL->glDrawRangeElementsBaseVertex( mode, start, end, count, type, indicesActual, baseVertex );
 		}
 		else
 		{
@@ -1930,7 +2128,12 @@ FORCEINLINE void GLMContext::DrawRangeElements(	GLenum mode, GLuint start, GLuin
 
 	if ( m_pBoundPair )
 	{
-		if ( gGL->glDrawRangeElementsBaseVertex )
+		VPROF_BUDGET( "ToGL_GLDraw", "ToGL_GLDraw" );
+		if ( m_bUseDrawElementsBaseVertex )
+		{
+			gGL->glDrawElementsBaseVertex( mode, count, type, indicesActual, baseVertex );
+		}
+		else if ( gGL->glDrawRangeElementsBaseVertex )
 		{
 			gGL->glDrawRangeElementsBaseVertex( mode, start, end, count, type, indicesActual, baseVertex );
 		}
@@ -1962,18 +2165,46 @@ FORCEINLINE void GLMContext::DrawRangeElements(	GLenum mode, GLuint start, GLuin
 
 FORCEINLINE void GLMContext::SetVertexProgram( CGLMProgram *pProg )
 {
-	m_drawingProgram[kGLMVertexProgram] = pProg;
-	m_bDirtyPrograms = true;
+	if ( m_drawingProgram[kGLMVertexProgram] != pProg )
+	{
+		m_drawingProgram[kGLMVertexProgram] = pProg;
+		m_bDirtyPrograms = true;
+	}
 }
 
 FORCEINLINE void GLMContext::SetFragmentProgram( CGLMProgram *pProg )
 {
-	m_drawingProgram[kGLMFragmentProgram] = pProg ? pProg : m_pNullFragmentProgram;
-	m_bDirtyPrograms = true;
+	CGLMProgram *pResolved = pProg ? pProg : m_pNullFragmentProgram;
+	if ( m_drawingProgram[kGLMFragmentProgram] != pResolved )
+	{
+		m_drawingProgram[kGLMFragmentProgram] = pResolved;
+		m_bDirtyPrograms = true;
+	}
 }
 
 // "slot" means a vec4-sized thing
 // these write into .env parameter space
+FORCEINLINE uint GLMContext::NewProgramParamRevision()
+{
+	++m_nProgramParamRevision;
+	if ( !m_nProgramParamRevision )
+	{
+		// A 32-bit serial is compact enough to keep one revision per logical
+		// slot in every linked pair.  On the extremely rare wrap, move to a new
+		// epoch and invalidate the context-side serials; every pair will then
+		// take one full refresh before comparisons resume.
+		m_nProgramParamRevision = 1;
+		++m_nProgramParamRevisionEpoch;
+		if ( !m_nProgramParamRevisionEpoch )
+			m_nProgramParamRevisionEpoch = 1;
+
+		memset( m_programParamRevisionF, 0, sizeof( m_programParamRevisionF ) );
+		memset( m_programParamRevisionB, 0, sizeof( m_programParamRevisionB ) );
+		memset( m_programParamRevisionI, 0, sizeof( m_programParamRevisionI ) );
+	}
+	return m_nProgramParamRevision;
+}
+
 FORCEINLINE void GLMContext::SetProgramParametersF( EGLMProgramType type, uint baseSlot, float *slotData, uint slotCount )
 {
 #if GLMDEBUG
@@ -1994,7 +2225,32 @@ FORCEINLINE void GLMContext::SetProgramParametersF( EGLMProgramType type, uint b
 	}
 #endif
 
-	memcpy( &m_programParamsF[type].m_values[baseSlot][0], slotData, (4 * sizeof(float)) * slotCount );
+	// Compare at float4 granularity.  Source often submits a large constant
+	// range when only one or two slots changed; narrowing the dirty span here
+	// avoids turning that into a large glUniform4fv upload later.
+	uint firstChangedSlot = baseSlot + slotCount;
+	uint changedSlotHighWater = baseSlot;
+	uint revision = 0;
+	for ( uint i = 0; i < slotCount; ++i )
+	{
+		float *pDst = &m_programParamsF[type].m_values[baseSlot + i][0];
+		const float *pSrc = slotData + ( i * 4 );
+		if ( memcmp( pDst, pSrc, 4 * sizeof(float) ) != 0 )
+		{
+			if ( !revision )
+				revision = NewProgramParamRevision();
+			memcpy( pDst, pSrc, 4 * sizeof(float) );
+			m_programParamRevisionF[type][baseSlot + i] = revision;
+			firstChangedSlot = MIN( firstChangedSlot, baseSlot + i );
+			changedSlotHighWater = baseSlot + i + 1;
+		}
+	}
+
+	if ( !revision )
+		return;
+
+	baseSlot = firstChangedSlot;
+	slotCount = changedSlotHighWater - firstChangedSlot;
 
 	if ( ( type == kGLMVertexProgram ) && ( m_bUseBoneUniformBuffers ) )
 	{
@@ -2077,7 +2333,12 @@ FORCEINLINE void GLMContext::SetProgramParametersB( EGLMProgramType type, uint b
 	}
 #endif
 
-	memcpy( &m_programParamsB[type].m_values[baseSlot], slotData, sizeof(int) * boolCount );
+	const uint nBytes = sizeof(int) * boolCount;
+	if ( memcmp( &m_programParamsB[type].m_values[baseSlot], slotData, nBytes ) == 0 )
+		return;
+
+	memcpy( &m_programParamsB[type].m_values[baseSlot], slotData, nBytes );
+	m_programParamRevisionB[type] = NewProgramParamRevision();
 	
 	if ( (baseSlot+boolCount) > m_programParamsB[type].m_dirtySlotCount)
 		m_programParamsB[type].m_dirtySlotCount = baseSlot+boolCount;
@@ -2106,7 +2367,12 @@ FORCEINLINE void GLMContext::SetProgramParametersI( EGLMProgramType type, uint b
 	}
 #endif
 
-	memcpy( &m_programParamsI[type].m_values[baseSlot][0], slotData, (4*sizeof(int)) * slotCount );
+	const uint nBytes = (4 * sizeof(int)) * slotCount;
+	if ( memcmp( &m_programParamsI[type].m_values[baseSlot][0], slotData, nBytes ) == 0 )
+		return;
+
+	memcpy( &m_programParamsI[type].m_values[baseSlot][0], slotData, nBytes );
+	m_programParamRevisionI[type] = NewProgramParamRevision();
 	
 	if ( (baseSlot + slotCount) > m_programParamsI[type].m_dirtySlotCount)
 	{
@@ -2125,68 +2391,93 @@ FORCEINLINE void GLMContext::SetSamplerDirty( int sampler )
 FORCEINLINE void GLMContext::SetSamplerTex( int sampler, CGLMTex *tex ) 
 { 
 	Assert( sampler < GLM_SAMPLER_COUNT );
-	m_samplers[sampler].m_pBoundTex = tex;
-	if ( tex )
+	// Delta-check: skip the glBindTexture when this TMU already holds this texture.
+	// Source re-sets the same texture to the same sampler constantly; on Mali each
+	// redundant glBindTexture is real driver descriptor-table overhead.
+	if ( m_samplers[sampler].m_pBoundTex != tex )
 	{
-			if ( !gGL->m_bHave_GL_EXT_direct_state_access )
-			{
-				if ( sampler != m_activeTexture )
+		m_samplers[sampler].m_pBoundTex = tex;
+		if ( tex )
+		{
+				if ( !gGL->m_bHave_GL_EXT_direct_state_access )
 				{
-					gGL->glActiveTexture( GL_TEXTURE0 + sampler );
-					m_activeTexture = sampler;
-				}
+					if ( sampler != m_activeTexture )
+					{
+						gGL->glActiveTexture( GL_TEXTURE0 + sampler );
+						m_activeTexture = sampler;
+					}
 
-				gGL->glBindTexture( tex->m_texGLTarget, tex->m_texName );
-			}
-			else
-			{
-				gGL->glBindMultiTextureEXT( GL_TEXTURE0 + sampler, tex->m_texGLTarget, tex->m_texName );
-			}
+					gGL->glBindTexture( tex->m_texGLTarget, tex->m_texName );
+				}
+				else
+				{
+					gGL->glBindMultiTextureEXT( GL_TEXTURE0 + sampler, tex->m_texGLTarget, tex->m_texName );
+				}
 		}
-	
-	if ( !m_bUseSamplerObjects )
-	{
+
+		// A texture change always invalidates the effective sampling state.
+		// Without sampler objects the parameters live on the texture itself;
+		// with sampler objects the selected object can still depend on this
+		// texture's current m_maxActiveMip clamp.
 		SetSamplerDirty( sampler );
 	}
 }
 
-FORCEINLINE void GLMContext::SetSamplerMinFilter( int sampler, GLenum Value )
+FORCEINLINE bool GLMContext::SetSamplerMinFilter( int sampler, GLenum Value )
 {
 	Assert( Value < ( 1 << GLM_PACKED_SAMPLER_PARAMS_MIN_FILTER_BITS ) );
+	if ( m_samplers[sampler].m_samp.m_packed.m_minFilter == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_packed.m_minFilter = Value;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerMagFilter( int sampler, GLenum Value )
+FORCEINLINE bool GLMContext::SetSamplerMagFilter( int sampler, GLenum Value )
 {
 	Assert( Value < ( 1 << GLM_PACKED_SAMPLER_PARAMS_MAG_FILTER_BITS ) );
+	if ( m_samplers[sampler].m_samp.m_packed.m_magFilter == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_packed.m_magFilter = Value;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerMipFilter( int sampler, GLenum Value )
+FORCEINLINE bool GLMContext::SetSamplerMipFilter( int sampler, GLenum Value )
 {
 	Assert( Value < ( 1 << GLM_PACKED_SAMPLER_PARAMS_MIP_FILTER_BITS ) );
+	if ( m_samplers[sampler].m_samp.m_packed.m_mipFilter == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_packed.m_mipFilter = Value;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerAddressU( int sampler, GLenum Value )
+FORCEINLINE bool GLMContext::SetSamplerAddressU( int sampler, GLenum Value )
 {
 	Assert( Value < ( 1 << GLM_PACKED_SAMPLER_PARAMS_ADDRESS_BITS) );
+	if ( m_samplers[sampler].m_samp.m_packed.m_addressU == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_packed.m_addressU = Value;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerAddressV( int sampler, GLenum Value )
+FORCEINLINE bool GLMContext::SetSamplerAddressV( int sampler, GLenum Value )
 {
 	Assert( Value < ( 1 << GLM_PACKED_SAMPLER_PARAMS_ADDRESS_BITS) );
+	if ( m_samplers[sampler].m_samp.m_packed.m_addressV == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_packed.m_addressV = Value;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerAddressW( int sampler, GLenum Value )
+FORCEINLINE bool GLMContext::SetSamplerAddressW( int sampler, GLenum Value )
 {
 	Assert( Value < ( 1 << GLM_PACKED_SAMPLER_PARAMS_ADDRESS_BITS) );
+	if ( m_samplers[sampler].m_samp.m_packed.m_addressW == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_packed.m_addressW = Value;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerStates( int sampler, GLenum AddressU, GLenum AddressV, GLenum AddressW, GLenum minFilter, GLenum magFilter, GLenum mipFilter, int minLod, float lodBias )
+FORCEINLINE bool GLMContext::SetSamplerStates( int sampler, GLenum AddressU, GLenum AddressV, GLenum AddressW, GLenum minFilter, GLenum magFilter, GLenum mipFilter, int minLod, float lodBias )
 {
 	Assert( AddressU < ( 1 << GLM_PACKED_SAMPLER_PARAMS_ADDRESS_BITS) );
 	Assert( AddressV < ( 1 << GLM_PACKED_SAMPLER_PARAMS_ADDRESS_BITS) );
@@ -2197,6 +2488,18 @@ FORCEINLINE void GLMContext::SetSamplerStates( int sampler, GLenum AddressU, GLe
 	Assert( minLod < ( 1 << GLM_PACKED_SAMPLER_PARAMS_MIN_LOD_BITS ) );
 
 	GLMTexSamplingParams &params = m_samplers[sampler].m_samp;
+	if ( ( params.m_packed.m_addressU == AddressU ) &&
+		 ( params.m_packed.m_addressV == AddressV ) &&
+		 ( params.m_packed.m_addressW == AddressW ) &&
+		 ( params.m_packed.m_minFilter == minFilter ) &&
+		 ( params.m_packed.m_magFilter == magFilter ) &&
+		 ( params.m_packed.m_mipFilter == mipFilter ) &&
+		 ( params.m_packed.m_minLOD == minLod ) &&
+		 ( params.m_lodBias == lodBias ) )
+	{
+		return false;
+	}
+
 	params.m_packed.m_addressU = AddressU;
 	params.m_packed.m_addressV = AddressV;
 	params.m_packed.m_addressW = AddressW;
@@ -2206,14 +2509,18 @@ FORCEINLINE void GLMContext::SetSamplerStates( int sampler, GLenum AddressU, GLe
 	params.m_packed.m_minLOD = minLod;
 
 	params.m_lodBias = lodBias;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerBorderColor( int sampler, DWORD Value )
+FORCEINLINE bool GLMContext::SetSamplerBorderColor( int sampler, DWORD Value )
 {
+	if ( m_samplers[sampler].m_samp.m_borderColor == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_borderColor = Value;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerMipMapLODBias( int sampler, DWORD Value )
+FORCEINLINE bool GLMContext::SetSamplerMipMapLODBias( int sampler, DWORD Value )
 {
 	typedef union {
 		DWORD asDword;
@@ -2223,31 +2530,50 @@ FORCEINLINE void GLMContext::SetSamplerMipMapLODBias( int sampler, DWORD Value )
 	Convert_t c;
 	c.asDword = Value;
 
+	if ( m_samplers[sampler].m_samp.m_lodBias == c.asFloat )
+		return false;
 	m_samplers[sampler].m_samp.m_lodBias = c.asFloat;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerMaxMipLevel( int sampler, DWORD Value )
+FORCEINLINE bool GLMContext::SetSamplerMaxMipLevel( int sampler, DWORD Value )
 {
 	Assert( Value < ( 1 << GLM_PACKED_SAMPLER_PARAMS_MIN_LOD_BITS ) );
+	// D3DSAMP_MAXMIPLEVEL is the most-detail (fine) LOD cap = "lowest mip level the sampler may use".
+	// It maps to GL_TEXTURE_MIN_LOD (a fine cap), NOT to GL_TEXTURE_MAX_LOD (a coarse cap).
+	// D3D's default value of 0 means "no fine cap", which corresponds to MIN_LOD = 0.
+	// The coarse cap is instead driven per-texture from WriteTexels' m_maxActiveMip tracker.
+	if ( m_samplers[sampler].m_samp.m_packed.m_minLOD == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_packed.m_minLOD = Value;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerMaxAnisotropy( int sampler, DWORD Value )
+FORCEINLINE bool GLMContext::SetSamplerMaxAnisotropy( int sampler, DWORD Value )
 {
 	Assert( Value < ( 1 << GLM_PACKED_SAMPLER_PARAMS_MAX_ANISO_BITS ) );
+	if ( m_samplers[sampler].m_samp.m_packed.m_maxAniso == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_packed.m_maxAniso = Value;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetSamplerSRGBTexture( int sampler, DWORD Value )
+FORCEINLINE bool GLMContext::SetSamplerSRGBTexture( int sampler, DWORD Value )
 {
 	Assert( Value < ( 1 << GLM_PACKED_SAMPLER_PARAMS_SRGB_BITS ) );
+	if ( m_samplers[sampler].m_samp.m_packed.m_srgb == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_packed.m_srgb = Value;
+	return true;
 }
 
-FORCEINLINE void GLMContext::SetShadowFilter( int sampler, DWORD Value )
+FORCEINLINE bool GLMContext::SetShadowFilter( int sampler, DWORD Value )
 {
 	Assert( Value < ( 1 << GLM_PACKED_SAMPLER_PARAMS_COMPARE_MODE_BITS ) );
+	if ( m_samplers[sampler].m_samp.m_packed.m_compareMode == Value )
+		return false;
 	m_samplers[sampler].m_samp.m_packed.m_compareMode = Value;
+	return true;
 }
 
 FORCEINLINE void GLMContext::BindIndexBufferToCtx( CGLMBuffer *buff )
@@ -2285,6 +2611,21 @@ FORCEINLINE void GLMContext::SetMaxUsedVertexShaderConstantsHint( uint nMaxConst
 	static bool bUseMaxVertexShadeConstantHints = !CommandLine()->CheckParm("-disablemaxvertexshaderconstanthints");
 	if ( bUseMaxVertexShadeConstantHints )
 	{
+		if ( m_bUseBoneUniformBuffers && ( nMaxConstants > (uint)m_nMaxUsedVertexProgramConstantsHint ) )
+		{
+			// A prior draw may have intentionally skipped bone constants above
+			// the old hint.  If the same linked pair now needs more of them,
+			// make the newly live range dirty even when Source re-submits
+			// byte-identical values and SetProgramParametersF returns early.
+			const int nNewBoneHighWater = MIN(
+				(int)nMaxConstants,
+				DXABSTRACT_VS_LAST_BONE_SLOT + 1 ) - DXABSTRACT_VS_FIRST_BONE_SLOT;
+			if ( nNewBoneHighWater > 0 )
+			{
+				m_programParamsF[kGLMVertexProgram].m_dirtySlotHighWaterBone =
+					MAX( m_programParamsF[kGLMVertexProgram].m_dirtySlotHighWaterBone, nNewBoneHighWater );
+			}
+		}
 		m_nMaxUsedVertexProgramConstantsHint = nMaxConstants;
 	}
 }

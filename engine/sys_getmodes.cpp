@@ -42,12 +42,8 @@ typedef void *HDC;
 #include "materialsystem/itexture.h"
 #include "materialsystem/imaterialsystemhardwareconfig.h"
 #include "jpeglib/jpeglib.h"
-#include "vgui/IVGui.h"
-
-#include <vgui_controls/Controls.h>
-#include <vgui/ISurface.h>
-#include <vgui/IScheme.h>
-
+#include "vgui/ISurface.h"
+#include "vgui_controls/Controls.h"
 #include "gl_shader.h"
 #include "sys_dll.h"
 #include "materialsystem/imaterial.h"
@@ -154,10 +150,6 @@ protected:
     // Inline accessors
     vmode_t&            DefaultVideoMode();
     vmode_t&            RequestedWindowVideoMode();
-    
-    int m_iLoadingSpinnerImageID; // 旋转图标纹理ID
-    float m_fLoadingSpinnerFrame; // 当前动画帧
-
 
 private:
     // Purpose: Loads the startup graphic
@@ -271,8 +263,6 @@ CVideoMode_Common::CVideoMode_Common( void )
     m_nModeWidth           = IsPC() ? 1024 : 640;
     m_nModeHeight          = IsPC() ? 768 : 480;
 	m_bVROverride = false;
-
-
 }
 
 //-----------------------------------------------------------------------------
@@ -791,6 +781,8 @@ void CVideoMode_Common::ApplySteamScreenshotTags( ScreenshotHandle hScreenshot )
 
 void CVideoMode_Common::SetupStartupGraphic()
 {
+    COM_TimestampedLog( "CVideoMode_Common::Init  SetupStartupGraphic" );
+
     char szBackgroundName[_MAX_PATH];
     CL_GetBackgroundLevelName( szBackgroundName, sizeof(szBackgroundName), false );
 
@@ -830,8 +822,6 @@ void CVideoMode_Common::SetupStartupGraphic()
     const char* loading = "materials/console/startup_loading.vtf";
     if ( IsGamepadUI() )
         loading = "materials/gamepadui/game_logo.vtf";
-        
-                        
     m_pLoadingTexture = LoadVTF( buf, loading );
     if ( !m_pLoadingTexture )
     {
@@ -862,7 +852,6 @@ void CVideoMode_Common::DrawStartupVideo()
 
 //-----------------------------------------------------------------------------
 // Purpose: Renders the startup graphic into the HWND
-// 游戏启动过程 最先显示的内容
 //-----------------------------------------------------------------------------
 void CVideoMode_Common::DrawStartupGraphic()
 {
@@ -880,15 +869,14 @@ void CVideoMode_Common::DrawStartupGraphic()
 
     char pStartupGraphicName[MAX_PATH];
     ComputeStartupGraphicName( pStartupGraphicName, sizeof(pStartupGraphicName) );
-    
+
 	if(debugstartup)
 	{
 		// slam the startup graphic name for sanity - take your pick
 		strcpy( pStartupGraphicName, "materials/console/background01.vtf");
 		//strcpy( pStartupGraphicName, "materials/console/testramp.vtf");
 	}
-
-
+	
     // Allocate a white material
     KeyValues *pVMTKeyValues = new KeyValues( "UnlitGeneric" );
     pVMTKeyValues->SetString( "$basetexture", pStartupGraphicName + 10 );
@@ -917,7 +905,9 @@ void CVideoMode_Common::DrawStartupGraphic()
     int th = m_pBackgroundTexture->Height();
     int lw = m_pLoadingTexture->Width();
     int lh = m_pLoadingTexture->Height();
-
+    float flLogoScale = min( 1.0f, min( (float)w / 1280.0f, (float)h / 720.0f ) );
+    int lwScaled = IsGamepadUI() ? (int)( lw * flLogoScale ) : lw;
+    int lhScaled = IsGamepadUI() ? (int)( lh * flLogoScale ) : lh;
 
 	if (debugstartup)
 	{
@@ -945,8 +935,7 @@ void CVideoMode_Common::DrawStartupGraphic()
                 if ( !IsGamepadUI() )
                     DrawScreenSpaceRectangle( pLoadingMaterial, w-lw, h-lh+slide/2, lw, lh, 0, 0, lw-1, lh-1, lw, lh, NULL,1,1,depth-0.1 );
                 else
-                    // TODO: Steam Deck
-                    DrawScreenSpaceRectangle( pLoadingMaterial, w-lw, h-lh+slide/2, lw, lh, 0, 0, lw-1, lh-1, lw, lh, NULL,1,1,depth-0.1 );
+                    DrawScreenSpaceRectangle( pLoadingMaterial, w-lwScaled-16, 16+slide/2, lwScaled, lhScaled, 0, 0, lw-1, lh-1, lw, lh, NULL,1,1,depth-0.1 );
 			}
 
 			if(0)
@@ -991,12 +980,11 @@ void CVideoMode_Common::DrawStartupGraphic()
 			pRenderContext->ClearColor3ub( 0, 0, 0 );
 			pRenderContext->ClearBuffers( true, true, true );
 			DrawScreenSpaceRectangle( pMaterial, 0, 0, w, h, 0, 0, tw-1, th-1, tw, th, NULL,1,1,depth );
-       if(!IsGamepadUI())
-		    DrawScreenSpaceRectangle( pLoadingMaterial, w-lw, h-lh, lw, lh, 0, 0, lw-1, lh-1, lw, lh, NULL,1,1,depth );
-			g_pMaterialSystem->SwapBuffers();		
-
-	   
-	   	}		
+			int loadX = IsGamepadUI() ? w - lwScaled - 16 : w - lw;
+			int loadY = IsGamepadUI() ? 16 : h - lh;
+			DrawScreenSpaceRectangle( pLoadingMaterial, loadX, loadY, IsGamepadUI() ? lwScaled : lw, IsGamepadUI() ? lhScaled : lh, 0, 0, lw-1, lh-1, lw, lh, NULL,1,1,depth );
+			g_pMaterialSystem->SwapBuffers();
+		}
 	}
 
 #ifdef DX_TO_GL_ABSTRACTION
@@ -1134,10 +1122,6 @@ void CVideoMode_Common::DrawNullBackground( void *hHDC, int w, int h )
 }
 
 #ifndef _WIN32
-
-typedef unsigned char BYTE;
-typedef signed long LONG;
-typedef unsigned long ULONG;
 
 typedef char * LPSTR;
 

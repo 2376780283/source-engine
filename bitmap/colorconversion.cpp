@@ -1325,7 +1325,55 @@ bool ConvertImageFormat( const uint8 *src, ImageFormat srcImageFormat,
 		     dstImageFormat == IMAGE_FORMAT_DXT3 ||
 		     dstImageFormat == IMAGE_FORMAT_DXT5 || dstImageFormat == IMAGE_FORMAT_DXT5_RUNTIME ||
 		     dstImageFormat == IMAGE_FORMAT_ATI1N ||
-		     dstImageFormat == IMAGE_FORMAT_ATI2N ) && ( srcImageFormat == dstImageFormat ) ) ||
+		     dstImageFormat == IMAGE_FORMAT_ATI2N ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC4x4 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC4x4_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC5x4 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC5x4_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC5x5 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC5x5_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC6x5 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC6x5_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC6x6 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC6x6_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC8x5 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC8x5_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC8x6 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC8x6_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC8x8 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC8x8_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC10x5 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC10x5_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC10x6 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC10x6_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC10x8 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC10x8_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC10x10 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC10x10_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC12x10 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC12x10_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC12x12 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC12x12_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC3x3x3 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC3x3x3_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC4x3x3 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC4x3x3_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC4x4x3 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC4x4x3_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC4x4x4 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC4x4x4_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC5x4x4 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC5x4x4_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC5x5x4 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC5x5x4_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC5x5x5 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC5x5x5_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC6x5x5 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC6x5x5_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC6x6x5 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC6x6x5_HDR ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC6x6x6 ||
+	     dstImageFormat == IMAGE_FORMAT_ASTC6x6x6_HDR ) && ( srcImageFormat == dstImageFormat ) ) ||
 		 ( dstImageFormat == IMAGE_FORMAT_DXT5 && srcImageFormat == IMAGE_FORMAT_DXT5_RUNTIME ) ||
 		 ( dstImageFormat == IMAGE_FORMAT_DXT1 && srcImageFormat == IMAGE_FORMAT_DXT1_RUNTIME ) ||
 		 ( dstImageFormat == IMAGE_FORMAT_DXT5_RUNTIME && srcImageFormat == IMAGE_FORMAT_DXT5 ) ||

@@ -1807,13 +1807,14 @@ inline void MatrixBuildScale( VMatrix &dst, const Vector& scale )
 	MatrixBuildScale( dst, scale.x, scale.y, scale.z );
 }
 
-inline void MatrixBuildPerspective( VMatrix &dst, float fovX, float fovY, float zNear, float zFar )
-{ 
+inline void MatrixBuildPerspective(VMatrix &dst, float fovX, float fovY, float zNear, float zFar)
+{
     const float temp = 0.00872664626f; // (M_PI/180.0f)*0.5f
 	const float width = 2.0f * zNear * tan( fovX * temp );
 	const float height = 2.0f * zNear * tan( fovY * temp );
 	const float invWidth = ( width != 0.0f ) ? ( 1.0f / width ) : 0.0f;
 	const float invHeight = ( height != 0.0f ) ? ( 1.0f / height ) : 0.0f;
+
 
 	// Final matrix matches the previous result of multiply chain:
 	// [ -zn/width, 0, 0.5, 0 ]
@@ -1827,6 +1828,7 @@ inline void MatrixBuildPerspective( VMatrix &dst, float fovX, float fovY, float 
 		0.0f, 0.0f, 1.0f, 0.0f
 	);
 }
+
 static inline void CalculateAABBForNormalizedFrustum_Helper( float x, float y, float z, const VMatrix &volumeToWorld, Vector &mins, Vector &maxs )
 {
 	Vector volumeSpacePos( x, y, z );

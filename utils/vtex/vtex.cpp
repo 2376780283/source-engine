@@ -68,6 +68,9 @@ static bool g_UseGameDir = true;
 
 static bool g_bWarningsAsErrors = false;
 static bool g_bUsedAsLaunchableDLL = false;
+static bool g_bForceASTC = false;
+static int g_nForceASTCBlockW = 4;
+static int g_nForceASTCBlockH = 4;
 
 static char g_ForcedOutputDir[MAX_PATH];
 
@@ -743,6 +746,48 @@ static ImageFormat ComputeDesiredImageFormat( IVTFTexture *pTexture, VTexConfigI
 		targetFormat = IsPosix() ? IMAGE_FORMAT_BGR888 : IMAGE_FORMAT_DXT1; // No DXT compressor on Posix
 #endif
 	}
+	if ( g_bForceASTC && !( info.m_vtfProcOptions.flags0 & VtfProcessingOptions::OPT_NOCOMPRESS ) )
+	{
+		if ( pTexture->Width() >= g_nForceASTCBlockW && pTexture->Height() >= g_nForceASTCBlockH )
+		{
+			// Determine HDR vs LDR
+			bool isHDR = ( pTexture->Format() == IMAGE_FORMAT_RGBA16161616F || pTexture->Format() == IMAGE_FORMAT_RGB323232F );
+
+			// Map block dimensions to IMAGE_FORMAT
+			// (The actual mapping depends on w x h)
+			if ( g_nForceASTCBlockW == 4 && g_nForceASTCBlockH == 4 )
+				return isHDR ? IMAGE_FORMAT_ASTC4x4_HDR : IMAGE_FORMAT_ASTC4x4;
+			if ( g_nForceASTCBlockW == 5 && g_nForceASTCBlockH == 4 )
+				return isHDR ? IMAGE_FORMAT_ASTC5x4_HDR : IMAGE_FORMAT_ASTC5x4;
+			if ( g_nForceASTCBlockW == 5 && g_nForceASTCBlockH == 5 )
+				return isHDR ? IMAGE_FORMAT_ASTC5x5_HDR : IMAGE_FORMAT_ASTC5x5;
+			if ( g_nForceASTCBlockW == 6 && g_nForceASTCBlockH == 5 )
+				return isHDR ? IMAGE_FORMAT_ASTC6x5_HDR : IMAGE_FORMAT_ASTC6x5;
+			if ( g_nForceASTCBlockW == 6 && g_nForceASTCBlockH == 6 )
+				return isHDR ? IMAGE_FORMAT_ASTC6x6_HDR : IMAGE_FORMAT_ASTC6x6;
+			if ( g_nForceASTCBlockW == 8 && g_nForceASTCBlockH == 5 )
+				return isHDR ? IMAGE_FORMAT_ASTC8x5_HDR : IMAGE_FORMAT_ASTC8x5;
+			if ( g_nForceASTCBlockW == 8 && g_nForceASTCBlockH == 6 )
+				return isHDR ? IMAGE_FORMAT_ASTC8x6_HDR : IMAGE_FORMAT_ASTC8x6;
+			if ( g_nForceASTCBlockW == 8 && g_nForceASTCBlockH == 8 )
+				return isHDR ? IMAGE_FORMAT_ASTC8x8_HDR : IMAGE_FORMAT_ASTC8x8;
+			if ( g_nForceASTCBlockW == 10 && g_nForceASTCBlockH == 5 )
+				return isHDR ? IMAGE_FORMAT_ASTC10x5_HDR : IMAGE_FORMAT_ASTC10x5;
+			if ( g_nForceASTCBlockW == 10 && g_nForceASTCBlockH == 6 )
+				return isHDR ? IMAGE_FORMAT_ASTC10x6_HDR : IMAGE_FORMAT_ASTC10x6;
+			if ( g_nForceASTCBlockW == 10 && g_nForceASTCBlockH == 8 )
+				return isHDR ? IMAGE_FORMAT_ASTC10x8_HDR : IMAGE_FORMAT_ASTC10x8;
+			if ( g_nForceASTCBlockW == 10 && g_nForceASTCBlockH == 10 )
+				return isHDR ? IMAGE_FORMAT_ASTC10x10_HDR : IMAGE_FORMAT_ASTC10x10;
+			if ( g_nForceASTCBlockW == 12 && g_nForceASTCBlockH == 10 )
+				return isHDR ? IMAGE_FORMAT_ASTC12x10_HDR : IMAGE_FORMAT_ASTC12x10;
+			if ( g_nForceASTCBlockW == 12 && g_nForceASTCBlockH == 12 )
+				return isHDR ? IMAGE_FORMAT_ASTC12x12_HDR : IMAGE_FORMAT_ASTC12x12;
+			// Fallback to 4x4 if unknown block size
+			return isHDR ? IMAGE_FORMAT_ASTC4x4_HDR : IMAGE_FORMAT_ASTC4x4;
+		}
+	}
+
 	return targetFormat;
 } 
 
@@ -2278,6 +2323,7 @@ void Usage( void )
 		"-deducepath       : deduce path of sources by target file names\n"
 		"-quickconvert     : use with \"-dontusegamedir -quickconvert\" to upgrade old .vmt files\n"
 		"-crcvalidate      : validate .vmt against the sources\n"
+		"-astc [WxH]       : force ASTC compressed output (ARM Mali). Optional block size, e.g. -astc 6x6\n"
 		"-crcforce         : generate a new .vmt even if sources crc matches\n"
 		"\teg: -vmtparam $ignorez 1 -vmtparam $translucent 1\n"
 		"Note that you can use wildcards and that you can also chain them\n"
@@ -2741,6 +2787,25 @@ int CVTex::VTex( int argc, char **argv )
 		else if( stricmp(argv[i], "-crcvalidate") == 0 )
 		{
 			i++;
+		}
+		else if ( stricmp( argv[i], "-astc" ) == 0 )
+		{
+			i++;
+			g_bForceASTC = true;
+			if ( i < argc )
+			{
+				// Try to parse block size like "4x4", "5x5", "6x6", "8x8", etc.
+				if ( sscanf( argv[i], "%dx%d", &g_nForceASTCBlockW, &g_nForceASTCBlockH ) == 2 )
+				{
+					i++; // consumed the block size argument
+				}
+				else
+				{
+					// No block size specified, default to 4x4
+					g_nForceASTCBlockW = 4;
+					g_nForceASTCBlockH = 4;
+				}
+			}
 		}
 		else if( stricmp(argv[i], "-crcforce") == 0 )
 		{
