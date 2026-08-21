@@ -43,12 +43,14 @@ def build(bld):
 			'squirrel/squirrel/sqstate.cpp',
 			'squirrel/squirrel/sqtable.cpp',
 			'squirrel/squirrel/sqvm.cpp',
+			'sqdbg/sqdbg/server.cpp',
 	]
 
 	includes = [
 		'.',
 		'./squirrel/include',
 		'./sqdbg/include',
+		'./squirrel/squirrel',
 		'../common',
 		'../public',
 		'../public/tier0',
