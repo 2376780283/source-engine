@@ -1,4 +1,4 @@
-//========== Copyright © 2008, Valve Corporation, All rights reserved. ========
+//========== Copyright  2008, Valve Corporation, All rights reserved. ========
 //
 // Purpose: VScript
 //
@@ -739,32 +739,28 @@ static inline int ToConstantVariant(int value)
 #define BEGIN_SCRIPTDESC_NAMED_WITH_HELPER( className, baseClass, scriptName, description, helper ) \
 	template <> ScriptClassDesc_t* GetScriptDesc<baseClass>(baseClass*, bool); \
 	template <> ScriptClassDesc_t* GetScriptDesc<className>(className*, bool); \
-	ScriptClassDesc_t & g_##className##_ScriptDesc = *GetScriptDesc<className>(nullptr, true); \
 	template <> ScriptClassDesc_t* GetScriptDesc<className>(className*, bool init) \
 	{ \
 		static ScriptClassDesc_t g_##className##_ScriptDesc; \
 		typedef className _className; \
 		ScriptClassDesc_t *pDesc = &g_##className##_ScriptDesc; \
-		if (!pDesc->m_pszClassname) \
+		if (pDesc->m_pszClassname) return pDesc; \
+		pDesc->m_pszDescription = description; \
+		ScriptClassDesc_t *pBaseDesc = GetScriptDescForClass( baseClass ); \
+		ScriptInitClassDescNamed( pDesc, className, pBaseDesc, scriptName ); \
+		pDesc->pHelper = helper; \
+		if ( !pDesc->pHelper ) \
 		{ \
-			pDesc->m_pszDescription = description; \
-			ScriptClassDesc_t *pBaseDesc = GetScriptDescForClass( baseClass ); \
-			ScriptInitClassDescNamed( pDesc, className, pBaseDesc, scriptName ); \
-			pDesc->pHelper = helper; \
-			if ( !pDesc->pHelper ) \
+			while ( pBaseDesc ) \
 			{ \
-				while ( pBaseDesc ) \
+				if ( pBaseDesc->pHelper ) \
 				{ \
-					if ( pBaseDesc->pHelper ) \
-					{ \
-						pDesc->pHelper = pBaseDesc->pHelper; \
-						break; \
-					} \
-					pBaseDesc = pBaseDesc->m_pBaseDesc; \
+					pDesc->pHelper = pBaseDesc->pHelper; \
+					break; \
 				} \
+				pBaseDesc = pBaseDesc->m_pBaseDesc; \
 			} \
-		} \
-		if (!init) return pDesc;
+		}
 
 
 #define BEGIN_SCRIPTDESC_ROOT_NAMED( className, scriptName, description ) \
@@ -828,10 +824,16 @@ static inline int ToConstantVariant(int value)
 	do { ScriptMemberDesc_t *pBinding = &((pDesc)->m_Members[(pDesc)->m_Members.AddToTail()]); pBinding->m_pszScriptName = varName; pBinding->m_pszDescription = description; pBinding->m_ReturnType = returnType; } while (0);
 #endif
 
-template <typename T> ScriptClassDesc_t *GetScriptDesc(T *, bool = false);
+template <typename T> struct ScriptDescGetter { static ScriptClassDesc_t* Get(T*, bool); };
+
+template <typename T> inline ScriptClassDesc_t *GetScriptDesc(T *p, bool init = false) {
+    return ScriptDescGetter<T>::Get(p, init);
+}
 
 struct ScriptNoBase_t;
-template <> inline ScriptClassDesc_t *GetScriptDesc<ScriptNoBase_t>( ScriptNoBase_t *, bool ) { return NULL; }
+template <> struct ScriptDescGetter<ScriptNoBase_t> { 
+    static inline ScriptClassDesc_t* Get(ScriptNoBase_t*, bool) { return NULL; } 
+};
 
 #define GetScriptDescForClass( className ) GetScriptDesc( ( className *)NULL )
 
