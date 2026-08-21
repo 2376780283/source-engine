@@ -88,7 +88,6 @@ $Project
 			$File	"mapbase\point_copy_size.cpp"
 			$File	"mapbase\point_damageinfo.cpp"
 			$File	"mapbase\point_entity_replace.cpp"
-			//$File	"mapbase\point_physics_control.cpp" // Backlogged
 			$File	"mapbase\point_projectile.cpp"
 			$File	"mapbase\point_radiation_source.cpp"
 			$File	"mapbase\point_glow.cpp"
