@@ -729,7 +729,7 @@ static inline int ToConstantVariant(int value)
 // 
 //-----------------------------------------------------------------------------
 
-#define ALLOW_SCRIPT_ACCESS() 																template <typename T> friend ScriptClassDesc_t *GetScriptDesc(T *, bool);
+#define ALLOW_SCRIPT_ACCESS() 																template <typename T> friend ScriptClassDesc_t *GetScriptDesc(T *, bool); template <typename T> friend struct ScriptDescGetter;
 
 #define BEGIN_SCRIPTDESC( className, baseClass, description )								BEGIN_SCRIPTDESC_WITH_HELPER( className, baseClass, description, NULL )
 #define BEGIN_SCRIPTDESC_WITH_HELPER( className, baseClass, description, helper )			BEGIN_SCRIPTDESC_NAMED_WITH_HELPER( className, baseClass, #className, description, helper )
@@ -737,30 +737,30 @@ static inline int ToConstantVariant(int value)
 #define BEGIN_SCRIPTDESC_ROOT_WITH_HELPER( className, description, helper )					BEGIN_SCRIPTDESC_ROOT_NAMED_WITH_HELPER( className, #className, description, helper )
 
 #define BEGIN_SCRIPTDESC_NAMED_WITH_HELPER( className, baseClass, scriptName, description, helper ) \
-	template <> ScriptClassDesc_t* GetScriptDesc<baseClass>(baseClass*, bool); \
-	template <> ScriptClassDesc_t* GetScriptDesc<className>(className*, bool); \
-	template <> ScriptClassDesc_t* GetScriptDesc<className>(className*, bool init) \
-	{ \
-		static ScriptClassDesc_t g_##className##_ScriptDesc; \
-		typedef className _className; \
-		ScriptClassDesc_t *pDesc = &g_##className##_ScriptDesc; \
-		if (pDesc->m_pszClassname) return pDesc; \
-		pDesc->m_pszDescription = description; \
-		ScriptClassDesc_t *pBaseDesc = GetScriptDescForClass( baseClass ); \
-		ScriptInitClassDescNamed( pDesc, className, pBaseDesc, scriptName ); \
-		pDesc->pHelper = helper; \
-		if ( !pDesc->pHelper ) \
+	template <> struct ScriptDescGetter<className> { \
+		static ScriptClassDesc_t* Get(className*, bool init) \
 		{ \
-			while ( pBaseDesc ) \
+			static ScriptClassDesc_t g_##className##_ScriptDesc; \
+			typedef className _className; \
+			ScriptClassDesc_t *pDesc = &g_##className##_ScriptDesc; \
+			if (pDesc->m_pszClassname) return pDesc; \
+			pDesc->m_pszDescription = description; \
+			ScriptClassDesc_t *pBaseDesc = GetScriptDescForClass( baseClass ); \
+			ScriptInitClassDescNamed( pDesc, className, pBaseDesc, scriptName ); \
+			pDesc->pHelper = helper; \
+			if ( !pDesc->pHelper ) \
 			{ \
-				if ( pBaseDesc->pHelper ) \
+				while ( pBaseDesc ) \
 				{ \
-					pDesc->pHelper = pBaseDesc->pHelper; \
-					break; \
+					if ( pBaseDesc->pHelper ) \
+					{ \
+						pDesc->pHelper = pBaseDesc->pHelper; \
+						break; \
+					} \
+					pBaseDesc = pBaseDesc->m_pBaseDesc; \
 				} \
-				pBaseDesc = pBaseDesc->m_pBaseDesc; \
-			} \
-		}
+			}
+
 
 
 #define BEGIN_SCRIPTDESC_ROOT_NAMED( className, scriptName, description ) \
@@ -769,8 +769,9 @@ static inline int ToConstantVariant(int value)
 	BEGIN_SCRIPTDESC_NAMED_WITH_HELPER( className, ScriptNoBase_t, scriptName, description, helper )
 
 #define END_SCRIPTDESC() \
-		return pDesc; \
-	}
+			return pDesc; \
+		} \
+	};
 
 #define DEFINE_SCRIPTFUNC( func, description )												DEFINE_SCRIPTFUNC_NAMED( func, #func, description )
 #define DEFINE_SCRIPTFUNC_NAMED( func, scriptName, description )							ScriptAddFunctionToClassDescNamed( pDesc, _className, func, scriptName, description );
@@ -834,6 +835,7 @@ struct ScriptNoBase_t;
 template <> struct ScriptDescGetter<ScriptNoBase_t> { 
     static inline ScriptClassDesc_t* Get(ScriptNoBase_t*, bool) { return NULL; } 
 };
+
 
 #define GetScriptDescForClass( className ) GetScriptDesc( ( className *)NULL )
 

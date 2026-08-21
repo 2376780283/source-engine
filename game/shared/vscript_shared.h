@@ -1,4 +1,4 @@
-//========== Copyright © 2008, Valve Corporation, All rights reserved. ========
+//========== Copyright  2008, Valve Corporation, All rights reserved. ========
 //
 // Purpose:
 //
@@ -21,7 +21,9 @@ inline bool VScriptRunScript( const char *pszScriptName, bool bWarnMissing = fal
 
 #define DECLARE_ENT_SCRIPTDESC()													ALLOW_SCRIPT_ACCESS(); virtual ScriptClassDesc_t *GetScriptDesc()
 
-#define BEGIN_ENT_SCRIPTDESC( className, baseClass, description )										_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC( className, baseClass, description )
+#define BEGIN_ENT_SCRIPTDESC( className, baseClass, description ) \
+    _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); \
+    BEGIN_SCRIPTDESC( className, baseClass, description )
 #define BEGIN_ENT_SCRIPTDESC_WITH_HELPER( className, baseClass, description, helper )					_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_WITH_HELPER( className, baseClass, description, helper )
 #define BEGIN_ENT_SCRIPTDESC_ROOT( className, description )												_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_ROOT( className, description )
 #define BEGIN_ENT_SCRIPTDESC_ROOT_WITH_HELPER( className, description, helper )							_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_ROOT_WITH_HELPER( className, description, helper )
@@ -30,7 +32,8 @@ inline bool VScriptRunScript( const char *pszScriptName, bool bWarnMissing = fal
 #define BEGIN_ENT_SCRIPTDESC_ROOT_NAMED( className, scriptName, description )							_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_ROOT_NAMED( className, scriptName, description )
 #define BEGIN_ENT_SCRIPTDESC_ROOT_NAMED_WITH_HELPER( className, scriptName, description, helper )		_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_ROOT_NAMED_WITH_HELPER( className, scriptName, description, helper )
 
-#define _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className )					template <> ScriptClassDesc_t * GetScriptDesc<className>( className *, bool ); ScriptClassDesc_t *className::GetScriptDesc()  { return ::GetScriptDesc( this ); }		
+#define _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className )                                 ScriptClassDesc_t *className::GetScriptDesc()  { return ::GetScriptDesc( this ); }
+
 
 // Only allow scripts to create entities during map initialization
 bool IsEntityCreationAllowedInScripts( void );
