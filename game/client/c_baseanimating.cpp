@@ -1052,7 +1052,7 @@ void C_BaseAnimating::LockStudioHdr()
 	
 	if ( pNewWrapper->GetVirtualModel() )
 	{
-		MDLHandle_t hVirtualModel = (MDLHandle_t)(int)(pStudioHdr->virtualModel)&0xffff;
+		MDLHandle_t hVirtualModel = VoidPtrToMDLHandle( pStudioHdr->VirtualModel() );
 		mdlcache->LockStudioHdr( hVirtualModel );
 	}
 
@@ -1084,7 +1084,7 @@ void C_BaseAnimating::UnlockStudioHdr()
 			// Immediate-mode rendering, can unlock immediately
 			if ( pStudioHdr->GetVirtualModel() )
 			{
-				MDLHandle_t hVirtualModel = (MDLHandle_t)(int)pStudioHdr->virtualModel&0xffff;
+				MDLHandle_t hVirtualModel = VoidPtrToMDLHandle( m_pStudioHdr->GetRenderHdr()->VirtualModel() );
 				mdlcache->UnlockStudioHdr( hVirtualModel );
 			}
 			mdlcache->UnlockStudioHdr( m_hStudioHdr );
