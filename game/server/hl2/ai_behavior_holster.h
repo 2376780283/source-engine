@@ -25,8 +25,8 @@ class CAI_HolsterBehavior : public CAI_SimpleBehavior
 	DECLARE_CLASS( CAI_HolsterBehavior, CAI_SimpleBehavior );
 
 public:
-	CAI_HolsterBehavior() = default;
-
+	CAI_HolsterBehavior();
+	
 	virtual const char *GetName() {	return "Holster"; }
 
 	virtual bool 	CanSelectSchedule();

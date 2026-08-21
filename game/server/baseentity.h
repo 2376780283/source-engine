@@ -1319,81 +1319,36 @@ public:
 
 	// Ugly code to lookup all functions to make sure they are in the table when set.
 #ifdef _DEBUG
-
-#ifdef PLATFORM_64BITS
-#ifdef GNUC
-#define ENTITYFUNCPTR_SIZE	16
-#else
-#define ENTITYFUNCPTR_SIZE	8
-#endif
-#else
-#ifdef GNUC
-#define ENTITYFUNCPTR_SIZE	8
-#else
-#define ENTITYFUNCPTR_SIZE	4
-#endif
-#endif
-
 	void FunctionCheck( void *pFunction, const char *name );
 
-	ENTITYFUNCPTR TouchSet( ENTITYFUNCPTR func, char *name ) 
+	ENTITYFUNCPTR TouchSet( ENTITYFUNCPTR func, const char *name ) 
 	{ 
-#ifdef _DEBUG
-#ifdef PLATFORM_64BITS
 #ifdef GNUC
-	COMPILE_TIME_ASSERT( sizeof(func) == 16 );
+		COMPILE_TIME_ASSERT( sizeof(func) == 8 );
 #else
-	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
-#endif
-#else
-#ifdef GNUC
-	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
-#else
-	COMPILE_TIME_ASSERT( sizeof(func) == 4 );
-#endif
-#endif
+		COMPILE_TIME_ASSERT( sizeof(func) == 4 );
 #endif
 		m_pfnTouch = func; 
 		FunctionCheck( *(reinterpret_cast<void **>(&m_pfnTouch)), name ); 
 		return func;
 	}
-	USEPTR	UseSet( USEPTR func, char *name ) 
+	USEPTR	UseSet( USEPTR func, const char *name ) 
 	{ 
-#ifdef _DEBUG
-#ifdef PLATFORM_64BITS
 #ifdef GNUC
-	COMPILE_TIME_ASSERT( sizeof(func) == 16 );
+		COMPILE_TIME_ASSERT( sizeof(func) == 8 );
 #else
-	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
-#endif
-#else
-#ifdef GNUC
-	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
-#else
-	COMPILE_TIME_ASSERT( sizeof(func) == 4 );
-#endif
-#endif
+		COMPILE_TIME_ASSERT( sizeof(func) == 4 );
 #endif
 		m_pfnUse = func; 
 		FunctionCheck( *(reinterpret_cast<void **>(&m_pfnUse)), name ); 
 		return func;
 	}
-	ENTITYFUNCPTR	BlockedSet( ENTITYFUNCPTR func, char *name ) 
+	ENTITYFUNCPTR	BlockedSet( ENTITYFUNCPTR func, const char *name ) 
 	{ 
-#ifdef _DEBUG
-#ifdef PLATFORM_64BITS
 #ifdef GNUC
-	COMPILE_TIME_ASSERT( sizeof(func) == 16 );
+		COMPILE_TIME_ASSERT( sizeof(func) == 8 );
 #else
-	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
-#endif
-#else
-#ifdef GNUC
-	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
-#else
-	COMPILE_TIME_ASSERT( sizeof(func) == 4 );
-#endif
-#endif
+		COMPILE_TIME_ASSERT( sizeof(func) == 4 );
 #endif
 		m_pfnBlocked = func; 
 		FunctionCheck( *(reinterpret_cast<void **>(&m_pfnBlocked)), name ); 
@@ -1523,7 +1478,7 @@ public:
 	virtual	bool FVisible ( CBaseEntity *pEntity, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL );
 	virtual bool FVisible( const Vector &vecTarget, int traceMask = MASK_BLOCKLOS, CBaseEntity **ppBlocker = NULL );
 
-	virtual bool CanBeSeenBy( CAI_BaseNPC *pNPC ) { return true; } // allows entities to be 'invisible' to NPC senses.
+	virtual bool CanBeSeenBy( CAI_BaseNPC *pNPC ); // allows entities to be 'invisible' to NPC senses.
 
 	// This function returns a value that scales all damage done by this entity.
 	// Use CDamageModifier to hook in damage modifiers on a guy.
@@ -1982,7 +1937,7 @@ private:
 	EHANDLE			m_pBlocker;
 
 	// was pev->gravity;
-	CNetworkVar( float, m_flGravity );  // rename to m_flGravityScale;
+	float			m_flGravity;  // rename to m_flGravityScale;
 	// was pev->friction
 	CNetworkVarForDerived( float, m_flFriction );
 	CNetworkVar( float, m_flElasticity );
@@ -2197,7 +2152,7 @@ public:
 #endif
 
 	const char* ScriptGetModelName(void) const;
-	HSCRIPT ScriptGetModelKeyValues(void);
+	HSCRIPT_RC ScriptGetModelKeyValues(void);
 
 	void ScriptStopSound(const char* soundname);
 	void ScriptEmitSound(const char* soundname);
@@ -2260,10 +2215,13 @@ public:
 	static ScriptHook_t	g_Hook_VPhysicsCollision;
 	static ScriptHook_t	g_Hook_FireBullets;
 	static ScriptHook_t	g_Hook_OnDeath;
+	static ScriptHook_t	g_Hook_OnTakeDamage;
 	static ScriptHook_t	g_Hook_OnKilledOther;
 	static ScriptHook_t	g_Hook_HandleInteraction;
 	static ScriptHook_t	g_Hook_ModifyEmitSoundParams;
 	static ScriptHook_t	g_Hook_ModifySentenceParams;
+	static ScriptHook_t	g_Hook_ModifyOrAppendCriteria;
+	static ScriptHook_t	g_Hook_CanBeSeenBy;
 #endif
 
 	string_t		m_iszVScripts;
@@ -2271,9 +2229,7 @@ public:
 	CScriptScope	m_ScriptScope;
 	HSCRIPT			m_hScriptInstance;
 	string_t		m_iszScriptId;
-#ifdef MAPBASE_VSCRIPT
-	HSCRIPT			m_pScriptModelKeyValues;
-#else
+#ifndef MAPBASE_VSCRIPT
 	CScriptKeyValues* m_pScriptModelKeyValues;
 #endif
 };

@@ -2044,8 +2044,7 @@ int CResponseSystem::ParseOneCriterion( const char *criterionName )
 	short existing = m_Criteria.Find( criterionName );
 	if ( existing != m_Criteria.InvalidIndex() )
 	{
-		ResponseWarning( "Additional definition for criteria '%s', overwriting\n", criterionName );
-		m_Criteria[existing].PurgeSubcriteria();
+		//ResponseWarning( "Additional definition for criteria '%s', overwriting\n", criterionName );
 		m_Criteria[existing] = Criteria();
 		m_Criteria.SetElementName(existing, criterionName);
 		idx = existing;

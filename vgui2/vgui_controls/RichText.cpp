@@ -847,34 +847,40 @@ void RichText::Paint()
 
 		// 3.
 		// Calculate the range of text to draw all at once
-		int iLim = m_TextStream.Count();
+		int iLim = m_TextStream.Count() - 1;
 		
+		// Stop at the next line break
+		if ( m_LineBreaks.IsValidIndex( lineBreakIndexIndex ) && m_LineBreaks[lineBreakIndexIndex] <= iLim )
+			iLim = m_LineBreaks[lineBreakIndexIndex] - 1;
+
 		// Stop at the next format change
 		if ( m_FormatStream.IsValidIndex(renderState.formatStreamIndex) && 
-			m_FormatStream[renderState.formatStreamIndex].textStreamIndex < iLim &&
+			m_FormatStream[renderState.formatStreamIndex].textStreamIndex <= iLim &&
 			m_FormatStream[renderState.formatStreamIndex].textStreamIndex >= i &&
 			m_FormatStream[renderState.formatStreamIndex].textStreamIndex )
 		{
-			iLim = m_FormatStream[renderState.formatStreamIndex].textStreamIndex;
+			iLim = m_FormatStream[renderState.formatStreamIndex].textStreamIndex - 1;
 		}
 
-		// Stop at the next line break
-		if ( m_LineBreaks.IsValidIndex( lineBreakIndexIndex ) && m_LineBreaks[lineBreakIndexIndex] < iLim )
-			iLim = m_LineBreaks[lineBreakIndexIndex];
+		// Stop when entering or exiting the selected range
+		if ( i < selection0 && iLim >= selection0 )
+			iLim = selection0 - 1;
+		if ( i >= selection0 && i < selection1 && iLim >= selection1 )
+			iLim = selection1 - 1;
 
 		// Handle non-drawing characters specially
-		for ( int iT = i; iT < iLim; iT++ )
+		for ( int iT = i; iT <= iLim; iT++ )
 		{
 			if ( iswcntrl(m_TextStream[iT]) )
 			{
-				iLim = iT;
+				iLim = iT - 1;
 				break;
 			}
 		}
 
 		// 4.
 		// Draw the current text range
-		if ( iLim <= i )
+		if ( iLim < i )
 		{
 			if ( m_TextStream[i] == '\t' )
 			{
@@ -887,8 +893,8 @@ void RichText::Paint()
 		}
 		else
 		{
-			renderState.x += DrawString(i, iLim - 1, renderState, hFontCurrent );
-			i = iLim;
+			renderState.x += DrawString(i, iLim, renderState, hFontCurrent );
+			i = iLim + 1;
 		}
 	}
 
@@ -1583,7 +1589,7 @@ void RichText::OnCursorExited()
 //-----------------------------------------------------------------------------
 // Purpose: Handle selection of text by mouse
 //-----------------------------------------------------------------------------
-void RichText::OnCursorMoved(int ignX, int ignY)
+void RichText::OnCursorMoved(int x, int y)
 {
 	if (_mouseSelection)
 	{
@@ -2205,7 +2211,7 @@ void RichText::CopySelected()
 	if (GetSelectedRange(x0, x1))
 	{
 		CUtlVector<wchar_t> buf;
-		for (int i = x0; i < x1; i++)
+		for (int i = x0; i <= x1; i++)
 		{
 			if ( m_TextStream.IsValidIndex(i) == false )
 				 continue;
@@ -2547,12 +2553,12 @@ int RichText::ParseTextStringForUrls( const char *text, int startPos, char *pchU
 			// get the url
 			i += Q_strlen( "<a href=" );
 			const char *pchURLEnd = Q_strstr( text + i, ">" );
-			Q_strncpy( pchURL, text + i, min( (int)(pchURLEnd - text) - i + 1, cchURL ) );
+			Q_strncpy( pchURL, text + i, min( pchURLEnd - text - i + 1, cchURL ) ); 
 			i += ( pchURLEnd - text - i + 1 );
             
 			// get the url text
 			pchURLEnd = Q_strstr( text, "</a>" );
-			Q_strncpy( pchURLText, text + i, min( (int)(pchURLEnd - text) - i + 1, cchURLText ) );
+			Q_strncpy( pchURLText, text + i, min( pchURLEnd - text - i + 1, cchURLText ) ); 
 			i += ( pchURLEnd - text - i );
 			i += Q_strlen( "</a>" );
 

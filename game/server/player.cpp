@@ -2818,22 +2818,10 @@ void CBasePlayer::ObserverUse( bool bIsPressed )
 
 void CBasePlayer::JumptoPosition(const Vector &origin, const QAngle &angles)
 {
-    Vector neworigin;
-    QAngle newangles;
-
-    // Clamp the position and angles to prevent crashes
-    neworigin.x = clamp( origin.x, MIN_COORD_FLOAT, MAX_COORD_FLOAT );
-    neworigin.y = clamp( origin.y, MIN_COORD_FLOAT, MAX_COORD_FLOAT );
-    neworigin.z = clamp( origin.z, MIN_COORD_FLOAT, MAX_COORD_FLOAT );
-
-    newangles.x = clamp( angles.x, MIN_COORD_FLOAT, MAX_COORD_FLOAT );
-    newangles.y = clamp( angles.y, MIN_COORD_FLOAT, MAX_COORD_FLOAT );
-    newangles.z = clamp( angles.z, MIN_COORD_FLOAT, MAX_COORD_FLOAT ); // not clamped in original valve's code, idk why
-
-    SetAbsOrigin( neworigin );
-    SetAbsVelocity( vec3_origin );    // stop movement
-    SetLocalAngles( newangles );
-    SnapEyeAngles( newangles );
+	SetAbsOrigin( origin );
+	SetAbsVelocity( vec3_origin );	// stop movement
+	SetLocalAngles( angles );
+	SnapEyeAngles( angles );
 }
 
 bool CBasePlayer::SetObserverTarget(CBaseEntity *target)
@@ -4505,6 +4493,11 @@ void CBasePlayer::SetSuitUpdate(const char *name, int fgroup, int iNoRepeatTime)
 		// due to static channel design, etc. We don't play HEV sounds in multiplayer right now.
 		return;
 	}
+
+#ifdef MAPBASE
+	if ( HasContext("silent_suit", "1") )
+		return;
+#endif
 
 	// if name == NULL, then clear out the queue
 
@@ -8164,7 +8157,7 @@ Activity CBasePlayer::Weapon_TranslateActivity( Activity baseAct, bool *pRequire
 {
 	Activity weaponTranslation = BaseClass::Weapon_TranslateActivity( baseAct, pRequired );
 	
-	if ( GetActiveWeapon() && GetActiveWeapon()->IsEffectActive(EF_NODRAW) && baseAct != ACT_ARM )
+	if ( GetActiveWeapon() && !GetActiveWeapon()->IsWeaponVisible() && baseAct != ACT_ARM )
 	{
 		// Our weapon is holstered. Use the base activity.
 		return baseAct;
@@ -9071,6 +9064,7 @@ void SendProxy_ShiftPlayerSpawnflags( const SendProp *pProp, const void *pStruct
 		// See baseplayer_shared.h for more details.
 		SendPropInt			( SENDINFO( m_spawnflags ), 3, SPROP_UNSIGNED, SendProxy_ShiftPlayerSpawnflags ),
 
+		SendPropBool		( SENDINFO( m_bDrawPlayerLegs ) ),
 		SendPropBool		( SENDINFO( m_bDrawPlayerModelExternally ) ),
 		SendPropBool		( SENDINFO( m_bInTriggerFall ) ),
 #endif

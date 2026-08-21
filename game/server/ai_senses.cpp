@@ -49,9 +49,6 @@ struct AISightIterVal_t
 	char  array;
 	short iNext;
 	char  SeenArray;
-#ifdef PLATFORM_64BITS
-    uint32 unused;
-#endif
 };
 
 #pragma pack(pop)
@@ -279,7 +276,7 @@ CBaseEntity *CAI_Senses::GetFirstSeenEntity( AISightIter_t *pIter, seentype_t iS
 
 CBaseEntity *CAI_Senses::GetNextSeenEntity( AISightIter_t *pIter ) const	
 { 
-	if ( ((intp)*pIter) != -1 )
+	if ( ((int)*pIter) != -1 )
 	{
 		AISightIterVal_t *pIterVal = (AISightIterVal_t *)pIter;
 		
@@ -304,6 +301,43 @@ CBaseEntity *CAI_Senses::GetNextSeenEntity( AISightIter_t *pIter ) const
 	}
 	return NULL;
 }
+
+//-----------------------------------------------------------------------------
+
+#ifdef MAPBASE
+bool CAI_Senses::GetSeenEntityIndex( AISightIter_t *pIter, CBaseEntity *pSightEnt, seentype_t iSeenType ) const
+{ 
+	COMPILE_TIME_ASSERT( sizeof( AISightIter_t ) == sizeof( AISightIterVal_t ) );
+	
+	AISightIterVal_t *pIterVal = (AISightIterVal_t *)pIter;
+	
+	// If we're searching for a specific type, start in that array
+	pIterVal->SeenArray = (char)iSeenType;
+	int iFirstArray = ( iSeenType == SEEN_ALL ) ? 0 : iSeenType;
+
+	for ( int i = iFirstArray; i < ARRAYSIZE( m_SeenArrays ); i++ )
+	{
+		for ( int j = pIterVal->iNext; j < m_SeenArrays[i]->Count(); j++ )
+		{
+			if ( (*m_SeenArrays[i])[j].Get() == pSightEnt )
+			{
+				pIterVal->array = i;
+				pIterVal->iNext = j+1;
+				return true;
+			}
+		}
+		pIterVal->iNext = 0;
+
+		// If we're searching for a specific type, don't move to the next array
+		if ( pIterVal->SeenArray != SEEN_ALL )
+			break;
+	}
+	
+	(*pIter) = (AISightIter_t)(-1); 
+	return false;
+}
+#endif
+
 
 //-----------------------------------------------------------------------------
 
@@ -577,7 +611,7 @@ CSound* CAI_Senses::GetFirstHeardSound( AISoundIter_t *pIter )
 		return NULL;
 	}
 	
-	*pIter = (AISoundIter_t)(intp)iFirst;
+	*pIter = (AISoundIter_t)iFirst;
 	return CSoundEnt::SoundPointerForIndex( iFirst );
 }
 
@@ -588,7 +622,7 @@ CSound* CAI_Senses::GetNextHeardSound( AISoundIter_t *pIter )
 	if ( !*pIter )
 		return NULL;
 
-	intp iCurrent = (intp)*pIter;
+	int iCurrent = (int)*pIter;
 	
 	Assert( iCurrent != SOUNDLIST_EMPTY );
 	if ( iCurrent == SOUNDLIST_EMPTY )
@@ -755,5 +789,28 @@ void CAI_SensedObjectsManager::AddEntity( CBaseEntity *pEntity )
 	pEntity->AddFlag( FL_OBJECT );
 	m_SensedObjects.AddToTail( pEntity );
 }
+
+#ifdef MAPBASE
+void CAI_SensedObjectsManager::RemoveEntity( CBaseEntity *pEntity )
+{
+	int i = m_SensedObjects.Find( pEntity );
+	if (i == m_SensedObjects.InvalidIndex())
+		return;
+
+	pEntity->RemoveFlag( FL_OBJECT );
+	m_SensedObjects.FastRemove( i );
+}
+#endif
+
+//-----------------------------------------------------------------------------
+
+#ifdef MAPBASE_VSCRIPT
+BEGIN_SCRIPTDESC_ROOT( CAI_SensedObjectsManager, SCRIPT_SINGLETON "Manager which handles sensed objects." )
+
+	DEFINE_SCRIPTFUNC_NAMED( ScriptAddEntity, "AddEntity", "Adds an entity to the sensed object list." )
+	DEFINE_SCRIPTFUNC_NAMED( ScriptRemoveEntity, "RemoveEntity", "Removes an entity from the sensed object list." )
+
+END_SCRIPTDESC();
+#endif
 
 //=============================================================================

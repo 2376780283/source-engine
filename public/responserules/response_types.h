@@ -168,7 +168,7 @@ namespace ResponseRules
 
 		responseparams_interval_t				predelay;		//21
 
-		AI_ResponseFollowup *m_pFollowup;
+		ALIGN32 AI_ResponseFollowup *m_pFollowup;
 
 	};
 #pragma pack(pop)
@@ -392,7 +392,7 @@ namespace ResponseRules
 		};
 
 
-	public:
+	private:
 		byte			m_Type;
 		char			m_szResponseName[ MAX_RESPONSE_NAME ];
 		char			m_szMatchingRule[ MAX_RULE_NAME ];

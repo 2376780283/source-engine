@@ -176,7 +176,7 @@ CAI_Enemies::~CAI_Enemies()
 AI_EnemyInfo_t *CAI_Enemies::GetFirst( AIEnemiesIter_t *pIter )
 {
 	CMemMap::IndexType_t i = m_Map.FirstInorder();
-	*pIter = (AIEnemiesIter_t)(uintp)i;
+	*pIter = (AIEnemiesIter_t)(unsigned)i;
 
 	if ( i == m_Map.InvalidIndex() )
 		return NULL;
@@ -191,13 +191,13 @@ AI_EnemyInfo_t *CAI_Enemies::GetFirst( AIEnemiesIter_t *pIter )
 
 AI_EnemyInfo_t *CAI_Enemies::GetNext( AIEnemiesIter_t *pIter )
 {
-	CMemMap::IndexType_t i = (CMemMap::IndexType_t)((uintp)(*pIter));
+	CMemMap::IndexType_t i = (CMemMap::IndexType_t)((unsigned)(*pIter));
 
 	if ( i == m_Map.InvalidIndex() )
 		return NULL;
 
 	i = m_Map.NextInorder( i );
-	*pIter = (AIEnemiesIter_t)(uintp)i;
+	*pIter = (AIEnemiesIter_t)(unsigned)i;
 	if ( i == m_Map.InvalidIndex() )
 		return NULL;
 
@@ -224,6 +224,18 @@ AI_EnemyInfo_t *CAI_Enemies::Find( CBaseEntity *pEntity, bool bTryDangerMemory )
 	return m_Map[i];
 }
 
+
+//-----------------------------------------------------------------------------
+
+#ifdef MAPBASE
+unsigned char CAI_Enemies::FindIndex( CBaseEntity *pEntity )
+{
+	if ( pEntity == AI_UNKNOWN_ENEMY )
+		pEntity = NULL;
+
+	return m_Map.Find( pEntity );
+}
+#endif
 
 //-----------------------------------------------------------------------------
 

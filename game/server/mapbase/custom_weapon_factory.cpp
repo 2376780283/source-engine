@@ -8,7 +8,6 @@
 
 #include "cbase.h"
 #include "custom_weapon_factory.h"
-#include "filesystem.h"
 
 #define GENERIC_MANIFEST_FILE "scripts/mapbase_default_manifest.txt"
 #define AUTOLOADED_MANIFEST_FILE UTIL_VarArgs("maps/%s_manifest.txt", STRING(gpGlobals->mapname))

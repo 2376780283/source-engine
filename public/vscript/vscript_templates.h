@@ -1,4 +1,4 @@
-//========== Copyright (c) 2008, Valve Corporation, All rights reserved. ========
+//========== Copyright © 2008, Valve Corporation, All rights reserved. ========
 //
 // Purpose:
 //
@@ -61,7 +61,7 @@ FUNC_GENERATE_ALL( DEFINE_MEMBER_FUNC_TYPE_DEDUCER );
 
 FUNC_GENERATE_ALL( DEFINE_CONST_MEMBER_FUNC_TYPE_DEDUCER );
 
-#define ScriptInitMemberFuncDescriptor_( pDesc, class, func, scriptName )	if ( 0 ) {} else { (pDesc)->m_pszScriptName = scriptName; (pDesc)->m_pszFunction = #func; ScriptDeduceFunctionSignature( pDesc, (class *)(0), &class::func ); }
+#define ScriptInitMemberFuncDescriptor_( pDesc, class, func, scriptName )	if ( 0 ) {} else { (pDesc)->m_pszScriptName = scriptName; (pDesc)->m_pszFunction = #func; ScriptDeduceFunctionSignature( pDesc, (class *)(0), &class::func ); (pDesc)->m_pScriptClassDesc = GetScriptDesc<class>(nullptr); }
 
 #define ScriptInitFuncDescriptorNamed( pDesc, func, scriptName )						if ( 0 ) {} else { (pDesc)->m_pszScriptName = scriptName; (pDesc)->m_pszFunction = #func; ScriptDeduceFunctionSignature( pDesc, &func ); }
 #define ScriptInitFuncDescriptor( pDesc, func )											ScriptInitFuncDescriptorNamed( pDesc, func, #func )
@@ -73,35 +73,215 @@ FUNC_GENERATE_ALL( DEFINE_CONST_MEMBER_FUNC_TYPE_DEDUCER );
 //-----------------------------------------------------------------------------
 
 template <typename FUNCPTR_TYPE>
-inline ScriptFunctionBindingStorageType_t ScriptConvertFreeFuncPtrToVoid( FUNCPTR_TYPE pFunc )
+inline void *ScriptConvertFuncPtrToVoid( FUNCPTR_TYPE pFunc )
 {
-	ScriptFunctionBindingStorageType_t type = { };
-	COMPILE_TIME_ASSERT( sizeof( type ) >= sizeof( pFunc ) );
+	if ( ( sizeof( FUNCPTR_TYPE ) == sizeof( void * ) ) )
+	{
+		union FuncPtrConvert
+		{
+			void *p;
+			FUNCPTR_TYPE pFunc;
+		};
 
-	memcpy( &type, &pFunc, sizeof( pFunc ) );
-	return type;
+		FuncPtrConvert convert;
+		convert.pFunc = pFunc;
+		return convert.p;
+	}
+#if defined( _MSC_VER )
+	else if ( ( sizeof( FUNCPTR_TYPE ) == sizeof( void * ) + sizeof( int ) ) )
+	{
+		struct MicrosoftUnknownMFP
+		{
+			void *p;
+			int m_delta;
+		};
+	
+		union FuncPtrConvertMI
+		{
+			MicrosoftUnknownMFP mfp;
+			FUNCPTR_TYPE pFunc;
+		};
+
+		FuncPtrConvertMI convert;
+		convert.pFunc = pFunc;
+		if ( convert.mfp.m_delta == 0 )
+		{
+			return convert.mfp.p;
+		}
+		AssertMsg( 0, "Function pointer must be from primary vtable" );
+	}
+	else if ( ( sizeof( FUNCPTR_TYPE ) == sizeof( void * ) + ( sizeof( int ) * 3 ) ) )
+	{
+		struct MicrosoftUnknownMFP
+		{
+			void *p;
+			int m_delta;
+			int m_vtordisp;
+			int m_vtable_index;
+		};
+
+		union FuncPtrConvertMI
+		{
+			MicrosoftUnknownMFP mfp;
+			FUNCPTR_TYPE pFunc;
+		};
+
+		FuncPtrConvertMI convert;
+		convert.pFunc = pFunc;
+		if ( convert.mfp.m_delta == 0 )
+		{
+			return convert.mfp.p;
+		}
+		AssertMsg( 0, "Function pointer must be from primary vtable" );
+	}
+#elif defined( GNUC )
+	else if ( ( sizeof( FUNCPTR_TYPE ) == sizeof( void * ) + sizeof( int ) ) )
+	{
+		struct GnuMFP
+		{
+			union
+			{
+				void *funcadr;		// If vtable_index_2 is even, then this is the function pointer.
+				int vtable_index_2;		// If vtable_index_2 is odd, then (vtable_index_2 - 1) * 2 is the index into the vtable.
+			};
+			int delta;	// Offset from this-ptr to vtable
+		};
+
+		GnuMFP *p = (GnuMFP*)&pFunc;
+		if ( p->delta == 0 )
+		{
+			// No need to check whether this is a direct function pointer or not,
+			// this gets converted back to a "proper" member-function pointer in
+			// ScriptConvertFuncPtrFromVoid() to get invoked
+			return p->funcadr;
+		}
+		AssertMsg( 0, "Function pointer must be from primary vtable" );
+	}
+#else
+#error "Need to implement code to crack non-offset member function pointer case"
+	// For gcc, see: http://www.codeproject.com/KB/cpp/FastDelegate.aspx
+	//
+	// Current versions of the GNU compiler use a strange and tricky 
+	// optimization. It observes that, for virtual inheritance, you have to look 
+	// up the vtable in order to get the voffset required to calculate the this 
+	// pointer. While you're doing that, you might as well store the function 
+	// pointer in the vtable. By doing this, they combine the m_func_address and 
+	// m_vtable_index fields into one, and they distinguish between them by 
+	// ensuring that function pointers always point to even addresses but vtable 
+	// indices are always odd:
+	// 
+	// 	// GNU g++ uses a tricky space optimisation, also adopted by IBM's VisualAge and XLC.
+	// 	struct GnuMFP {
+	// 	   union {
+	// 	     CODEPTR funcadr; // always even
+	// 	     int vtable_index_2; //  = vindex*2+1, always odd
+	// 	   };
+	// 	   int delta;
+	// 	};
+	// 	adjustedthis = this + delta
+	// 	if (funcadr & 1) CALL (* ( *delta + (vindex+1)/2) + 4)
+	// 	else CALL funcadr
+	// 
+	// The G++ method is well documented, so it has been adopted by many other 
+	// vendors, including IBM's VisualAge and XLC compilers, recent versions of 
+	// Open64, Pathscale EKO, and Metrowerks' 64-bit compilers. A simpler scheme 
+	// used by earlier versions of GCC is also very common. SGI's now 
+	// discontinued MIPSPro and Pro64 compilers, and Apple's ancient MrCpp 
+	// compiler used this method. (Note that the Pro64 compiler has become the 
+	// open source Open64 compiler).
+
+#endif
+	else
+		AssertMsg( 0, "Member function pointer not supported. Why on earth are you using virtual inheritance!?" );
+	return NULL;
 }
 
 template <typename FUNCPTR_TYPE>
-inline FUNCPTR_TYPE ScriptConvertFreeFuncPtrFromVoid( ScriptFunctionBindingStorageType_t p )
+inline FUNCPTR_TYPE ScriptConvertFuncPtrFromVoid( void *p )
 {
-	FUNCPTR_TYPE func = { };
-	COMPILE_TIME_ASSERT( sizeof( func ) <= sizeof( p ) );
+	if ( ( sizeof( FUNCPTR_TYPE ) == sizeof( void * ) ) )
+	{
+		union FuncPtrConvert
+		{
+			void *p;
+			FUNCPTR_TYPE pFunc;
+		};
 
-	memcpy( &func, &p, sizeof( func ) );
-	return func;
-}
+		FuncPtrConvert convert;
+		convert.p = p;
+		return convert.pFunc;
+	}
 
-template <typename FUNCPTR_TYPE>
-inline ScriptFunctionBindingStorageType_t ScriptConvertFuncPtrToVoid( FUNCPTR_TYPE pFunc )
-{
-	return ScriptConvertFreeFuncPtrToVoid<FUNCPTR_TYPE>( pFunc );
-}
+#if defined( _MSC_VER )
+	if ( ( sizeof( FUNCPTR_TYPE ) == sizeof( void * ) + sizeof( int ) ) )
+	{
+		struct MicrosoftUnknownMFP
+		{
+			void *p;
+			int m_delta;
+		};
 
-template <typename FUNCPTR_TYPE>
-inline FUNCPTR_TYPE ScriptConvertFuncPtrFromVoid( ScriptFunctionBindingStorageType_t p )
-{
-	return ScriptConvertFreeFuncPtrFromVoid<FUNCPTR_TYPE>( p );
+		union FuncPtrConvertMI
+		{
+			MicrosoftUnknownMFP mfp;
+			FUNCPTR_TYPE pFunc;
+		};
+
+		FuncPtrConvertMI convert;
+		convert.mfp.p = p;
+		convert.mfp.m_delta = 0;
+		return convert.pFunc;
+	}
+	if ( ( sizeof( FUNCPTR_TYPE ) == sizeof( void * ) + ( sizeof( int ) * 3 ) ) )
+	{
+		struct MicrosoftUnknownMFP
+		{
+			void *p;
+			int m_delta;
+			int m_vtordisp;
+			int m_vtable_index;
+		};
+
+		union FuncPtrConvertMI
+		{
+			MicrosoftUnknownMFP mfp;
+			FUNCPTR_TYPE pFunc;
+		};
+
+		FuncPtrConvertMI convert;
+		convert.mfp.p = p;
+		convert.mfp.m_delta = 0;
+		return convert.pFunc;
+	}
+#elif defined( GNUC )
+	if ( ( sizeof( FUNCPTR_TYPE ) == sizeof( void * ) + sizeof( int ) ) )
+	{
+		struct GnuMFP
+		{
+			union
+			{
+				void *funcadr;		// If vtable_index_2 is even, then this is the function pointer.
+				int vtable_index_2;		// If vtable_index_2 is odd, then (vtable_index_2 - 1) * 2 is the index into the vtable.
+			};
+			int delta;	// Offset from this-ptr to vtable
+		};
+
+		union FuncPtrConvertGnu
+		{
+			GnuMFP mfp;
+			FUNCPTR_TYPE pFunc;
+		};
+
+		FuncPtrConvertGnu convert;
+		convert.mfp.funcadr = p;
+		convert.mfp.delta = 0;
+		return convert.pFunc;
+	}
+#else
+#error "Need to implement code to crack non-offset member function pointer case"
+#endif
+	Assert( 0 );
+	return NULL;
 }
 
 //-----------------------------------------------------------------------------
@@ -146,8 +326,8 @@ inline FUNCPTR_TYPE ScriptConvertFuncPtrFromVoid( ScriptFunctionBindingStorageTy
 	class CNonMemberScriptBinding##N \
 	{ \
 	public: \
- 		static bool Call( ScriptFunctionBindingStorageType_t pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn ) \
- 		{ \
+		static bool Call( void *pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn, ScriptVariantTemporaryStorage_t &temporaryReturnStorage ) \
+		{ \
 			Assert( nArguments == N ); \
 			Assert( pReturn ); \
 			Assert( !pContext ); \
@@ -156,18 +336,16 @@ inline FUNCPTR_TYPE ScriptConvertFuncPtrFromVoid( ScriptFunctionBindingStorageTy
 			{ \
 				return false; \
 			} \
-			*pReturn = (ScriptConvertFreeFuncPtrFromVoid<FUNC_TYPE>(pFunction))( SCRIPT_BINDING_ARGS_##N ); \
-			if ( pReturn->m_type == FIELD_VECTOR ) \
-				pReturn->m_pVector = new Vector(*pReturn->m_pVector); \
- 			return true; \
- 		} \
+			*pReturn = ((FUNC_TYPE)pFunction)( SCRIPT_BINDING_ARGS_##N ); \
+			return true; \
+		} \
 	}; \
 	\
 	template <typename FUNC_TYPE FUNC_TEMPLATE_FUNC_PARAMS_##N> \
 	class CNonMemberScriptBinding##N<FUNC_TYPE, void FUNC_BASE_TEMPLATE_FUNC_PARAMS_PASSTHRU_##N> \
 	{ \
 	public: \
-		static bool Call( ScriptFunctionBindingStorageType_t pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn ) \
+		static bool Call( void *pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn, ScriptVariantTemporaryStorage_t &temporaryReturnStorage ) \
 		{ \
 			Assert( nArguments == N ); \
 			Assert( !pReturn ); \
@@ -177,7 +355,47 @@ inline FUNCPTR_TYPE ScriptConvertFuncPtrFromVoid( ScriptFunctionBindingStorageTy
 			{ \
 				return false; \
 			} \
-			(ScriptConvertFreeFuncPtrFromVoid<FUNC_TYPE>(pFunction))( SCRIPT_BINDING_ARGS_##N ); \
+			((FUNC_TYPE)pFunction)( SCRIPT_BINDING_ARGS_##N ); \
+			return true; \
+		} \
+	}; \
+	\
+	template <typename FUNC_TYPE FUNC_TEMPLATE_FUNC_PARAMS_##N> \
+	class CNonMemberScriptBinding##N<FUNC_TYPE, Vector FUNC_BASE_TEMPLATE_FUNC_PARAMS_PASSTHRU_##N> \
+	{ \
+	public: \
+		static bool Call( void *pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn, ScriptVariantTemporaryStorage_t &temporaryReturnStorage ) \
+		{ \
+			Assert( nArguments == N ); \
+			Assert( pReturn ); \
+			Assert( !pContext ); \
+			\
+			if ( nArguments != N || !pReturn || pContext ) \
+			{ \
+				return false; \
+			} \
+			new ( &temporaryReturnStorage.m_vec ) Vector( ((FUNC_TYPE)pFunction)( SCRIPT_BINDING_ARGS_##N ) ); \
+			*pReturn = temporaryReturnStorage.m_vec; \
+			return true; \
+		} \
+	}; \
+	\
+	template <typename FUNC_TYPE FUNC_TEMPLATE_FUNC_PARAMS_##N> \
+	class CNonMemberScriptBinding##N<FUNC_TYPE, QAngle FUNC_BASE_TEMPLATE_FUNC_PARAMS_PASSTHRU_##N> \
+	{ \
+	public: \
+		static bool Call( void *pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn, ScriptVariantTemporaryStorage_t &temporaryReturnStorage ) \
+		{ \
+			Assert( nArguments == N ); \
+			Assert( pReturn ); \
+			Assert( !pContext ); \
+			\
+			if ( nArguments != N || !pReturn || pContext ) \
+			{ \
+				return false; \
+			} \
+			new ( &temporaryReturnStorage.m_ang ) QAngle( ((FUNC_TYPE)pFunction)( SCRIPT_BINDING_ARGS_##N ) ); \
+			*pReturn = temporaryReturnStorage.m_ang; \
 			return true; \
 		} \
 	}; \
@@ -186,8 +404,8 @@ inline FUNCPTR_TYPE ScriptConvertFuncPtrFromVoid( ScriptFunctionBindingStorageTy
 	class CMemberScriptBinding##N \
 	{ \
 	public: \
- 		static bool Call( ScriptFunctionBindingStorageType_t pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn ) \
- 		{ \
+		static bool Call( void *pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn, ScriptVariantTemporaryStorage_t &temporaryReturnStorage ) \
+		{ \
 			Assert( nArguments == N ); \
 			Assert( pReturn ); \
 			Assert( pContext ); \
@@ -197,17 +415,15 @@ inline FUNCPTR_TYPE ScriptConvertFuncPtrFromVoid( ScriptFunctionBindingStorageTy
 				return false; \
 			} \
 			*pReturn = (((OBJECT_TYPE_PTR)(pContext))->*ScriptConvertFuncPtrFromVoid<FUNC_TYPE>(pFunction))( SCRIPT_BINDING_ARGS_##N ); \
-			if ( pReturn->m_type == FIELD_VECTOR ) \
-				pReturn->m_pVector = new Vector(*pReturn->m_pVector); \
- 			return true; \
- 		} \
+			return true; \
+		} \
 	}; \
 	\
 	template <class OBJECT_TYPE_PTR, typename FUNC_TYPE FUNC_TEMPLATE_FUNC_PARAMS_##N> \
 	class CMemberScriptBinding##N<OBJECT_TYPE_PTR, FUNC_TYPE, void FUNC_BASE_TEMPLATE_FUNC_PARAMS_PASSTHRU_##N> \
 	{ \
 	public: \
-		static bool Call( ScriptFunctionBindingStorageType_t pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn ) \
+		static bool Call( void *pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn, ScriptVariantTemporaryStorage_t &temporaryReturnStorage ) \
 		{ \
 			Assert( nArguments == N ); \
 			Assert( !pReturn ); \
@@ -218,6 +434,46 @@ inline FUNCPTR_TYPE ScriptConvertFuncPtrFromVoid( ScriptFunctionBindingStorageTy
 				return false; \
 			} \
 			(((OBJECT_TYPE_PTR)(pContext))->*ScriptConvertFuncPtrFromVoid<FUNC_TYPE>(pFunction))( SCRIPT_BINDING_ARGS_##N ); \
+			return true; \
+		} \
+	}; \
+	\
+	template <class OBJECT_TYPE_PTR, typename FUNC_TYPE FUNC_TEMPLATE_FUNC_PARAMS_##N> \
+	class CMemberScriptBinding##N<OBJECT_TYPE_PTR, FUNC_TYPE, Vector FUNC_BASE_TEMPLATE_FUNC_PARAMS_PASSTHRU_##N> \
+	{ \
+	public: \
+		static bool Call( void *pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn, ScriptVariantTemporaryStorage_t &temporaryReturnStorage ) \
+		{ \
+			Assert( nArguments == N ); \
+			Assert( pReturn ); \
+			Assert( pContext ); \
+			\
+			if ( nArguments != N || !pReturn || !pContext ) \
+			{ \
+				return false; \
+			} \
+			new ( &temporaryReturnStorage.m_vec ) Vector( (((OBJECT_TYPE_PTR)(pContext))->*ScriptConvertFuncPtrFromVoid<FUNC_TYPE>(pFunction))( SCRIPT_BINDING_ARGS_##N ) ); \
+			*pReturn = temporaryReturnStorage.m_vec; \
+			return true; \
+		} \
+	}; \
+	\
+	template <class OBJECT_TYPE_PTR, typename FUNC_TYPE FUNC_TEMPLATE_FUNC_PARAMS_##N> \
+	class CMemberScriptBinding##N<OBJECT_TYPE_PTR, FUNC_TYPE, QAngle FUNC_BASE_TEMPLATE_FUNC_PARAMS_PASSTHRU_##N> \
+	{ \
+	public: \
+		static bool Call( void *pFunction, void *pContext, ScriptVariant_t *pArguments, int nArguments, ScriptVariant_t *pReturn, ScriptVariantTemporaryStorage_t &temporaryReturnStorage ) \
+		{ \
+			Assert( nArguments == N ); \
+			Assert( pReturn ); \
+			Assert( pContext ); \
+			\
+			if ( nArguments != N || !pReturn || !pContext ) \
+			{ \
+				return false; \
+			} \
+			new ( &temporaryReturnStorage.m_ang ) QAngle( (((OBJECT_TYPE_PTR)(pContext))->*ScriptConvertFuncPtrFromVoid<FUNC_TYPE>(pFunction))( SCRIPT_BINDING_ARGS_##N ) ); \
+			*pReturn = temporaryReturnStorage.m_ang; \
 			return true; \
 		} \
 	}; \
@@ -243,7 +499,11 @@ inline FUNCPTR_TYPE ScriptConvertFuncPtrFromVoid( ScriptFunctionBindingStorageTy
 		return &CMemberScriptBinding##N<OBJECT_TYPE_PTR, Func_t, FUNCTION_RETTYPE FUNC_BASE_TEMPLATE_FUNC_PARAMS_PASSTHRU_##N>::Call; \
 	}
 
+//note: no memory is actually allocated in the functions that get defined,
+//      it merely uses placement-new for which we need to disable this
+#include "tier0/memdbgoff.h"
 FUNC_GENERATE_ALL( DEFINE_SCRIPT_BINDINGS );
+#include "tier0/memdbgon.h"
 
 //-----------------------------------------------------------------------------
 // 

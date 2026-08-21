@@ -1052,7 +1052,7 @@ void C_BaseAnimating::LockStudioHdr()
 	
 	if ( pNewWrapper->GetVirtualModel() )
 	{
-		MDLHandle_t hVirtualModel = VoidPtrToMDLHandle( pStudioHdr->VirtualModel() );
+		MDLHandle_t hVirtualModel = (MDLHandle_t)(int)(pStudioHdr->virtualModel)&0xffff;
 		mdlcache->LockStudioHdr( hVirtualModel );
 	}
 
@@ -1073,7 +1073,7 @@ void C_BaseAnimating::UnlockStudioHdr()
 			// Parallel rendering: don't unlock model data until end of rendering
 			if ( pStudioHdr->GetVirtualModel() )
 			{
-				MDLHandle_t hVirtualModel = VoidPtrToMDLHandle( m_pStudioHdr->GetRenderHdr()->VirtualModel() );
+				MDLHandle_t hVirtualModel = (MDLHandle_t)(int)pStudioHdr->virtualModel&0xffff;
 				pCallQueue->QueueCall( mdlcache, &IMDLCache::UnlockStudioHdr, hVirtualModel );
 			}
 			pCallQueue->QueueCall( mdlcache, &IMDLCache::UnlockStudioHdr, m_hStudioHdr );
@@ -1084,7 +1084,7 @@ void C_BaseAnimating::UnlockStudioHdr()
 			// Immediate-mode rendering, can unlock immediately
 			if ( pStudioHdr->GetVirtualModel() )
 			{
-				MDLHandle_t hVirtualModel = VoidPtrToMDLHandle( m_pStudioHdr->GetRenderHdr()->VirtualModel() );
+				MDLHandle_t hVirtualModel = (MDLHandle_t)(int)pStudioHdr->virtualModel&0xffff;
 				mdlcache->UnlockStudioHdr( hVirtualModel );
 			}
 			mdlcache->UnlockStudioHdr( m_hStudioHdr );
@@ -1535,35 +1535,32 @@ float C_BaseAnimating::ClampCycle( float flCycle, bool isLooping )
 //-----------------------------------------------------------------------------
 const Vector& C_BaseAnimating::ScriptGetAttachmentOrigin( int iAttachment )
 {	
-
 	static Vector absOrigin;
-	static QAngle qa;
+	QAngle qa;
 
 	C_BaseAnimating::GetAttachment( iAttachment, absOrigin, qa );
 
 	return absOrigin;
 }
 
-const Vector& C_BaseAnimating::ScriptGetAttachmentAngles( int iAttachment )
+const QAngle& C_BaseAnimating::ScriptGetAttachmentAngles( int iAttachment )
 {	
-
-	static Vector absOrigin;
-	static Vector absAngles;
 	static QAngle qa;
+	Vector absOrigin;
 
 	C_BaseAnimating::GetAttachment( iAttachment, absOrigin, qa );
-	absAngles.x = qa.x;
-	absAngles.y = qa.y;
-	absAngles.z = qa.z;
-	return absAngles;
+	return qa;
 }
 
-HSCRIPT C_BaseAnimating::ScriptGetAttachmentMatrix( int iAttachment )
+HSCRIPT_RC C_BaseAnimating::ScriptGetAttachmentMatrix( int iAttachment )
 {	
-	static matrix3x4_t matrix;
+	matrix3x4_t *matrix = new matrix3x4_t;
 
-	C_BaseAnimating::GetAttachment( iAttachment, matrix );
-	return g_pScriptVM->RegisterInstance( &matrix );
+	if ( C_BaseAnimating::GetAttachment( iAttachment, *matrix ) )
+		return g_pScriptVM->RegisterInstance( matrix, true );
+
+	delete matrix;
+	return NULL;
 }
 
 void C_BaseAnimating::ScriptGetBoneTransform( int iBone, HSCRIPT hTransform )
@@ -3864,7 +3861,7 @@ bool C_BaseAnimating::DispatchMuzzleEffect( const char *options, bool isFirstPer
 	int			weaponType = 0;
 
 	// Get the first parameter
-	p = nexttoken( token, p, ' ' );
+	p = nexttoken( token, p, ' ' , sizeof(token) );
 
 	// Find the weapon type
 	if ( token ) 
@@ -3908,7 +3905,7 @@ bool C_BaseAnimating::DispatchMuzzleEffect( const char *options, bool isFirstPer
 	}
 
 	// Get the second parameter
-	p = nexttoken( token, p, ' ' );
+	p = nexttoken( token, p, ' ' , sizeof(token) );
 
 	int	attachmentIndex = -1;
 
@@ -4030,7 +4027,7 @@ void C_BaseAnimating::FireEvent( const Vector& origin, const QAngle& angles, int
 
 			// Get the particle effect name
 			const char *p = options;
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			if ( token ) 
 			{
 				const char* mtoken = ModifyEventParticles( token );
@@ -4040,7 +4037,7 @@ void C_BaseAnimating::FireEvent( const Vector& origin, const QAngle& angles, int
 			}
 
 			// Get the attachment type
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			if ( token ) 
 			{
 				iAttachType = GetAttachTypeFromString( token );
@@ -4052,7 +4049,7 @@ void C_BaseAnimating::FireEvent( const Vector& origin, const QAngle& angles, int
 			}
 
 			// Get the attachment point index
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			if ( token )
 			{
 				iAttachment = atoi(token);
@@ -4082,14 +4079,14 @@ void C_BaseAnimating::FireEvent( const Vector& origin, const QAngle& angles, int
 
 			// Get the particle effect name
 			const char *p = options;
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			if ( token ) 
 			{
 				Q_strncpy( szParticleEffect, token, sizeof(szParticleEffect) );
 			}
 
 			// Get the attachment point index
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			bool bStopInstantly = ( token && !Q_stricmp( token, "instantly" ) );
 
 			ParticleProp()->StopParticlesNamed( szParticleEffect, bStopInstantly );
@@ -4107,21 +4104,21 @@ void C_BaseAnimating::FireEvent( const Vector& origin, const QAngle& angles, int
 
 			// Get the particle effect name
 			const char *p = options;
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			if ( token ) 
 			{
 				Q_strncpy( szParticleEffect, token, sizeof(szParticleEffect) );
 			}
 
 			// Get the control point number
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			if ( token ) 
 			{
 				iControlPoint = atoi( token );
 			}
 
 			// Get the attachment type
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			if ( token ) 
 			{
 				iAttachType = GetAttachTypeFromString( token );
@@ -4133,7 +4130,7 @@ void C_BaseAnimating::FireEvent( const Vector& origin, const QAngle& angles, int
 			}
 
 			// Get the attachment point index
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			if ( token )
 			{
 				iAttachment = atoi(token);
@@ -4258,7 +4255,6 @@ void C_BaseAnimating::FireEvent( const Vector& origin, const QAngle& angles, int
 
 	// Eject brass
 	case CL_EVENT_EJECTBRASS1:
-		if ( m_Attachments.Count() > 0 )
 		{
 			// Check if we're a weapon, if we belong to the local player, and if the local player is in third person - if all are true, don't do a muzzleflash in this instance, because
 			// we're using the view models dispatch for smoothness.
@@ -4389,14 +4385,14 @@ void C_BaseAnimating::FireEvent( const Vector& origin, const QAngle& angles, int
 			const char *p = options;
 
 			// Bodygroup Name
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			if ( token ) 
 			{
 				Q_strncpy( szBodygroupName, token, sizeof(szBodygroupName) );
 			}
 
 			// Get the desired value
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 			if ( token ) 
 			{
 				value = atoi( token );
@@ -4410,7 +4406,6 @@ void C_BaseAnimating::FireEvent( const Vector& origin, const QAngle& angles, int
 		}
 		break;
 
-#ifdef VSCRIPT
 #ifdef MAPBASE
 	case AE_VSCRIPT_RUN:
 		{
@@ -4426,7 +4421,7 @@ void C_BaseAnimating::FireEvent( const Vector& origin, const QAngle& angles, int
 		}
 		break;
 #endif
-#endif
+
 	default:
 		break;
 	}
@@ -4453,21 +4448,21 @@ void C_BaseAnimating::FireObsoleteEvent( const Vector& origin, const QAngle& ang
 
 			const char *p = options;
 
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 
 			if( token ) 
 			{
 				Q_strncpy( effectFunc, token, sizeof(effectFunc) );
 			}
 
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 
 			if( token )
 			{
 				iAttachment = atoi(token);
 			}
 
-			p = nexttoken(token, p, ' ');
+			p = nexttoken(token, p, ' ', sizeof(token));
 
 			if( token )
 			{
