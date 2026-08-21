@@ -1335,7 +1335,7 @@ void CBaseEntity::ValidateEntityConnections()
 			typedescription_t *dataDesc = &dmap->dataDesc[i];
 			if ( ( dataDesc->fieldType == FIELD_CUSTOM ) && ( dataDesc->flags & FTYPEDESC_OUTPUT ) )
 			{
-				CBaseEntityOutput *pOutput = (CBaseEntityOutput *)((int)this + (int)dataDesc->fieldOffset[0]);
+				CBaseEntityOutput *pOutput = (CBaseEntityOutput *)((intp)this + (intp)dataDesc->fieldOffset[0]);
 				if ( pOutput->NumberOfElements() )
 					return;
 			}
@@ -1406,7 +1406,7 @@ CBaseEntityOutput *CBaseEntity::FindNamedOutput( const char *pszOutput )
 			typedescription_t *dataDesc = &dmap->dataDesc[i];
 			if ( ( dataDesc->fieldType == FIELD_CUSTOM ) && ( dataDesc->flags & FTYPEDESC_OUTPUT ) )
 			{
-				CBaseEntityOutput *pOutput = ( CBaseEntityOutput * )( ( int )this + ( int )dataDesc->fieldOffset[0] );
+				CBaseEntityOutput *pOutput = ( CBaseEntityOutput * )( (intp)this + (intp)dataDesc->fieldOffset[0] );
 				if ( !Q_stricmp( dataDesc->externalName, pszOutput ) )
 				{
 					return pOutput;
@@ -4542,7 +4542,7 @@ void CBaseEntity::OnEntityEvent( EntityEvent_t event, void *pEventData )
 	{
 	case ENTITY_EVENT_WATER_TOUCH:
 		{
-			int nContents = (int)pEventData;
+			int nContents = (intp)pEventData;
 			if ( !nContents || (nContents & CONTENTS_WATER) )
 			{
 				++m_nWaterTouch;
@@ -4556,7 +4556,7 @@ void CBaseEntity::OnEntityEvent( EntityEvent_t event, void *pEventData )
 
 	case ENTITY_EVENT_WATER_UNTOUCH:
 		{
-			int nContents = (int)pEventData;
+			int nContents = (intp)pEventData;
 			if ( !nContents || (nContents & CONTENTS_WATER) )
 			{
 				--m_nWaterTouch;
@@ -5927,12 +5927,6 @@ void ConsoleFireTargets( CBasePlayer *pPlayer, const char *name)
 	}
 	// Otherwise use name or classname
 	FireTargets( name, pPlayer, pPlayer, USE_TOGGLE, 0 );
-}
-
-#ifdef MAPBASE
-inline bool UtlStringLessFunc( const CUtlString &lhs, const CUtlString &rhs )
-{
-	return Q_stricmp( lhs.String(), rhs.String() ) < 0;
 }
 
 //------------------------------------------------------------------------------
@@ -8176,7 +8170,7 @@ void CBaseEntity::InputRemoveOutput( inputdata_t& inputdata )
 				// If our names match, remove
 				if (Matcher_NamesMatch(szOutput, dataDesc->externalName))
 				{
-					CBaseEntityOutput *pOutput = (CBaseEntityOutput *)((int)this + (int)dataDesc->fieldOffset[0]);
+					CBaseEntityOutput *pOutput = (CBaseEntityOutput *)((intp)this + (intp)dataDesc->fieldOffset[0]);
 					pOutput->DeleteAllElements();
 				}
 			}
@@ -8238,7 +8232,7 @@ void CBaseEntity::InputReplaceOutput( inputdata_t& inputdata )
 				// If our names match, replace
 				if (Matcher_NamesMatch(szOutput, dataDesc->externalName))
 				{
-					CBaseEntityOutput *pOutput = (CBaseEntityOutput *)((int)this + (int)dataDesc->fieldOffset[0]);
+					CBaseEntityOutput *pOutput = (CBaseEntityOutput *)((intp)this + (intp)dataDesc->fieldOffset[0]);
 					const char *szTarget;
 					const char *szInputName;
 					const char *szParam;
@@ -8874,7 +8868,7 @@ void CBaseEntity::ScriptSetThinkFunction( const char *szFunc, float flTime )
 	else
 	{
 		m_iszScriptThinkFunction = AllocPooledString(szFunc);
-		flTime = max( 0, flTime );
+		flTime = max( 0.0f, flTime );
 		SetContextThink( &CBaseEntity::ScriptThink, gpGlobals->curtime + flTime, "ScriptThink" );
 	}
 }

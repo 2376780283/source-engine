@@ -249,9 +249,7 @@ bool CAI_Senses::SeeEntity( CBaseEntity *pSightEnt )
 //-----------------------------------------------------------------------------
 
 CBaseEntity *CAI_Senses::GetFirstSeenEntity( AISightIter_t *pIter, seentype_t iSeenType ) const
-{ 
-	COMPILE_TIME_ASSERT( sizeof( AISightIter_t ) == sizeof( AISightIterVal_t ) );
-	
+{ 	
 	AISightIterVal_t *pIterVal = (AISightIterVal_t *)pIter;
 	
 	// If we're searching for a specific type, start in that array
@@ -276,7 +274,7 @@ CBaseEntity *CAI_Senses::GetFirstSeenEntity( AISightIter_t *pIter, seentype_t iS
 
 CBaseEntity *CAI_Senses::GetNextSeenEntity( AISightIter_t *pIter ) const	
 { 
-	if ( ((int)*pIter) != -1 )
+	if ( ((intp)*pIter) != -1 )
 	{
 		AISightIterVal_t *pIterVal = (AISightIterVal_t *)pIter;
 		
@@ -306,9 +304,7 @@ CBaseEntity *CAI_Senses::GetNextSeenEntity( AISightIter_t *pIter ) const
 
 #ifdef MAPBASE
 bool CAI_Senses::GetSeenEntityIndex( AISightIter_t *pIter, CBaseEntity *pSightEnt, seentype_t iSeenType ) const
-{ 
-	COMPILE_TIME_ASSERT( sizeof( AISightIter_t ) == sizeof( AISightIterVal_t ) );
-	
+{ 	
 	AISightIterVal_t *pIterVal = (AISightIterVal_t *)pIter;
 	
 	// If we're searching for a specific type, start in that array
@@ -622,7 +618,7 @@ CSound* CAI_Senses::GetNextHeardSound( AISoundIter_t *pIter )
 	if ( !*pIter )
 		return NULL;
 
-	int iCurrent = (int)*pIter;
+	int iCurrent = (intp)*pIter;
 	
 	Assert( iCurrent != SOUNDLIST_EMPTY );
 	if ( iCurrent == SOUNDLIST_EMPTY )

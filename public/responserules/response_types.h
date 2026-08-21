@@ -1,4 +1,4 @@
-//========= Copyright © 1996-2005, Valve Corporation, All rights reserved. ============//
+//========= Copyright  1996-2005, Valve Corporation, All rights reserved. ============//
 //
 // Purpose: Core types for the response rules -- criteria, responses, rules, and matchers.
 //
@@ -392,7 +392,7 @@ namespace ResponseRules
 		};
 
 
-	private:
+	public:
 		byte			m_Type;
 		char			m_szResponseName[ MAX_RESPONSE_NAME ];
 		char			m_szMatchingRule[ MAX_RULE_NAME ];

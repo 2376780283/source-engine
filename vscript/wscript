@@ -49,7 +49,7 @@ def build(bld):
 	includes = [
 		'.',
 		'./squirrel/include',
-		'./sqdbg/include',
+		'./sqdbg/include', 
 		'./squirrel/squirrel',
 		'../common',
 		'../public',

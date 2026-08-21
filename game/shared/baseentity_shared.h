@@ -255,7 +255,7 @@ inline HSCRIPT ToHScript(CBaseEntity* pEnt)
 	return (pEnt) ? pEnt->GetScriptInstance() : NULL;
 }
 
-template <> ScriptClassDesc_t* GetScriptDesc<CBaseEntity>(CBaseEntity*, bool);
+template <> ScriptClassDesc_t* GetScriptDesc<CBaseEntity>(CBaseEntity*);
 inline CBaseEntity* ToEnt(HSCRIPT hScript)
 {
 	return (hScript) ? (CBaseEntity*)g_pScriptVM->GetInstanceValue(hScript, GetScriptDescForClass(CBaseEntity)) : NULL;

@@ -401,6 +401,7 @@ enum SVFlags_t
 
 #pragma warning(push)
 #pragma warning(disable:4800)
+#pragma clang optimize off
 struct ScriptVariant_t
 {
 	ScriptVariant_t() :						m_flags( 0 ), m_type( FIELD_VOID )		{ m_pVector = 0; }
@@ -624,6 +625,7 @@ struct ScriptEnumDesc_t
 #endif
 
 #pragma warning(pop)
+#pragma clang optimize on
 
 
 
@@ -729,7 +731,7 @@ static inline int ToConstantVariant(int value)
 // 
 //-----------------------------------------------------------------------------
 
-#define ALLOW_SCRIPT_ACCESS() 																template <typename T> friend ScriptClassDesc_t *GetScriptDesc(T *, bool); template <typename T> friend struct ScriptDescGetter;
+#define ALLOW_SCRIPT_ACCESS() 																template <typename T> friend ScriptClassDesc_t *GetScriptDesc(T *);
 
 #define BEGIN_SCRIPTDESC( className, baseClass, description )								BEGIN_SCRIPTDESC_WITH_HELPER( className, baseClass, description, NULL )
 #define BEGIN_SCRIPTDESC_WITH_HELPER( className, baseClass, description, helper )			BEGIN_SCRIPTDESC_NAMED_WITH_HELPER( className, baseClass, #className, description, helper )
@@ -737,30 +739,31 @@ static inline int ToConstantVariant(int value)
 #define BEGIN_SCRIPTDESC_ROOT_WITH_HELPER( className, description, helper )					BEGIN_SCRIPTDESC_ROOT_NAMED_WITH_HELPER( className, #className, description, helper )
 
 #define BEGIN_SCRIPTDESC_NAMED_WITH_HELPER( className, baseClass, scriptName, description, helper ) \
-	template <> struct ScriptDescGetter<className> { \
-		static ScriptClassDesc_t* Get(className*, bool init) \
+	template <> ScriptClassDesc_t* GetScriptDesc<baseClass>(baseClass*); \
+	template <> ScriptClassDesc_t* GetScriptDesc<className>(className*); \
+	ScriptClassDesc_t & g_##className##_ScriptDesc = *GetScriptDesc<className>(nullptr); \
+	template <> ScriptClassDesc_t* GetScriptDesc<className>(className*) \
+	{ \
+		static ScriptClassDesc_t g_##className##_ScriptDesc; \
+		typedef className _className; \
+		ScriptClassDesc_t *pDesc = &g_##className##_ScriptDesc; \
+		if (pDesc->m_pszClassname) return pDesc; \
+		pDesc->m_pszDescription = description; \
+		ScriptInitClassDescNamed( pDesc, className, GetScriptDescForClass( baseClass ), scriptName ); \
+		pDesc->pHelper = helper; \
+		if ( !pDesc->pHelper ) \
 		{ \
-			static ScriptClassDesc_t g_##className##_ScriptDesc; \
-			typedef className _className; \
-			ScriptClassDesc_t *pDesc = &g_##className##_ScriptDesc; \
-			if (pDesc->m_pszClassname) return pDesc; \
-			pDesc->m_pszDescription = description; \
-			ScriptClassDesc_t *pBaseDesc = GetScriptDescForClass( baseClass ); \
-			ScriptInitClassDescNamed( pDesc, className, pBaseDesc, scriptName ); \
-			pDesc->pHelper = helper; \
-			if ( !pDesc->pHelper ) \
+			ScriptClassDesc_t *pInstanceHelperBase = pDesc->m_pBaseDesc; \
+			while ( pInstanceHelperBase ) \
 			{ \
-				while ( pBaseDesc ) \
+				if ( pInstanceHelperBase->pHelper ) \
 				{ \
-					if ( pBaseDesc->pHelper ) \
-					{ \
-						pDesc->pHelper = pBaseDesc->pHelper; \
-						break; \
-					} \
-					pBaseDesc = pBaseDesc->m_pBaseDesc; \
+					pDesc->pHelper = pInstanceHelperBase->pHelper; \
+					break; \
 				} \
-			}
-
+				pInstanceHelperBase = pInstanceHelperBase->m_pBaseDesc; \
+			} \
+		}
 
 
 #define BEGIN_SCRIPTDESC_ROOT_NAMED( className, scriptName, description ) \
@@ -769,9 +772,8 @@ static inline int ToConstantVariant(int value)
 	BEGIN_SCRIPTDESC_NAMED_WITH_HELPER( className, ScriptNoBase_t, scriptName, description, helper )
 
 #define END_SCRIPTDESC() \
-			return pDesc; \
-		} \
-	};
+		return pDesc; \
+	}
 
 #define DEFINE_SCRIPTFUNC( func, description )												DEFINE_SCRIPTFUNC_NAMED( func, #func, description )
 #define DEFINE_SCRIPTFUNC_NAMED( func, scriptName, description )							ScriptAddFunctionToClassDescNamed( pDesc, _className, func, scriptName, description );
@@ -825,17 +827,10 @@ static inline int ToConstantVariant(int value)
 	do { ScriptMemberDesc_t *pBinding = &((pDesc)->m_Members[(pDesc)->m_Members.AddToTail()]); pBinding->m_pszScriptName = varName; pBinding->m_pszDescription = description; pBinding->m_ReturnType = returnType; } while (0);
 #endif
 
-template <typename T> struct ScriptDescGetter { static ScriptClassDesc_t* Get(T*, bool); };
-
-template <typename T> inline ScriptClassDesc_t *GetScriptDesc(T *p, bool init = false) {
-    return ScriptDescGetter<T>::Get(p, init);
-}
+template <typename T> ScriptClassDesc_t *GetScriptDesc(T *);
 
 struct ScriptNoBase_t;
-template <> struct ScriptDescGetter<ScriptNoBase_t> { 
-    static inline ScriptClassDesc_t* Get(ScriptNoBase_t*, bool) { return NULL; } 
-};
-
+template <> inline ScriptClassDesc_t *GetScriptDesc<ScriptNoBase_t>( ScriptNoBase_t *) { return NULL; }
 
 #define GetScriptDescForClass( className ) GetScriptDesc( ( className *)NULL )
 

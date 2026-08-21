@@ -22,15 +22,45 @@ inline bool VScriptRunScript( const char *pszScriptName, bool bWarnMissing = fal
 #define DECLARE_ENT_SCRIPTDESC()													ALLOW_SCRIPT_ACCESS(); virtual ScriptClassDesc_t *GetScriptDesc()
 
 #define BEGIN_ENT_SCRIPTDESC( className, baseClass, description ) \
+    template <> ScriptClassDesc_t* GetScriptDesc<className>(className*); \
     _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); \
     BEGIN_SCRIPTDESC( className, baseClass, description )
-#define BEGIN_ENT_SCRIPTDESC_WITH_HELPER( className, baseClass, description, helper )					_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_WITH_HELPER( className, baseClass, description, helper )
-#define BEGIN_ENT_SCRIPTDESC_ROOT( className, description )												_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_ROOT( className, description )
-#define BEGIN_ENT_SCRIPTDESC_ROOT_WITH_HELPER( className, description, helper )							_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_ROOT_WITH_HELPER( className, description, helper )
-#define BEGIN_ENT_SCRIPTDESC_NAMED( className, baseClass, scriptName, description )						_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_NAMED( className, baseClass, scriptName, description )
-#define BEGIN_ENT_SCRIPTDESC_NAMED_WITH_HELPER( className, baseClass, scriptName, description, helper )	_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_NAMED_WITH_HELPER( className, baseClass, scriptName, description, helper )
-#define BEGIN_ENT_SCRIPTDESC_ROOT_NAMED( className, scriptName, description )							_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_ROOT_NAMED( className, scriptName, description )
-#define BEGIN_ENT_SCRIPTDESC_ROOT_NAMED_WITH_HELPER( className, scriptName, description, helper )		_IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); BEGIN_SCRIPTDESC_ROOT_NAMED_WITH_HELPER( className, scriptName, description, helper )
+
+#define BEGIN_ENT_SCRIPTDESC_WITH_HELPER( className, baseClass, description, helper ) \
+    template <> ScriptClassDesc_t* GetScriptDesc<className>(className*); \
+    _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); \
+    BEGIN_SCRIPTDESC_WITH_HELPER( className, baseClass, description, helper )
+
+#define BEGIN_ENT_SCRIPTDESC_ROOT( className, description ) \
+    template <> ScriptClassDesc_t* GetScriptDesc<className>(className*); \
+    _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); \
+    BEGIN_SCRIPTDESC_ROOT( className, description )
+
+#define BEGIN_ENT_SCRIPTDESC_ROOT_WITH_HELPER( className, description, helper ) \
+    template <> ScriptClassDesc_t* GetScriptDesc<className>(className*); \
+    _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); \
+    BEGIN_SCRIPTDESC_ROOT_WITH_HELPER( className, description, helper )
+
+#define BEGIN_ENT_SCRIPTDESC_NAMED( className, baseClass, scriptName, description ) \
+    template <> ScriptClassDesc_t* GetScriptDesc<className>(className*); \
+    _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); \
+    BEGIN_SCRIPTDESC_NAMED( className, baseClass, scriptName, description )
+
+#define BEGIN_ENT_SCRIPTDESC_NAMED_WITH_HELPER( className, baseClass, scriptName, description, helper ) \
+    template <> ScriptClassDesc_t* GetScriptDesc<className>(className*); \
+    _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); \
+    BEGIN_SCRIPTDESC_NAMED_WITH_HELPER( className, baseClass, scriptName, description, helper )
+
+#define BEGIN_ENT_SCRIPTDESC_ROOT_NAMED( className, scriptName, description ) \
+    template <> ScriptClassDesc_t* GetScriptDesc<className>(className*); \
+    _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); \
+    BEGIN_SCRIPTDESC_ROOT_NAMED( className, scriptName, description )
+
+#define BEGIN_ENT_SCRIPTDESC_ROOT_NAMED_WITH_HELPER( className, scriptName, description, helper ) \
+    template <> ScriptClassDesc_t* GetScriptDesc<className>(className*); \
+    _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className ); \
+    BEGIN_ENT_SCRIPTDESC_ROOT_NAMED_WITH_HELPER( className, scriptName, description, helper )
+
 
 #define _IMPLEMENT_ENT_SCRIPTDESC_ACCESSOR( className )                                 ScriptClassDesc_t *className::GetScriptDesc()  { return ::GetScriptDesc( this ); }
 

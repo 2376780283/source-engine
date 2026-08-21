@@ -2192,7 +2192,7 @@ float CNPC_MetroPolice::AimBurstAtReactionTime( float flReactionTime, float flDi
 #define AIM_AT_SHOT_SPEED_COUNT 6
 #define AIM_AT_SHOT_DIST_COUNT 6
 
-static int s_pShotCountFraction[AIM_AT_TIME_DIST_COUNT][AIM_AT_TIME_SPEED_COUNT] =
+static float s_pShotCountFraction[AIM_AT_TIME_DIST_COUNT][AIM_AT_TIME_SPEED_COUNT] =
 {
 	{  3.0f, 3.0f,  2.5f,  1.5f,  1.0f, 0.0f },
 	{  3.0f, 3.0f,  2.5f,  1.25f, 0.5f, 0.0f },
@@ -3158,7 +3158,7 @@ void CNPC_MetroPolice::LostEnemySound( void)
 	AI_CriteriaSet modifiers;
 	ModifyOrAppendEnemyCriteria( modifiers, pEnemy );
 
-	modifiers.AppendCriteria( "lastseenenemy", gpGlobals->curtime - GetEnemies()->LastTimeSeen( pEnemy ) );
+	modifiers.AppendCriteria( "lastseenenemy", UTIL_VarArgs( "%s", gpGlobals->curtime - GetEnemies()->LastTimeSeen( pEnemy )) );
 
 	if (SpeakIfAllowed(TLK_COP_LOSTENEMY, modifiers ))
 	{
@@ -3325,7 +3325,7 @@ void CNPC_MetroPolice::IdleSound( void )
 
 			if ( m_Sentences.Speak( pQuestion[bIsCriminal][nQuestionType] ) >= 0 )
 			{
-				GetSquad()->BroadcastInteraction( g_interactionMetrocopIdleChatter, (void*)(METROPOLICE_CHATTER_RESPONSE + nQuestionType), this );
+				GetSquad()->BroadcastInteraction( g_interactionMetrocopIdleChatter, (void*)(intp)(METROPOLICE_CHATTER_RESPONSE + nQuestionType), this );
 				m_nIdleChatterType = METROPOLICE_CHATTER_WAIT_FOR_RESPONSE;
 			}
 		}
@@ -3708,7 +3708,7 @@ bool CNPC_MetroPolice::HandleInteraction(int interactionType, void *data, CBaseC
 
 	if ( interactionType == g_interactionMetrocopIdleChatter )
 	{
-		m_nIdleChatterType = (int)data;
+		m_nIdleChatterType = (intp)data;
 		return true;
 	}
 
