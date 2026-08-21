@@ -46,8 +46,8 @@ jobs:
             GAMES_JSON=$(jq -nc --arg g "$SELECTED_GAME" '[$g]')
           else
             BASE_GAMES='["hl2", "hl1", "hl2mp", "cstrike", "episodic", "portal", “entropyzero2”]'
-            if [ "$BRANCH" = "EntropyZero" ]; then
-              echo "Branch is EntropyZero. Adding entropyzero2 to matrix..."
+            if [ "$BRANCH" = "EntropyZero-MapbaseV8" ]; then
+              echo "Branch is EntropyZero mapbase V8.0. Adding entropyzero2 to matrix..."
               GAMES_JSON=$(echo $BASE_GAMES | jq '. + ["entropyzero2"]')
             elif [ "$BRANCH" = "nh2" ]; then
               echo "Branch is nh2. Adding nh2 to matrix..."
