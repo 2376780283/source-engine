@@ -1034,7 +1034,7 @@ void CNPC_Citizen::SelectModel()
 
 			// model_path, model_head, gender
 			ScriptVariant_t args[] = { pszModelPath, pszModelName, (int)scriptGender };
-			ScriptVariant_t returnValue = NULL;
+			ScriptVariant_t returnValue;
 			g_Hook_SelectModel.Call( m_ScriptScope, &returnValue, args );
 
 			if (returnValue.m_type == FIELD_CSTRING && returnValue.m_pszString[0] != '\0')
@@ -1053,9 +1053,6 @@ void CNPC_Citizen::SelectModel()
 						}
 					}
 				}
-
-				// Models selected this way must be unique to avoid conflicts in save/restore
-				m_Type = CT_UNIQUE;
 
 				// Just set the model right here
 				SetModelName( AllocPooledString( returnValue.m_pszString ) );

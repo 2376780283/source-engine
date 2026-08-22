@@ -5979,7 +5979,6 @@ static int AutoCompleteEntities(const char *cmdname, CUtlVector< CUtlString > &c
 
 	return symbols.Count();
 }
-#endif
 
 //------------------------------------------------------------------------------
 // Purpose : 
