@@ -122,6 +122,12 @@ ConVar mat_viewportscale( "mat_viewportscale", "1.0", FCVAR_ARCHIVE, "Scale down
 ConVar mat_viewportupscale( "mat_viewportupscale", "1", FCVAR_ARCHIVE, "Scale the viewport back up" );
 ConVar cl_leveloverview( "cl_leveloverview", "0", FCVAR_CHEAT );
 
+#ifdef ANDROID
+#define MAPEXTENTS_DEFAULT "12288" // small optimization
+#else
+#define MAPEXTENTS_DEFAULT "16384"
+#endif
+
 static ConVar r_mapextents( "r_mapextents", "16384", FCVAR_CHEAT, 
 						   "Set the max dimension for the map.  This determines the far clipping plane" );
 
@@ -964,7 +970,7 @@ void CViewRender::WriteSaveGameScreenshotOfSize( const char *pFilename, int widt
 	{
 		// Write TGA format to buffer
 		int iMaxTGASize = 1024 + ( nSrcWidth * nSrcHeight * 4 );
-		void *pTGA = malloc( iMaxTGASize );
+		void *pTGA = new char[ iMaxTGASize ];
 		buffer.SetExternalBuffer( pTGA, iMaxTGASize, 0 );
 
 		bWriteResult = TGAWriter::WriteToBuffer( pSrcImage, buffer, nSrcWidth, nSrcHeight, IMAGE_FORMAT_RGB888, IMAGE_FORMAT_RGB888 );

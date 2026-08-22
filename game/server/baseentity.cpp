@@ -4542,7 +4542,7 @@ void CBaseEntity::OnEntityEvent( EntityEvent_t event, void *pEventData )
 	{
 	case ENTITY_EVENT_WATER_TOUCH:
 		{
-			int nContents = (intp)pEventData;
+			intp nContents = (intp)pEventData;
 			if ( !nContents || (nContents & CONTENTS_WATER) )
 			{
 				++m_nWaterTouch;
@@ -4556,7 +4556,7 @@ void CBaseEntity::OnEntityEvent( EntityEvent_t event, void *pEventData )
 
 	case ENTITY_EVENT_WATER_UNTOUCH:
 		{
-			int nContents = (intp)pEventData;
+			intp nContents = (intp)pEventData;
 			if ( !nContents || (nContents & CONTENTS_WATER) )
 			{
 				--m_nWaterTouch;
@@ -8867,7 +8867,7 @@ void CBaseEntity::ScriptSetThinkFunction( const char *szFunc, float flTime )
 	else
 	{
 		m_iszScriptThinkFunction = AllocPooledString(szFunc);
-		flTime = max( 0.0f, flTime );
+		flTime = MAX( 0.0f, flTime );
 		SetContextThink( &CBaseEntity::ScriptThink, gpGlobals->curtime + flTime, "ScriptThink" );
 	}
 }

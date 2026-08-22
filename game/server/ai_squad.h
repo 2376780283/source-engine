@@ -190,8 +190,8 @@ private:
 	void					ScriptAddToSquad( HSCRIPT hNPC );
 	void					ScriptRemoveFromSquad( HSCRIPT hNPC );
 
-	bool					ScriptIsSilentMember( HSCRIPT hNPC );
-
+	bool					ScriptIsSilentMember( HSCRIPT hNPC );	
+	
 	void					ScriptSetSquadData( int iSlot, int data );
 	int						ScriptGetSquadData( int iSlot );
 #endif

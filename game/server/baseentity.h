@@ -1319,36 +1319,81 @@ public:
 
 	// Ugly code to lookup all functions to make sure they are in the table when set.
 #ifdef _DEBUG
+
+#ifdef PLATFORM_64BITS
+#ifdef GNUC
+#define ENTITYFUNCPTR_SIZE	16
+#else
+#define ENTITYFUNCPTR_SIZE	8
+#endif
+#else
+#ifdef GNUC
+#define ENTITYFUNCPTR_SIZE	8
+#else
+#define ENTITYFUNCPTR_SIZE	4
+#endif
+#endif
+
 	void FunctionCheck( void *pFunction, const char *name );
 
-	ENTITYFUNCPTR TouchSet( ENTITYFUNCPTR func, const char *name ) 
+	ENTITYFUNCPTR TouchSet( ENTITYFUNCPTR func, char *name ) 
 	{ 
+#ifdef _DEBUG
+#ifdef PLATFORM_64BITS
 #ifdef GNUC
-		COMPILE_TIME_ASSERT( sizeof(func) == 8 );
+	COMPILE_TIME_ASSERT( sizeof(func) == 16 );
 #else
-		COMPILE_TIME_ASSERT( sizeof(func) == 4 );
+	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
+#endif
+#else
+#ifdef GNUC
+	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
+#else
+	COMPILE_TIME_ASSERT( sizeof(func) == 4 );
+#endif
+#endif
 #endif
 		m_pfnTouch = func; 
 		FunctionCheck( *(reinterpret_cast<void **>(&m_pfnTouch)), name ); 
 		return func;
 	}
-	USEPTR	UseSet( USEPTR func, const char *name ) 
+	USEPTR	UseSet( USEPTR func, char *name ) 
 	{ 
+#ifdef _DEBUG
+#ifdef PLATFORM_64BITS
 #ifdef GNUC
-		COMPILE_TIME_ASSERT( sizeof(func) == 8 );
+	COMPILE_TIME_ASSERT( sizeof(func) == 16 );
 #else
-		COMPILE_TIME_ASSERT( sizeof(func) == 4 );
+	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
+#endif
+#else
+#ifdef GNUC
+	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
+#else
+	COMPILE_TIME_ASSERT( sizeof(func) == 4 );
+#endif
+#endif
 #endif
 		m_pfnUse = func; 
 		FunctionCheck( *(reinterpret_cast<void **>(&m_pfnUse)), name ); 
 		return func;
 	}
-	ENTITYFUNCPTR	BlockedSet( ENTITYFUNCPTR func, const char *name ) 
+	ENTITYFUNCPTR	BlockedSet( ENTITYFUNCPTR func, char *name ) 
 	{ 
+#ifdef _DEBUG
+#ifdef PLATFORM_64BITS
 #ifdef GNUC
-		COMPILE_TIME_ASSERT( sizeof(func) == 8 );
+	COMPILE_TIME_ASSERT( sizeof(func) == 16 );
 #else
-		COMPILE_TIME_ASSERT( sizeof(func) == 4 );
+	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
+#endif
+#else
+#ifdef GNUC
+	COMPILE_TIME_ASSERT( sizeof(func) == 8 );
+#else
+	COMPILE_TIME_ASSERT( sizeof(func) == 4 );
+#endif
+#endif
 #endif
 		m_pfnBlocked = func; 
 		FunctionCheck( *(reinterpret_cast<void **>(&m_pfnBlocked)), name ); 
@@ -1937,7 +1982,7 @@ private:
 	EHANDLE			m_pBlocker;
 
 	// was pev->gravity;
-	float			m_flGravity;  // rename to m_flGravityScale;
+	CNetworkVar( float, m_flGravity );  // rename to m_flGravityScale;
 	// was pev->friction
 	CNetworkVarForDerived( float, m_flFriction );
 	CNetworkVar( float, m_flElasticity );
@@ -2229,7 +2274,9 @@ public:
 	CScriptScope	m_ScriptScope;
 	HSCRIPT			m_hScriptInstance;
 	string_t		m_iszScriptId;
-#ifndef MAPBASE_VSCRIPT
+#ifdef MAPBASE_VSCRIPT
+	HSCRIPT			m_pScriptModelKeyValues;
+#else
 	CScriptKeyValues* m_pScriptModelKeyValues;
 #endif
 };
