@@ -31,8 +31,10 @@ on:
           - hl1mp
           - hl2mp
           - portal
+          - mapbase
           - snowdrop_escape
           - swelter
+          - csso
           - nh2
       android_api:
         description: 'Android API level'
@@ -88,7 +90,7 @@ jobs:
                   {"game":"hl2mp","branch":$b},
                   {"game":"portal","branch":$b}]')
               ;;
-            RmlUI-newGui)
+            mapbase)
               GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
                 '[{"game":"mapbase","branch":$b}]')
               ;;
