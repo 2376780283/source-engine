@@ -1,0 +1,252 @@
+name: Build All Games Android AArch64
+
+on:
+  workflow_dispatch:
+    inputs:
+      ndk_version:
+        description: 'Android NDK version'
+        required: true
+        default: 'r28c'
+        type: string
+      build_type:
+        description: 'Build type'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release
+          - debug
+      build_games:
+        description: 'Override: build a single game (leave "auto" for branch-based matrix)'
+        required: true
+        default: 'auto'
+        type: choice
+        options:
+          - auto
+          - entropyzero2
+          - EntropyZero
+          - hl2
+          - episodic
+          - hl1
+          - hl1mp
+          - hl2mp
+          - portal
+          - snowdrop_escape
+          - swelter
+          - nh2
+      android_api:
+        description: 'Android API level'
+        required: true
+        default: '29'
+        type: string
+
+concurrency:
+  group: build-android-${{ github.ref_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      games: ${{ steps.set-games.outputs.games }}
+    steps:
+      - name: Generate build matrix from branch
+        id: set-games
+        run: |
+          BRANCH="${{ github.ref_name }}"
+          SELECTED="${{ inputs.build_games }}"
+
+          echo "Detected branch: $BRANCH"
+          echo "User selection: $SELECTED"
+
+          if [ -n "$SELECTED" ] && [ "$SELECTED" != "auto" ]; then
+            case "$SELECTED" in
+              hl2|episodic|hl1|hl1mp|hl2mp|portal) TARGET_BRANCH="default" ;;
+              entropyzero2) TARGET_BRANCH="EntropyZero" ;;
+              EntropyZero) TARGET_BRANCH="EntropyZero1" ;;
+              nh2) TARGET_BRANCH="nh2" ;;
+              snowdrop_escape) TARGET_BRANCH="SnowDrop-Orig" ;;
+              swelter) TARGET_BRANCH="Swelter-orig" ;;
+              *) TARGET_BRANCH="$BRANCH" ;;
+            esac
+            GAMES_JSON=$(jq -nc --arg g "$SELECTED" --arg b "$TARGET_BRANCH" \
+              '[{"game":$g, "branch":$b}]')
+            echo "games=$GAMES_JSON" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          case "$BRANCH" in
+            EntropyZero)
+              GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
+                '[{"game":"entropyzero2","branch":$b}]')
+              ;;
+            EntropyZero1)
+              GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
+                '[{"game":"EntropyZero","branch":$b}]')
+              ;;
+            default)
+              GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
+                '[{"game":"hl2","branch":$b},
+                  {"game":"episodic","branch":$b},
+                  {"game":"hl1","branch":$b},
+                  {"game":"hl1mp","branch":$b},
+                  {"game":"hl2mp","branch":$b},
+                  {"game":"portal","branch":$b}]')
+              ;;
+            SnowDrop-Orig)
+              GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
+                '[{"game":"snowdrop_escape","branch":$b}]')
+              ;;
+            Swelter-orig)
+              GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
+                '[{"game":"swelter","branch":$b}]')
+              ;;
+            nh2)
+              GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
+                '[{"game":"nh2","branch":$b}]')
+              ;;
+            *)
+              echo "::error::Unknown branch '$BRANCH'. No game mapping configured."
+              exit 1
+              ;;
+          esac
+
+          echo "Generated matrix: $GAMES_JSON"
+          echo "games=$GAMES_JSON" >> $GITHUB_OUTPUT
+
+  build-android:
+    needs: prepare-matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        game: ${{ fromJson(needs.prepare-matrix.outputs.games) }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ matrix.game.branch }}
+          submodules: recursive
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system dependencies & ccache
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ccache jq
+          ccache --version
+          echo "CPU cores: $(nproc)"
+
+      - name: Configure ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ runner.os }}-${{ matrix.game.game }}-${{ inputs.build_type }}-ccache
+          max-size: 2G
+          save: ${{ github.ref_name == 'default' }}
+
+      - name: Locate or download Android NDK
+        id: ndk
+        env:
+          NDK_VER: ${{ inputs.ndk_version || 'r28c' }}
+        run: |
+          NDK_RELEASE_NAME="28.2.13676358"
+          NDK_SEARCH_NAME="28.*"
+
+          echo "Looking for Android NDK $NDK_VER..."
+
+          NDK_ROOT="/usr/local/lib/android/sdk/ndk"
+          FOUND=""
+          if [ -d "$NDK_ROOT" ]; then
+            for d in "$NDK_ROOT"/$NDK_SEARCH_NAME; do
+              if [ -d "$d" ] && grep -q "Pkg.ReleaseName = $NDK_RELEASE_NAME" "$d/source.properties" 2>/dev/null; then
+                FOUND="$d"
+                break
+              fi
+            done
+          fi
+
+          if [ -n "$FOUND" ]; then
+            echo "Found pre-installed NDK at: $FOUND"
+            echo "ndk_path=$FOUND" >> $GITHUB_OUTPUT
+          else
+            CACHE_DIR="${{ github.workspace }}/android-ndk-$NDK_VER"
+            if [ ! -d "$CACHE_DIR" ]; then
+              echo "Downloading android-ndk-$NDK_VER..."
+              curl -sSLf "https://dl.google.com/android/repository/android-ndk-$NDK_VER-linux.zip" -o ndk.zip
+              unzip -q ndk.zip
+              rm ndk.zip
+            fi
+            echo "ndk_path=$CACHE_DIR" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure, Build & Install
+        env:
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk_path }}
+          BUILD_TYPE: ${{ inputs.build_type || 'release' }}
+          ANDROID_API: ${{ inputs.android_api || '29' }}
+          CURRENT_GAME: ${{ matrix.game.game }}
+        run: |
+          echo "========================================"
+          echo "Building Game: $CURRENT_GAME"
+          echo "NDK Path: $ANDROID_NDK_HOME"
+          echo "Build Type: $BUILD_TYPE"
+          echo "Android API: $ANDROID_API"
+          echo "ccache dir: $(ccache --get-config cache_dir)"
+          echo "Parallel jobs: $(nproc)"
+          echo "========================================"
+
+          INSTALL_DIR="${{ github.workspace }}/android_build_${CURRENT_GAME}"
+
+          python3 ./waf configure \
+            -T "$BUILD_TYPE" \
+            --prefix="$INSTALL_DIR" \
+            --android=aarch64,llvm,"$ANDROID_API" \
+            --target=android_build \
+            --disable-warns \
+            --togles \
+            --build-games="$CURRENT_GAME"
+
+          echo "========================================"
+          echo "Starting build for $CURRENT_GAME..."
+          echo "========================================"
+
+          python3 ./waf build -j"$(nproc)"
+
+          echo "========================================"
+          echo "Installing $CURRENT_GAME..."
+          echo "========================================"
+
+          export PATH="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+
+          if [ "$BUILD_TYPE" = "release" ]; then
+            python3 ./waf install --strip
+          else
+            python3 ./waf install
+          fi
+
+      - name: Verify & List Output Artifacts
+        run: |
+          INSTALL_DIR="${{ github.workspace }}/android_build_${{ matrix.game.game }}"
+          echo "=== Artifacts for ${{ matrix.game.game }} ==="
+          ls -la "$INSTALL_DIR"
+          echo ""
+          echo "=== Total size ==="
+          du -sh "$INSTALL_DIR"
+          echo ""
+          echo "=== .so files ==="
+          find "$INSTALL_DIR" -name "*.so" -exec ls -lh {} \;
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aarch64-${{ github.ref_name }}-${{ matrix.game.game }}-${{ inputs.build_type || 'release' }}
+          path: ${{ github.workspace }}/android_build_${{ matrix.game.game }}/
+          if-no-files-found: error
+          retention-days: 30
