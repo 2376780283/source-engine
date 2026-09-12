@@ -31,10 +31,8 @@ on:
           - hl1mp
           - hl2mp
           - portal
-          - mapbase
           - snowdrop_escape
           - swelter
-          - csso
           - nh2
       android_api:
         description: 'Android API level'
@@ -65,8 +63,16 @@ jobs:
           echo "User selection: $SELECTED"
 
           if [ -n "$SELECTED" ] && [ "$SELECTED" != "auto" ]; then
-            echo "User override detected. Building single game: $SELECTED"
-            GAMES_JSON=$(jq -nc --arg g "$SELECTED" --arg b "$BRANCH" \
+            case "$SELECTED" in
+              hl2|episodic|hl1|hl1mp|hl2mp|portal) TARGET_BRANCH="default" ;;
+              entropyzero2) TARGET_BRANCH="EntropyZero" ;;
+              EntropyZero) TARGET_BRANCH="EntropyZero1" ;;
+              nh2) TARGET_BRANCH="nh2" ;;
+              snowdrop_escape) TARGET_BRANCH="SnowDrop-Orig" ;;
+              swelter) TARGET_BRANCH="Swelter-orig" ;;
+              *) TARGET_BRANCH="$BRANCH" ;;
+            esac
+            GAMES_JSON=$(jq -nc --arg g "$SELECTED" --arg b "$TARGET_BRANCH" \
               '[{"game":$g, "branch":$b}]')
             echo "games=$GAMES_JSON" >> $GITHUB_OUTPUT
             exit 0
@@ -90,10 +96,6 @@ jobs:
                   {"game":"hl2mp","branch":$b},
                   {"game":"portal","branch":$b}]')
               ;;
-            mapbase)
-              GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
-                '[{"game":"mapbase","branch":$b}]')
-              ;;
             SnowDrop-Orig)
               GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
                 '[{"game":"snowdrop_escape","branch":$b}]')
@@ -101,10 +103,6 @@ jobs:
             Swelter-orig)
               GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
                 '[{"game":"swelter","branch":$b}]')
-              ;;
-            csso)
-              GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
-                '[{"game":"csso","branch":$b}]')
               ;;
             nh2)
               GAMES_JSON=$(jq -nc --arg b "$BRANCH" \
@@ -194,8 +192,6 @@ jobs:
           BUILD_TYPE: ${{ inputs.build_type || 'release' }}
           ANDROID_API: ${{ inputs.android_api || '29' }}
           CURRENT_GAME: ${{ matrix.game.game }}
-          CFLAGS: "-g0"
-          CXXFLAGS: "-g0"
         run: |
           echo "========================================"
           echo "Building Game: $CURRENT_GAME"
@@ -218,13 +214,21 @@ jobs:
             --build-games="$CURRENT_GAME"
 
           echo "========================================"
-          echo "Starting build and install for $CURRENT_GAME..."
+          echo "Starting build for $CURRENT_GAME..."
           echo "========================================"
 
+          python3 ./waf build -j"$(nproc)"
+
+          echo "========================================"
+          echo "Installing $CURRENT_GAME..."
+          echo "========================================"
+
+          export PATH="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin:$PATH"
+
           if [ "$BUILD_TYPE" = "release" ]; then
-            python3 ./waf build install -j"$(nproc)" --strip
+            python3 ./waf install --strip
           else
-            python3 ./waf build install -j"$(nproc)"
+            python3 ./waf install
           fi
 
       - name: Verify & List Output Artifacts
