@@ -151,6 +151,7 @@ CON_COMMAND_F( ccs_create_convars_from_hwconfig, "Create convars from the curren
 	HWCFG( m_FakeSRGBWrite );						
 	HWCFG( m_CanDoSRGBReadFromRTs );				
 	HWCFG( m_bSupportsGLMixedSizeTargets );			
+	HWCFG( m_bHasFramebufferFetch );
 	HWCFG( m_bCanStretchRectFromTextures );
 
 	HWCFG( m_MaxHDRType );
@@ -1219,6 +1220,11 @@ bool CHardwareConfig::CanDoSRGBReadFromRTs() const
 bool CHardwareConfig::SupportsGLMixedSizeTargets() const
 {
 	return m_Caps.m_bSupportsGLMixedSizeTargets;
+}
+
+bool CHardwareConfig::HasFramebufferFetch() const
+{
+	return m_Caps.m_bHasFramebufferFetch;
 }
 
 bool CHardwareConfig::IsAAEnabled() const
