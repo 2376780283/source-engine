@@ -879,7 +879,7 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
 
 					    if ( pBonusMap->szMapFileName[ 0 ] != '.' )
 					    {
-                            Q_snprintf( sz, sizeof( sz ), "progress_enable\nmap %s\n", pBonusMap->szMapFileName );
+						    Q_snprintf( sz, sizeof( sz ), "map %s\nprogress_enable\n", pBonusMap->szMapFileName );
 					    }
 					    else
 					    {
@@ -899,7 +899,7 @@ void GamepadUIBonusMapsPanel::OnCommand( char const* pCommand )
 							    {
 								    ++pchSubDir;
 								    const char *pchMapFileName = pBonusMap->szMapFileName + 2;
-								    Q_snprintf( sz, sizeof( sz ), "progress_enable\nmap %s/%s\n", pchSubDir, pchMapFileName );
+								    Q_snprintf( sz, sizeof( sz ), "map %s/%s\nprogress_enable\n", pchSubDir, pchMapFileName );
 							    }
 						    }
 					    }
