@@ -28,12 +28,9 @@
 
 #include "togles/rendermechanism.h"
 
-extern "C" {
-#include "decompress.h"
-}
-
 #include "tier0/icommandline.h"
 #include "glmtexinlines.h"
+#include "mathlib/compressed_vector.h"
 
 // memdbgon -must- be the last include file in a .cpp file.
 #include "tier0/memdbgon.h"
@@ -52,6 +49,12 @@ CGLMTex *g_pFirstCGMLTex;
 ConVar gl_pow2_tempmem( "gl_pow2_tempmem", "0", FCVAR_INTERNAL_USE,
                         "If set, use power-of-two allocations for temporary texture memory during uploads. "
                         "May help with fragmentation on certain systems caused by heavy churn of large allocations." );
+
+ConVar gl_tex_readback_pbo( "gl_tex_readback_pbo", "0", FCVAR_INTERNAL_USE,
+                        "If set, texture readbacks (D3DLOCK_READONLY locks of textures without a host copy) go "
+                        "through a GL_PIXEL_PACK_BUFFER so glReadPixels does not force an immediate tile flush "
+                        "on Mali TBDR.  The stall moves to the map; default off because the mapped pointer "
+                        "semantics differ from the plain client-memory path." );
 
 #define TEXSPACE_LOGGING 0
 
@@ -80,7 +83,7 @@ int	sEncodeLayoutAsIndex( GLMTexLayoutKey *key )
 		index |= 2;
 	}
 
-	if (GetFormatDesc( key->m_texFormat )->m_chunkSize >1 )
+	if (GetFormatDesc( key->m_texFormat )->m_blockWidth >1 )
 	{
 		index |= 4;
 	}
@@ -106,45 +109,102 @@ const GLMTexFormatDesc g_formatDescTable[] =
 		// ??? D3DFMT_D15S1 ever used ?
 		// ??? D3DFMT_D24X8 ever used?
 
-	// summ-name		d3d-format				gl-int-format						gl-int-format-srgb					gl-data-format			gl-data-type					chunksize, bytes-per-sqchunk
-	{ "_D16",			D3DFMT_D16,				GL_DEPTH_COMPONENT16,				0,									GL_DEPTH_COMPONENT,		GL_UNSIGNED_SHORT,				1, 2 },
-	{ "_D24X8",			D3DFMT_D24X8,			GL_DEPTH_COMPONENT24,				0,									GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT,				1, 4 },	// ??? unsure on this one
-	{ "_D24S8",			D3DFMT_D24S8,			GL_DEPTH24_STENCIL8_EXT,			0,									GL_DEPTH_STENCIL_EXT,	GL_UNSIGNED_INT_24_8_EXT,		1, 4 },
+	// summ-name		d3d-format				gl-int-format						gl-int-format-srgb					gl-data-format			gl-data-type					blockW	blockH	blockD	bytes/block
+	{ "_D16",			D3DFMT_D16,				GL_DEPTH_COMPONENT16,				0,									GL_DEPTH_COMPONENT,		GL_UNSIGNED_SHORT,				1,		1,		1,		2 },
+	{ "_D24X8",			D3DFMT_D24X8,			GL_DEPTH_COMPONENT24,				0,									GL_DEPTH_COMPONENT,		GL_UNSIGNED_INT,				1,		1,		1,		4 },	// ??? unsure on this one
+	{ "_D24S8",			D3DFMT_D24S8,			GL_DEPTH24_STENCIL8_EXT,			0,									GL_DEPTH_STENCIL_EXT,	GL_UNSIGNED_INT_24_8_EXT,		1,		1,		1,		4 },
 
-	{ "_A8R8G8B8",		D3DFMT_A8R8G8B8,		GL_RGBA8,							GL_SRGB8_ALPHA8_EXT,				GL_BGRA,				GL_UNSIGNED_INT_8_8_8_8_REV,	1, 4 },
-	{ "_A4R4G4B4",		D3DFMT_A4R4G4B4,		GL_RGBA4,							0,									GL_BGRA,				GL_UNSIGNED_SHORT_4_4_4_4_REV,	1, 2 },
-	{ "_X8R8G8B8",		D3DFMT_X8R8G8B8,		GL_RGB8,							GL_SRGB8_EXT,						GL_BGRA,				GL_UNSIGNED_INT_8_8_8_8_REV,	1, 4 },
+	{ "_A8R8G8B8",		D3DFMT_A8R8G8B8,		GL_RGBA8,							GL_SRGB8_ALPHA8_EXT,				GL_BGRA,				GL_UNSIGNED_INT_8_8_8_8_REV,	1,		1,		1,		4 },
+	{ "_A4R4G4B4",		D3DFMT_A4R4G4B4,		GL_RGBA4,							0,									GL_BGRA,				GL_UNSIGNED_SHORT_4_4_4_4_REV,	1,		1,		1,		2 },
+	{ "_X8R8G8B8",		D3DFMT_X8R8G8B8,		GL_RGB8,							GL_SRGB8_EXT,						GL_BGRA,				GL_UNSIGNED_INT_8_8_8_8_REV,	1,		1,		1,		4 },
 	
-	{ "_X1R5G5B5",		D3DFMT_X1R5G5B5,		GL_RGB5,							0,									GL_BGRA,				GL_UNSIGNED_SHORT_1_5_5_5_REV,	1, 2 },
-	{ "_A1R5G5B5",		D3DFMT_A1R5G5B5,		GL_RGB5_A1,							0,									GL_BGRA,				GL_UNSIGNED_SHORT_1_5_5_5_REV,	1, 2 },
+	{ "_X1R5G5B5",		D3DFMT_X1R5G5B5,		GL_RGB5,							0,									GL_BGRA,				GL_UNSIGNED_SHORT_1_5_5_5_REV,	1,		1,		1,		2 },
+	{ "_A1R5G5B5",		D3DFMT_A1R5G5B5,		GL_RGB5_A1,							0,									GL_BGRA,				GL_UNSIGNED_SHORT_1_5_5_5_REV,	1,		1,		1,		2 },
 
-	{ "_L8",			D3DFMT_L8,				GL_LUMINANCE8,						GL_SLUMINANCE8_EXT,					GL_LUMINANCE,			GL_UNSIGNED_BYTE,				1, 1 },
-	{ "_A8L8",			D3DFMT_A8L8,			GL_LUMINANCE8_ALPHA8,				GL_SLUMINANCE8_ALPHA8_EXT,			GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE,				1, 2 },
+	{ "_L8",			D3DFMT_L8,				GL_LUMINANCE8,						GL_SLUMINANCE8_EXT,					GL_LUMINANCE,			GL_UNSIGNED_BYTE,				1,		1,		1,		1 },
+	{ "_A8L8",			D3DFMT_A8L8,			GL_LUMINANCE8_ALPHA8,				GL_SLUMINANCE8_ALPHA8_EXT,			GL_LUMINANCE_ALPHA,		GL_UNSIGNED_BYTE,				1,		1,		1,		2 },
 
-	{ "_DXT1",			D3DFMT_DXT1,			GL_COMPRESSED_RGB_S3TC_DXT1_EXT,	GL_COMPRESSED_SRGB_S3TC_DXT1_EXT,		GL_RGB,				GL_UNSIGNED_BYTE,				4, 8 },
-	{ "_DXT3",			D3DFMT_DXT3,			GL_COMPRESSED_RGBA_S3TC_DXT3_EXT,	GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT,	GL_RGBA,			GL_UNSIGNED_BYTE,				4, 16 },
-	{ "_DXT5",			D3DFMT_DXT5,			GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,	GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT,	GL_RGBA,			GL_UNSIGNED_BYTE,				4, 16 },
+	{ "_DXT1",			D3DFMT_DXT1,			GL_COMPRESSED_RGB_S3TC_DXT1_EXT,	GL_COMPRESSED_SRGB_S3TC_DXT1_EXT,		GL_RGB,				GL_UNSIGNED_BYTE,				4,		4,		1,		8 },
+	{ "_DXT3",			D3DFMT_DXT3,			GL_COMPRESSED_RGBA_S3TC_DXT3_EXT,	GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT,	GL_RGBA,			GL_UNSIGNED_BYTE,				4,		4,		1,		16 },
+	{ "_DXT5",			D3DFMT_DXT5,			GL_COMPRESSED_RGBA_S3TC_DXT5_EXT,	GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT,	GL_RGBA,			GL_UNSIGNED_BYTE,				4,		4,		1,		16 },
 
-	{ "_A16B16G16R16F",	D3DFMT_A16B16G16R16F,	GL_RGBA16F_ARB,						0,									GL_RGBA,				GL_HALF_FLOAT_ARB,				1, 8 },
-	{ "_A16B16G16R16",	D3DFMT_A16B16G16R16,	GL_RGBA16,							0,									GL_RGBA,				GL_UNSIGNED_SHORT,				1, 8 },		// 16bpc integer tex
+	{ "_A16B16G16R16F",	D3DFMT_A16B16G16R16F,	GL_RGBA16F_ARB,						0,									GL_RGBA,				GL_HALF_FLOAT_ARB,				1,		1,		1,		8 },
+	{ "_A16B16G16R16",	D3DFMT_A16B16G16R16,	GL_RGBA16,							0,									GL_RGBA,				GL_UNSIGNED_SHORT,				1,		1,		1,		8 },		// 16bpc integer tex
 
-	{ "_A32B32G32R32F",	D3DFMT_A32B32G32R32F,	GL_RGBA32F_ARB,						0,									GL_RGBA,				GL_FLOAT,						1, 16 },
+	{ "_A32B32G32R32F",	D3DFMT_A32B32G32R32F,	GL_RGBA32F_ARB,						0,									GL_RGBA,				GL_FLOAT,						1,		1,		1,		16 },
 
-	{ "_R8G8B8",		D3DFMT_R8G8B8,			GL_RGB8,							GL_SRGB8_EXT,						GL_BGR,					GL_UNSIGNED_BYTE,				1, 3 },
+	{ "_R8G8B8",		D3DFMT_R8G8B8,			GL_RGB8,							GL_SRGB8_EXT,						GL_BGR,					GL_UNSIGNED_BYTE,				1,		1,		1,		3 },
 
-	{ "_A8",			D3DFMT_A8,				GL_ALPHA8,							0,									GL_ALPHA,				GL_UNSIGNED_BYTE,				1, 1 },
-	{ "_R5G6B5",		D3DFMT_R5G6B5,			GL_RGB,								GL_SRGB_EXT,						GL_RGB,					GL_UNSIGNED_SHORT_5_6_5,		1, 2 },
+	{ "_A8",			D3DFMT_A8,				GL_ALPHA8,							0,									GL_ALPHA,				GL_UNSIGNED_BYTE,				1,		1,		1,		1 },
+	{ "_R5G6B5",		D3DFMT_R5G6B5,			GL_RGB,								GL_SRGB_EXT,						GL_RGB,					GL_UNSIGNED_SHORT_5_6_5,		1,		1,		1,		2 },
 
 	// fakey tex formats: the stated GL format and the memory layout may not agree (U8V8 for example)
 	
 	// _Q8W8V8U8 we just pass through as RGBA bytes.  Shader does scale/bias fix
-	{ "_Q8W8V8U8",		D3DFMT_Q8W8V8U8,		GL_RGBA8,							0,									GL_BGRA,				GL_UNSIGNED_INT_8_8_8_8_REV,	1, 4 },		// straight ripoff of D3DFMT_A8R8G8B8
+	{ "_Q8W8V8U8",		D3DFMT_Q8W8V8U8,		GL_RGBA8,							0,									GL_BGRA,				GL_UNSIGNED_INT_8_8_8_8_REV,	1,		1,		1,		4 },		// straight ripoff of D3DFMT_A8R8G8B8
 
 	// U8V8 is exposed to the client as 2-bytes per texel, but we download it as 3-byte RGB.
 	// WriteTexels needs to do that conversion from rg8 to rgb8 in order to be able to download it correctly
-	{ "_V8U8",			D3DFMT_V8U8,			GL_RGB8,							0,									GL_RG,					GL_BYTE,						1, 2 },
+	{ "_V8U8",			D3DFMT_V8U8,			GL_RGB8,							0,									GL_RG,					GL_BYTE,						1,		1,		1,		2 },
 	
-	{ "_R32F",			D3DFMT_R32F,			GL_R32F,							GL_R32F,							GL_RED,					GL_FLOAT,						1, 4 },
+	{ "_R32F",			D3DFMT_R32F,			GL_R32F,							GL_R32F,							GL_RED,					GL_FLOAT,						1,		1,		1,		4 },
+
+	// ASTC 2D LDR compressed formats (all blocks 16 bytes)
+	{ "_ASTC4x4",		D3DFMT_ASTC4x4,			0x93B0,	0x93D0,	GL_RGBA,	GL_UNSIGNED_BYTE,	4,	4,	1,	16 },
+	{ "_ASTC5x4",		D3DFMT_ASTC5x4,			0x93B1,	0x93D1,	GL_RGBA,	GL_UNSIGNED_BYTE,	5,	4,	1,	16 },
+	{ "_ASTC5x5",		D3DFMT_ASTC5x5,			0x93B2,	0x93D2,	GL_RGBA,	GL_UNSIGNED_BYTE,	5,	5,1,	16 },
+	{ "_ASTC6x5",		D3DFMT_ASTC6x5,			0x93B3,	0x93D3,	GL_RGBA,	GL_UNSIGNED_BYTE,	6,	5,	1,	16 },
+	{ "_ASTC6x6",		D3DFMT_ASTC6x6,			0x93B4,	0x93D4,	GL_RGBA,	GL_UNSIGNED_BYTE,	6,	6,	1,	16 },
+	{ "_ASTC8x5",		D3DFMT_ASTC8x5,			0x93B5,	0x93D5,	GL_RGBA,	GL_UNSIGNED_BYTE,	8,	5,	1,	16 },
+	{ "_ASTC8x6",		D3DFMT_ASTC8x6,			0x93B6,	0x93D6,	GL_RGBA,	GL_UNSIGNED_BYTE,	8,	6,	1,	16 },
+	{ "_ASTC8x8",		D3DFMT_ASTC8x8,			0x93B7,	0x93D7,	GL_RGBA,	GL_UNSIGNED_BYTE,	8,	8,	1,	16 },
+	{ "_ASTC10x5",		D3DFMT_ASTC10x5,		0x93B8,	0x93D8,	GL_RGBA,	GL_UNSIGNED_BYTE,	10,	5,	1,	16 },
+	{ "_ASTC10x6",		D3DFMT_ASTC10x6,		0x93B9,	0x93D9,	GL_RGBA,	GL_UNSIGNED_BYTE,	10,	6,	1,	16 },
+	{ "_ASTC10x8",		D3DFMT_ASTC10x8,		0x93BA,	0x93DA,	GL_RGBA,	GL_UNSIGNED_BYTE,	10,	8,	1,	16 },
+	{ "_ASTC10x10",		D3DFMT_ASTC10x10,		0x93BB,	0x93DB,	GL_RGBA,	GL_UNSIGNED_BYTE,	10,	10,	1,	16 },
+	{ "_ASTC12x10",		D3DFMT_ASTC12x10,		0x93BC,	0x93DC,	GL_RGBA,	GL_UNSIGNED_BYTE,	12,	10,	1,	16 },
+	{ "_ASTC12x12",		D3DFMT_ASTC12x12,		0x93BD,	0x93DD,	GL_RGBA,	GL_UNSIGNED_BYTE,	12,	12,	1,	16 },
+
+	// ASTC 2D HDR compressed formats
+	{ "_ASTC4x4_HDR",	D3DFMT_ASTC4x4_HDR,		0x93B0,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	4,	4,	1,	16 },
+	{ "_ASTC5x4_HDR",	D3DFMT_ASTC5x4_HDR,		0x93B1,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	5,	4,	1,	16 },
+	{ "_ASTC5x5_HDR",	D3DFMT_ASTC5x5_HDR,		0x93B2,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	5,	5,1,	16 },
+	{ "_ASTC6x5_HDR",	D3DFMT_ASTC6x5_HDR,		0x93B3,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	6,	5,	1,	16 },
+	{ "_ASTC6x6_HDR",	D3DFMT_ASTC6x6_HDR,		0x93B4,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	6,	6,	1,	16 },
+	{ "_ASTC8x5_HDR",	D3DFMT_ASTC8x5_HDR,		0x93B5,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	8,	5,	1,	16 },
+	{ "_ASTC8x6_HDR",	D3DFMT_ASTC8x6_HDR,		0x93B6,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	8,	6,	1,	16 },
+	{ "_ASTC8x8_HDR",	D3DFMT_ASTC8x8_HDR,		0x93B7,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	8,	8,	1,	16 },
+	{ "_ASTC10x5_HDR",	D3DFMT_ASTC10x5_HDR,	0x93B8,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	10,	5,	1,	16 },
+	{ "_ASTC10x6_HDR",	D3DFMT_ASTC10x6_HDR,	0x93B9,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	10,	6,	1,	16 },
+	{ "_ASTC10x8_HDR",	D3DFMT_ASTC10x8_HDR,	0x93BA,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	10,	8,	1,	16 },
+	{ "_ASTC10x10_HDR",	D3DFMT_ASTC10x10_HDR,	0x93BB,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	10,	10,	1,	16 },
+	{ "_ASTC12x10_HDR",	D3DFMT_ASTC12x10_HDR,	0x93BC,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	12,	10,	1,	16 },
+	{ "_ASTC12x12_HDR",	D3DFMT_ASTC12x12_HDR,	0x93BD,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	12,	12,	1,	16 },
+
+	// ASTC 3D LDR compressed formats (OES profile, all blocks 16 bytes)
+	{ "_ASTC3x3x3",		D3DFMT_ASTC3x3x3,		0x93C0,	0x93E0,	GL_RGBA,	GL_UNSIGNED_BYTE,	3,	3,	3,	16 },
+	{ "_ASTC4x3x3",		D3DFMT_ASTC4x3x3,		0x93C1,	0x93E1,	GL_RGBA,	GL_UNSIGNED_BYTE,	4,	3,	3,	16 },
+	{ "_ASTC4x4x3",		D3DFMT_ASTC4x4x3,		0x93C2,	0x93E2,	GL_RGBA,	GL_UNSIGNED_BYTE,	4,	4,	3,	16 },
+	{ "_ASTC4x4x4",		D3DFMT_ASTC4x4x4,		0x93C3,	0x93E3,	GL_RGBA,	GL_UNSIGNED_BYTE,	4,	4,	4,	16 },
+	{ "_ASTC5x4x4",		D3DFMT_ASTC5x4x4,		0x93C4,	0x93E4,	GL_RGBA,	GL_UNSIGNED_BYTE,	5,	4,	4,	16 },
+	{ "_ASTC5x5x4",		D3DFMT_ASTC5x5x4,		0x93C5,	0x93E5,	GL_RGBA,	GL_UNSIGNED_BYTE,	5,	5,	4,	16 },
+	{ "_ASTC5x5x5",		D3DFMT_ASTC5x5x5,		0x93C6,	0x93E6,	GL_RGBA,	GL_UNSIGNED_BYTE,	5,	5,	5,	16 },
+	{ "_ASTC6x5x5",		D3DFMT_ASTC6x5x5,		0x93C7,	0x93E7,	GL_RGBA,	GL_UNSIGNED_BYTE,	6,	5,	5,	16 },
+	{ "_ASTC6x6x5",		D3DFMT_ASTC6x6x5,		0x93C8,	0x93E8,	GL_RGBA,	GL_UNSIGNED_BYTE,	6,	6,	5,	16 },
+	{ "_ASTC6x6x6",		D3DFMT_ASTC6x6x6,		0x93C9,	0x93E9,	GL_RGBA,	GL_UNSIGNED_BYTE,	6,	6,	6,	16 },
+
+	// ASTC 3D HDR compressed formats
+	{ "_ASTC3x3x3_HDR",	D3DFMT_ASTC3x3x3_HDR,	0x93C0,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	3,	3,	3,	16 },
+	{ "_ASTC4x3x3_HDR",	D3DFMT_ASTC4x3x3_HDR,	0x93C1,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	4,	3,	3,	16 },
+	{ "_ASTC4x4x3_HDR",	D3DFMT_ASTC4x4x3_HDR,	0x93C2,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	4,	4,	3,	16 },
+	{ "_ASTC4x4x4_HDR",	D3DFMT_ASTC4x4x4_HDR,	0x93C3,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	4,	4,	4,	16 },
+	{ "_ASTC5x4x4_HDR",	D3DFMT_ASTC5x4x4_HDR,	0x93C4,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	5,	4,	4,	16 },
+	{ "_ASTC5x5x4_HDR",	D3DFMT_ASTC5x5x4_HDR,	0x93C5,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	5,	5,	4,	16 },
+	{ "_ASTC5x5x5_HDR",	D3DFMT_ASTC5x5x5_HDR,	0x93C6,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	5,	5,	5,	16 },
+	{ "_ASTC6x5x5_HDR",	D3DFMT_ASTC6x5x5_HDR,	0x93C7,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	6,	5,	5,	16 },
+	{ "_ASTC6x6x5_HDR",	D3DFMT_ASTC6x6x5_HDR,	0x93C8,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	6,	6,	5,	16 },
+	{ "_ASTC6x6x6_HDR",	D3DFMT_ASTC6x6x6_HDR,	0x93C9,	0,		GL_RGBA,	GL_UNSIGNED_BYTE,	6,	6,	6,	16 },
+
 //$ TODO: Need to merge bitmap changes over from Dota to get these formats.
 #if 0
 	{ "_A2R10G10B10",	D3DFMT_A2R10G10B10,		GL_RGB10_A2,						GL_RGB10_A2,						GL_RGBA,				GL_UNSIGNED_INT_10_10_10_2,		1, 4 },
@@ -405,14 +465,69 @@ bool	GLMGenTexels( GLMGenTexelParams *params )
 			chunksize = 8;
 		break;
 		
-		// not done yet		
 		
+		case D3DFMT_ASTC4x4:
+		case D3DFMT_ASTC4x4_HDR:
+		case D3DFMT_ASTC5x4:
+		case D3DFMT_ASTC5x4_HDR:
+		case D3DFMT_ASTC5x5:
+		case D3DFMT_ASTC5x5_HDR:
+		case D3DFMT_ASTC6x5:
+		case D3DFMT_ASTC6x5_HDR:
+		case D3DFMT_ASTC6x6:
+		case D3DFMT_ASTC6x6_HDR:
+		case D3DFMT_ASTC8x5:
+		case D3DFMT_ASTC8x5_HDR:
+		case D3DFMT_ASTC8x6:
+		case D3DFMT_ASTC8x6_HDR:
+		case D3DFMT_ASTC8x8:
+		case D3DFMT_ASTC8x8_HDR:
+		case D3DFMT_ASTC10x5:
+		case D3DFMT_ASTC10x5_HDR:
+		case D3DFMT_ASTC10x6:
+		case D3DFMT_ASTC10x6_HDR:
+		case D3DFMT_ASTC10x8:
+		case D3DFMT_ASTC10x8_HDR:
+		case D3DFMT_ASTC10x10:
+		case D3DFMT_ASTC10x10_HDR:
+		case D3DFMT_ASTC12x10:
+		case D3DFMT_ASTC12x10_HDR:
+		case D3DFMT_ASTC12x12:
+		case D3DFMT_ASTC12x12_HDR:
+		case D3DFMT_ASTC3x3x3:
+		case D3DFMT_ASTC3x3x3_HDR:
+		case D3DFMT_ASTC4x3x3:
+		case D3DFMT_ASTC4x3x3_HDR:
+		case D3DFMT_ASTC4x4x3:
+		case D3DFMT_ASTC4x4x3_HDR:
+		case D3DFMT_ASTC4x4x4:
+		case D3DFMT_ASTC4x4x4_HDR:
+		case D3DFMT_ASTC5x4x4:
+		case D3DFMT_ASTC5x4x4_HDR:
+		case D3DFMT_ASTC5x5x4:
+		case D3DFMT_ASTC5x5x4_HDR:
+		case D3DFMT_ASTC5x5x5:
+		case D3DFMT_ASTC5x5x5_HDR:
+		case D3DFMT_ASTC6x5x5:
+		case D3DFMT_ASTC6x5x5_HDR:
+		case D3DFMT_ASTC6x6x5:
+		case D3DFMT_ASTC6x6x5_HDR:
+		case D3DFMT_ASTC6x6x6:
+		case D3DFMT_ASTC6x6x6_HDR:
+		{
+			// All ASTC formats are compressed with no per-texel data to generate.
+			// All ASTC blocks are 16 bytes (128 bits) regardless of block dimensions.
+			chunksize = 16;
+		}
+		break;
 
+		// not done yet
+		
 		//case D3DFMT_D16:				
 		//case D3DFMT_D24X8:			
 		//case D3DFMT_D24S8:			
-
-		//case D3DFMT_A16B16G16R16F:	
+	
+		//case D3DFMT_A16B16G16R16F:
 		
 		default:
 			return FALSE;	// fail
@@ -422,7 +537,7 @@ bool	GLMGenTexels( GLMGenTexelParams *params )
 	// once the chunk buffer is filled..
 	
 	// sanity check the reported chunk size.
-	if (static_cast<int>(chunksize) != format->m_bytesPerSquareChunk)
+	if (static_cast<int>(chunksize) != format->m_bytesPerBlock)
 	{
 		DebuggerBreak();
 		return FALSE;
@@ -485,7 +600,6 @@ GLMTexLayout *CGLMTexLayoutTable::NewLayoutRef( GLMTexLayoutKey *pDesiredKey )
 	
 	const GLMTexFormatDesc	*formatDesc = GetFormatDesc( key->m_texFormat );
 
-	//bool					compression = (formatDesc->m_chunkSize > 1) != 0;
 	if (!formatDesc)
 	{
 		GLMStop();	// bad news
@@ -507,12 +621,10 @@ GLMTexLayout *CGLMTexLayoutTable::NewLayoutRef( GLMTexLayoutKey *pDesiredKey )
 	if (index != m_layoutMap.InvalidIndex())
 	{
 		// found it
-		//printf(" -hit- ");
 		GLMTexLayout *layout = m_layoutMap[ index ];
-		
+
 		// bump ref count
 		layout->m_refCount ++;
-		
 		return layout;
 	}
 	else
@@ -596,7 +708,7 @@ GLMTexLayout *CGLMTexLayoutTable::NewLayoutRef( GLMTexLayoutKey *pDesiredKey )
 		GLMTexLayoutSlice	*slicePtr = &layout->m_slices[0];
 		int					storageOffset = 0;
 		
-		//bool compressed = (formatDesc->m_chunkSize > 1);	// true if DXT
+		//bool compressed = (formatDesc->m_blockWidth > 1);	// true if DXT
 		
 		for( int mip = 0; mip < mipCount; mip ++ )
 		{
@@ -611,11 +723,11 @@ GLMTexLayout *CGLMTexLayoutTable::NewLayoutRef( GLMTexLayoutKey *pDesiredKey )
 				
 				slicePtr->m_xSize = layout->m_key.m_xSize >> mip;
 				slicePtr->m_xSize = MAX( slicePtr->m_xSize, 1 );				// dimension can't go to zero
-				storage_x = MAX( slicePtr->m_xSize, formatDesc->m_chunkSize );	// storage extent can't go below chunk size
+				storage_x = MAX( slicePtr->m_xSize, formatDesc->m_blockWidth );	// storage extent can't go below chunk size
 				
 				slicePtr->m_ySize = layout->m_key.m_ySize >> mip;
 				slicePtr->m_ySize = MAX( slicePtr->m_ySize, 1 );				// dimension can't go to zero
-				storage_y = MAX( slicePtr->m_ySize, formatDesc->m_chunkSize );	// storage extent can't go below chunk size
+				storage_y = MAX( slicePtr->m_ySize, formatDesc->m_blockHeight );	// storage extent can't go below block height
 				
 				slicePtr->m_zSize = layout->m_key.m_zSize >> mip;
 				slicePtr->m_zSize = MAX( slicePtr->m_zSize, 1 );				// dimension can't go to zero
@@ -628,10 +740,11 @@ GLMTexLayout *CGLMTexLayoutTable::NewLayoutRef( GLMTexLayoutKey *pDesiredKey )
 				//	slicePtr->m_ySize = (slicePtr->m_ySize+3) & (~3);
 				//}
 				
-				int xchunks = (storage_x / formatDesc->m_chunkSize );
-				int ychunks = (storage_y / formatDesc->m_chunkSize );
+			int xchunks = (storage_x + formatDesc->m_blockWidth - 1) / formatDesc->m_blockWidth;
+			int ychunks = (storage_y + formatDesc->m_blockHeight - 1) / formatDesc->m_blockHeight;
+			int zchunks = (storage_z + formatDesc->m_blockDepth - 1) / formatDesc->m_blockDepth;
 				
-				slicePtr->m_storageSize = (xchunks * ychunks * formatDesc->m_bytesPerSquareChunk) * storage_z;				
+				slicePtr->m_storageSize = (xchunks * ychunks * zchunks) * formatDesc->m_bytesPerBlock;
 				slicePtr->m_storageOffset = storageOffset;
 				
 				storageOffset += slicePtr->m_storageSize;
@@ -642,7 +755,7 @@ GLMTexLayout *CGLMTexLayoutTable::NewLayoutRef( GLMTexLayoutKey *pDesiredKey )
 		}
 		
 		layout->m_storageTotalSize = storageOffset;
-		//printf("\n size %08x for key (x=%d y=%d z=%d, fmt=%08x, bpsc=%d)", layout->m_storageTotalSize, key->m_xSize, key->m_ySize, key->m_zSize, key->m_texFormat, formatDesc->m_bytesPerSquareChunk );
+		//printf("\n size %08x for key (x=%d y=%d z=%d, fmt=%08x, bpsc=%d)", layout->m_storageTotalSize, key->m_xSize, key->m_ySize, key->m_zSize, key->m_texFormat, formatDesc->m_bytesPerBlock );
 		
 		// generate summary
 		// "target, format, +/- mips, base size"
@@ -770,6 +883,9 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 
 	m_mapped = NULL;
 	m_pbo = 0;
+	m_pReadbackBuffer = NULL;
+	m_nReadbackBufferSize = 0;
+	m_pReadbackPBO = 0;
 
 	if( m_layout->m_key.m_texFlags & kGLMTexDynamic )
 	{
@@ -793,33 +909,67 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 	// if tex is MSAA renderable, make an RBO, else zero the RBO name and dirty bit
 	if (layout->m_key.m_texFlags & kGLMTexMultisampled)
 	{
-		gGL->glGenRenderbuffers( 1, &m_rboName );
-				
-		// so we have enough info to go ahead and bind the RBO and put storage on it?
-		// try it.
-		gGL->glBindRenderbuffer( GL_RENDERBUFFER, m_rboName );
+		// GL_EXT_multisampled_render_to_texture lets us render directly to a
+		// regular texture with multisampling, avoiding the RBO + explicit resolve.
+		// It only supports COLOR_ATTACHMENT0, so depth/stencil still need an RBO.
+		bool bUseRenderToTextureEXT = gGL->m_bHave_GL_EXT_multisampled_render_to_texture
+			&& !(layout->m_key.m_texFlags & (kGLMTexIsDepth|kGLMTexIsStencil));
 
-		// quietly clamp if sample count exceeds known limit for the device
-		int sampleCount = layout->m_key.m_texSamples;
-		
-		if (sampleCount > ctx->Caps().m_maxSamples)
+		if (bUseRenderToTextureEXT)
 		{
-			sampleCount = ctx->Caps().m_maxSamples;	// clamp
-		}
-		
-		GLenum	msaaFormat = (layout->m_key.m_texFlags & kGLMTexSRGB) ? layout->m_format->m_glIntFormatSRGB : layout->m_format->m_glIntFormat;
-		gGL->glRenderbufferStorageMultisample(	GL_RENDERBUFFER,
-												sampleCount,	// not "layout->m_key.m_texSamples"
-												msaaFormat,
-												layout->m_key.m_xSize,
-												layout->m_key.m_ySize );	
+			m_rboName = 0;
 
-		if (gl_texmsaalog.GetInt())
+			if (gl_texmsaalog.GetInt())
+			{
+				printf( "\n == MSAA Tex %p %s : using EXT_multisampled_render_to_texture (%d samples)", this, m_debugLabel?m_debugLabel:"", layout->m_key.m_texSamples );
+			}
+		}
+		else
 		{
-			printf( "\n == MSAA Tex %p %s : MSAA RBO is intformat %s (%x)", this, m_debugLabel?m_debugLabel:"", GLMDecode( eGL_ENUM, msaaFormat ), msaaFormat );
-		}
+			gGL->glGenRenderbuffers( 1, &m_rboName );
+					
+			// so we have enough info to go ahead and bind the RBO and put storage on it?
+			// try it.
+			gGL->glBindRenderbuffer( GL_RENDERBUFFER, m_rboName );
 
-		gGL->glBindRenderbuffer( GL_RENDERBUFFER, 0 );
+			// quietly clamp if sample count exceeds known limit for the device
+			int sampleCount = layout->m_key.m_texSamples;
+			
+			if (sampleCount > ctx->Caps().m_maxSamples)
+			{
+				sampleCount = ctx->Caps().m_maxSamples;	// clamp
+			}
+			
+			GLenum	msaaFormat = (layout->m_key.m_texFlags & kGLMTexSRGB) ? layout->m_format->m_glIntFormatSRGB : layout->m_format->m_glIntFormat;
+
+			// When GL_EXT_multisampled_render_to_texture is available, all renderbuffers
+			// attached to the same FBO as a texture using FramebufferTexture2DMultisampleEXT
+			// must use RenderbufferStorageMultisampleEXT (not the core function), otherwise
+			// the FBO will be incomplete (GL_FRAMEBUFFER_INCOMPLETE_MULTISAMPLE_EXT).
+			if ( gGL->m_bHave_GL_EXT_multisampled_render_to_texture )
+			{
+				gGL->glRenderbufferStorageMultisampleEXT(	GL_RENDERBUFFER,
+															sampleCount,
+															msaaFormat,
+															layout->m_key.m_xSize,
+															layout->m_key.m_ySize );	
+			}
+			else
+			{
+				gGL->glRenderbufferStorageMultisample(	GL_RENDERBUFFER,
+														sampleCount,
+														msaaFormat,
+														layout->m_key.m_xSize,
+														layout->m_key.m_ySize );	
+			}
+
+			if (gl_texmsaalog.GetInt())
+			{
+				printf( "\n == MSAA Tex %p %s : MSAA RBO is intformat %s (%x)", this, m_debugLabel?m_debugLabel:"", GLMDecode( eGL_ENUM, msaaFormat ), msaaFormat );
+			}
+
+			gGL->glBindRenderbuffer( GL_RENDERBUFFER, 0 );
+		}
 	}
 	else
 	{
@@ -842,6 +992,7 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 	if ( !(layout->m_key.m_texFlags & kGLMTexRenderable) && m_texClientStorage )
 	{
 		m_backing = (char *)malloc( m_layout->m_storageTotalSize );
+		m_nBackingSize = 0;	// plain malloc - free() directly
 
 		// track bytes allocated for non-RT's
 		int formindex = sEncodeLayoutAsIndex( &layout->m_key );
@@ -859,6 +1010,7 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 	else
 	{
 		m_backing = NULL;
+		m_nBackingSize = 0;
 		
 		m_texClientStorage = false;
 	}		
@@ -913,7 +1065,7 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 	
 	#if 0
 		bool pushRenderableSlices = (m_layout->m_key.m_texFlags & kGLMTexRenderable) != 0;
-		bool pushTexSlices = true;	// just do it everywhere  (m_layout->m_mipCount>1) && (m_layout->m_format->m_chunkSize !=1) ;
+		bool pushTexSlices = true;	// just do it everywhere  (m_layout->m_mipCount>1) && (m_layout->m_format->m_blockWidth !=1) ;
 		if (pushTexSlices)
 		{
 			// fill storage with mostly-opaque purple
@@ -925,7 +1077,7 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 			const GLMTexFormatDesc *format = GetFormatDesc( genp.m_format );
 			
 			genp.m_dest				= m_backing;		// dest addr
-			genp.m_chunkCount		= m_layout->m_storageTotalSize / format->m_bytesPerSquareChunk; // fill the whole slab
+			genp.m_chunkCount		= m_layout->m_storageTotalSize / format->m_bytesPerBlock; // fill the whole slab
 			genp.m_byteCountLimit	= m_layout->m_storageTotalSize;	// limit writes to this amount
 
 			genp.r = 1.0;
@@ -938,15 +1090,28 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 	#endif
 	
 	//if (pushRenderableSlices || pushTexSlices)
-	if ( !( ( layout->m_key.m_texFlags & kGLMTexMipped ) && ( levels == ( unsigned ) m_layout->m_mipCount ) ) )
+	if ( (layout->m_format->m_blockWidth == 1 && layout->m_format->m_blockHeight == 1) && !( ( layout->m_key.m_texFlags & kGLMTexMipped ) && ( levels == ( unsigned ) m_layout->m_mipCount ) ) )
 	{
+		// For textures created with kGLMTexMippedAuto (D3DUSAGE_AUTOGENMIPMAP) the engine only uploads
+		// mip 0 (D3D forbids locking higher levels on auto-mipmap textures), and the upper mips are
+		// expected to be driver-generated via glGenerateMipmap. Pre-filling those upper mips here with
+		// malloc'd garbage (the inactive "#if 0" purple-fill block above is disabled) sets kSliceValid
+		// on them and bumps m_maxActiveMip to m_mipCount-1, which on GLES tile-based drivers leaves
+		// the sampler free to sample uninitialized tile-buffer contents once LOD crosses mip 1 - the
+		// exact cause of the "harsh LOD transition at a fixed distance" bug seen on Mali-G31. Skip
+		// those upper levels for auto-mipmap textures: keep m_maxActiveMip at 0 so the flush-time
+		// coarse cap (MIN(m_maxLOD, m_maxActiveMip)) clamps the sampler to base level until real base
+		// data is uploaded, at which point WriteTexels invokes glGenerateMipmap and bumps the cap.
+		bool bAutoMipmap = ( layout->m_key.m_texFlags & kGLMTexMippedAuto ) != 0;
+		int prefillMaxMip = bAutoMipmap ? 0 : ( m_layout->m_mipCount - 1 );
+
 		for( int face=0; face <m_layout->m_faceCount; face++)
 		{
-			for( int mip=0; mip <m_layout->m_mipCount; mip++)
+			for( int mip=0; mip <= prefillMaxMip; mip++)
 			{
 				// we're not really going to lock, we're just going to write the blank data from the backing store we just made
 				GLMTexLockDesc	desc;
-				
+
 				desc.m_req.m_tex = this;
 				desc.m_req.m_face = face;
 				desc.m_req.m_mip = mip;
@@ -954,7 +1119,7 @@ CGLMTex::CGLMTex( GLMContext *ctx, GLMTexLayout *layout, uint levels, const char
 				desc.m_sliceIndex = CalcSliceIndex( face, mip );
 
 				GLMTexLayoutSlice *slice = &m_layout->m_slices[ desc.m_sliceIndex ];
-				
+
 				desc.m_req.m_region.xmin = desc.m_req.m_region.ymin = desc.m_req.m_region.zmin = 0;
 				desc.m_req.m_region.xmax = slice->m_xSize;
 				desc.m_req.m_region.ymax = slice->m_ySize;
@@ -1042,8 +1207,16 @@ CGLMTex::~CGLMTex( )
 	
 	if (m_backing)
 	{
-		free( m_backing );
+		if ( m_nBackingSize )
+		{
+			m_ctx->ReleaseTexScratch( m_backing, m_nBackingSize );
+		}
+		else
+		{
+			free( m_backing );
+		}
 		m_backing = NULL;
+		m_nBackingSize = 0;
 	}
 	
 	if (m_debugLabel)
@@ -1054,6 +1227,18 @@ CGLMTex::~CGLMTex( )
 
 	if( m_pbo )
 		gGL->glDeleteBuffers( 1, &m_pbo );
+
+	if ( m_pReadbackBuffer )
+	{
+		free( m_pReadbackBuffer );
+		m_pReadbackBuffer = NULL;
+		m_nReadbackBufferSize = 0;
+	}
+	if ( m_pReadbackPBO )
+	{
+		gGL->glDeleteBuffers( 1, &m_pReadbackPBO );
+		m_pReadbackPBO = 0;
+	}
 
 	m_ctx = NULL;
 }
@@ -1073,45 +1258,39 @@ void CGLMTex::CalcTexelDataOffsetAndStrides( int sliceIndex, int x, int y, int z
 	int zStride = 0;
 	
 	GLMTexFormatDesc *format = m_layout->m_format;
-	if (format->m_chunkSize==1)	
+	if (format->m_blockWidth == 1 && format->m_blockHeight == 1)	
 	{
 		// figure out row stride and layer stride
-		yStride = format->m_bytesPerSquareChunk * m_layout->m_slices[sliceIndex].m_xSize;	// bytes per texel row (y stride)
+		yStride = format->m_bytesPerBlock * m_layout->m_slices[sliceIndex].m_xSize;	// bytes per texel row (y stride)
 		zStride = yStride * m_layout->m_slices[sliceIndex].m_ySize;							// bytes per texel layer (if 3D tex)
 		
-		offset = x * format->m_bytesPerSquareChunk;		// lateral offset
+		offset = x * format->m_bytesPerBlock;		// lateral offset
 		offset += (y * yStride);							// scanline offset
 		offset += (z * zStride);							// should be zero for 2D tex
 	}
 	else
 	{
-		yStride = format->m_bytesPerSquareChunk * (m_layout->m_slices[sliceIndex].m_xSize / format->m_chunkSize);
-		zStride = yStride * (m_layout->m_slices[sliceIndex].m_ySize / format->m_chunkSize);
+		yStride = format->m_bytesPerBlock * ((m_layout->m_slices[sliceIndex].m_xSize + format->m_blockWidth - 1) / format->m_blockWidth);
+		zStride = yStride * ((m_layout->m_slices[sliceIndex].m_ySize + format->m_blockHeight - 1) / format->m_blockHeight);
 		
-		// compressed format.  scale the x,y,z values into chunks.
+		// compressed format.  scale the x,y values into chunks. Z isn't chunked.
 		// assert if any of them are not multiples of a chunk.
-		int chunkx = x / format->m_chunkSize;
-		int chunky = y / format->m_chunkSize;
-		int chunkz = z / format->m_chunkSize;
+		int chunkx = x / format->m_blockWidth;
+		int chunky = y / format->m_blockHeight;
 		
-		if ( (chunkx * format->m_chunkSize) != x)
+		if ( (chunkx * format->m_blockWidth) != x)
 		{
 			GLMStop();
 		}
 		
-		if ( (chunky * format->m_chunkSize) != y)
+		if ( (chunky * format->m_blockHeight) != y)
 		{
 			GLMStop();
 		}
 		
-		if ( (chunkz * format->m_chunkSize) != z)
-		{
-			GLMStop();
-		}
-		
-		offset = chunkx * format->m_bytesPerSquareChunk;	// lateral offset
+		offset = chunkx * format->m_bytesPerBlock;	// lateral offset
 		offset += (chunky * yStride);						// chunk row offset
-		offset += (chunkz * zStride);						// should be zero for 2D tex		
+		offset += (z * zStride);						// should be zero for 2D tex		
 	}
 	
 	*offsetOut	= offset;
@@ -1153,7 +1332,46 @@ GLubyte *CGLMTex::ReadTexels( GLMTexLockDesc *desc, bool readWholeSlice, bool re
 
 		if( readOnly )
 		{
-			data = (GLubyte*)(m_backing + m_layout->m_slices[ desc->m_sliceIndex ].m_storageOffset);	// this would change for PBO
+			GLMTexLayoutSlice *pSlice = &m_layout->m_slices[ desc->m_sliceIndex ];
+			bool bReadbackThroughPBO = false;
+			if ( m_backing )
+			{
+				data = (GLubyte*)( m_backing + pSlice->m_storageOffset );	// this would change for PBO
+			}
+			else
+			{
+				// No host copy exists (e.g. a readback of a texture without
+				// backing storage).  Allocate scratch storage, read into it,
+				// and let Unlock free it (tracked on the lock descriptor) -
+				// writing into NULL + offset would crash.
+				if ( gl_tex_readback_pbo.GetBool() && !m_mapped )
+				{
+					// PBO path: glReadPixels into a pack buffer is
+					// asynchronous on the GPU side; the stall moves to the
+					// map below instead of the read.
+					if ( !m_pReadbackPBO )
+					{
+						gGL->glGenBuffers( 1, &m_pReadbackPBO );
+					}
+					gGL->glBindBuffer( GL_PIXEL_PACK_BUFFER, m_pReadbackPBO );
+					gGL->glBufferData( GL_PIXEL_PACK_BUFFER, pSlice->m_storageSize, NULL, GL_STREAM_READ );
+					data = NULL;	// read into the PBO
+					bReadbackThroughPBO = true;
+				}
+				else
+				{
+					// Grow-only persistent scratch: the old per-lock malloc
+					// was freed again at unlock, churning the heap.
+					if ( m_nReadbackBufferSize < pSlice->m_storageSize )
+					{
+						m_pReadbackBuffer = (GLubyte*)realloc( m_pReadbackBuffer, pSlice->m_storageSize );
+						m_nReadbackBufferSize = pSlice->m_storageSize;
+					}
+					data = m_pReadbackBuffer;
+				}
+				desc->m_pReadbackBuffer = data;
+				desc->m_bReadbackIsPBO = bReadbackThroughPBO;
+			}
 			//int sliceSize = m_layout->m_slices[ desc->m_sliceIndex ].m_storageSize;
 
 			// interestingly enough, we can use the same path for both 2D and 3D fetch
@@ -1163,33 +1381,50 @@ GLubyte *CGLMTex::ReadTexels( GLMTexLockDesc *desc, bool readWholeSlice, bool re
 				case GL_TEXTURE_CUBE_MAP:
 					// adjust target to steer to the proper face, then fall through to the 2D texture path.
 					target = GL_TEXTURE_CUBE_MAP_POSITIVE_X + desc->m_req.m_face;
-				case GL_TEXTURE_2D:
-				case GL_TEXTURE_3D:
+			case GL_TEXTURE_2D:
+			case GL_TEXTURE_3D:
+			{
+				// uncompressed path
+				// http://www.opengl.org/sdk/docs/man/xhtml/glGetTexImage.xml
+				// GLES lacks glGetTexImage, so we attach the texture to a temporary
+				// FBO and glReadPixels from it.  Reuse a per-context FBO instead of
+				// gen/delete on every readback: glReadPixels already forces a full
+				// tile flush on Mali TBDR, and the extra glGenFramebuffers /
+				// glDeleteFramebuffers / glFramebufferTexture2D validation churn
+				// per call is pure overhead.
+
+				// The context mirrors the FBO bindings; use them instead of two
+				// glGetIntegerv driver round-trips per readback.
+				CGLMFBO *pPrevReadFBO = m_ctx->m_boundReadFBO;
+				CGLMFBO *pPrevDrawFBO = m_ctx->m_boundDrawFBO;
+
+				if ( !m_ctx->m_nReadTexelsFBO )
 				{
-					// uncompressed path
-					// http://www.opengl.org/sdk/docs/man/xhtml/glGetTexImage.xml
-					GLuint fbo;
-					GLint Rfbo = 0, Dfbo = 0;
-
-					gGL->glGetIntegerv( GL_DRAW_FRAMEBUFFER_BINDING, &Dfbo );
-					gGL->glGetIntegerv( GL_READ_FRAMEBUFFER_BINDING, &Rfbo );
-
-					gGL->glGenFramebuffers(1, &fbo);
-					gGL->glBindFramebuffer(GL_FRAMEBUFFER, fbo);
-					gGL->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, m_ctx->m_samplers[0].m_pBoundTex->m_texName, 0);
-
-					GLenum fmt = format->m_glDataFormat;
-					GLenum dataType = format->m_glDataType;
-
-					convert_texture(fmt, 0, 0, fmt, dataType, NULL);
-					gGL->glReadPixels(0, 0, m_layout->m_slices[ desc->m_sliceIndex ].m_xSize, m_layout->m_slices[ desc->m_sliceIndex ].m_ySize, fmt, dataType, data);
-
-					gGL->glBindFramebuffer(GL_READ_FRAMEBUFFER, Rfbo);
-					gGL->glBindFramebuffer(GL_DRAW_FRAMEBUFFER, Dfbo);
-
-					gGL->glDeleteFramebuffers(1, &fbo);
-					break;
+					gGL->glGenFramebuffers( 1, &m_ctx->m_nReadTexelsFBO );
 				}
+				GLuint fbo = m_ctx->m_nReadTexelsFBO;
+
+				gGL->glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+				gGL->glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, target, m_ctx->m_samplers[0].m_pBoundTex->m_texName, 0);
+
+				GLenum fmt = format->m_glDataFormat;
+				GLenum dataType = format->m_glDataType;
+
+				convert_texture(fmt, 0, 0, fmt, dataType, NULL);
+				gGL->glReadPixels(0, 0, m_layout->m_slices[ desc->m_sliceIndex ].m_xSize, m_layout->m_slices[ desc->m_sliceIndex ].m_ySize, fmt, dataType, data);
+
+				if ( bReadbackThroughPBO )
+				{
+					data = (GLubyte*)gGL->glMapBufferRange( GL_PIXEL_PACK_BUFFER, 0, pSlice->m_storageSize, GL_MAP_READ_BIT );
+					desc->m_pReadbackBuffer = data;
+					gGL->glBindBuffer( GL_PIXEL_PACK_BUFFER, 0 );
+				}
+
+				m_ctx->BindFBOToCtx( pPrevDrawFBO, GL_DRAW_FRAMEBUFFER );
+				m_ctx->BindFBOToCtx( pPrevReadFBO, GL_READ_FRAMEBUFFER );
+
+				break;
+			}
 			}
 		}
 		else
@@ -3259,74 +3494,6 @@ const char *get_enum_str(uint val)
 	return "UNKNOWN";
 }
 
-typedef union {
-    uint16_t bin;
-    struct {
-        uint16_t sign:1;
-        uint16_t exp:5;
-        uint16_t mant:10;
-    } x;
-} halffloat_t;
-
-typedef union {
-    float f;
-    uint32_t bin;
-    struct {
-        uint32_t sign:1;
-        uint32_t exp:8;
-        uint32_t mant:23;
-    } x;
-} fullfloat_t;
-
-static inline float float_h2f(halffloat_t t)
-{
-    fullfloat_t tmp;
-    tmp.x.sign = t.x.sign;  // copy sign
-    if(t.x.exp==0 /*&& t.mant==0*/) {
-    // 0 and denormal?
-        tmp.x.exp=0;
-        tmp.x.mant=0;
-    } else if (t.x.exp==31) {
-    // Inf / NaN
-        tmp.x.exp=255;
-        tmp.x.mant=(t.x.mant<<13);
-    } else {
-        tmp.x.mant=(t.x.mant<<13);
-        tmp.x.exp = t.x.exp+0x38;
-    }
-
-    return tmp.f;
-}
-
-static inline halffloat_t float_f2h(float f)
-{
-    fullfloat_t tmp;
-    halffloat_t ret;
-    tmp.f = f;
-    ret.x.sign = tmp.x.sign;
-    if (tmp.x.exp == 0) {
-        // O and denormal
-        ret.bin = 0;
-    } else if (tmp.x.exp==255) {
-        // Inf / NaN
-        ret.x.exp = 31;
-        ret.x.mant = tmp.x.mant>>13;
-    } else if(tmp.x.exp>0x71) {
-        // flush to 0
-        ret.x.exp = 0;
-        ret.x.mant = 0;
-    } else if(tmp.x.exp<0x8e) {
-        // clamp to max
-        ret.x.exp = 30;
-        ret.x.mant = 1023;
-    } else {
-        ret.x.exp = tmp.x.exp - 38;
-        ret.x.mant = tmp.x.mant>>13;
-    }
-
-    return ret;
-}
-
 void convert_texture( GLenum &internalformat, GLsizei width, GLsizei height, GLenum &format, GLenum &type, void *data )
 {
 	if( format == GL_BGRA ) format = GL_RGBA;
@@ -3335,173 +3502,71 @@ void convert_texture( GLenum &internalformat, GLsizei width, GLsizei height, GLe
 	if( internalformat == GL_SRGB8 && format == GL_RGBA )
 		internalformat = GL_SRGB8_ALPHA8;
 
-	if( format == GL_LUMINANCE || format == GL_LUMINANCE_ALPHA )
-		internalformat = format;
+	if ( format == GL_LUMINANCE )
+    	internalformat = GL_LUMINANCE8;
+	else if ( format == GL_LUMINANCE_ALPHA )
+    	internalformat = GL_LUMINANCE8_ALPHA8;
 
-	if( data )
+	if( internalformat == GL_RGBA16 && !gGL->m_bHave_GL_EXT_texture_norm16 && gGL->m_bHave_GL_EXT_color_buffer_half_float )
 	{
-		if( internalformat == GL_RGBA16 && !gGL->m_bHave_GL_EXT_texture_norm16 )
+		// Rewrite the format to float even for the NULL-data (storage allocation)
+		// pass, so the texture storage is allocated as GL_RGBA16F consistently
+		// with the later pixel-data uploads (which convert in place below).
+		if ( data )
 		{
-			uint16_t *_data = (uint16_t*)data;
-			uint8_t *new_data = (uint8_t*)data;
+			uint16_t *src = (uint16_t*)data;
+			uint16_t *dst = (uint16_t*)data;
 
-			for( int i = 0; i < width*height*4; i+=4 )
+			const int count = width * height * 4;
+			for ( int i = 0; i < count; i++ )
 			{
-				new_data[i] = _data[i] >> 8;
-				new_data[i+1] = _data[i+1] >> 8;
-				new_data[i+2] = _data[i+2] >> 8;
-				new_data[i+3] = _data[i+3] >> 8;
+				float f = src[i] / 65535.0f;
+				float16 h;
+				h.SetFloat( f ) ;
+				dst[i] = h.GetBits();
 			}
 		}
-	}
-
-	if( internalformat == GL_RGBA16 && !gGL->m_bHave_GL_EXT_texture_norm16 )
-	{
-		internalformat = GL_RGBA;
-		format = GL_RGBA;
-		type = GL_UNSIGNED_BYTE;
+		internalformat = GL_RGBA16F;
+		format         = GL_RGBA;
+		type           = GL_HALF_FLOAT;
 	}
 
 	if( type == GL_UNSIGNED_INT_8_8_8_8_REV )
 		type = GL_UNSIGNED_BYTE;
 }
-
-GLboolean isDXTc(GLenum format) {
-    switch (format) {
-        case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            return 1;
-    }
-    return 0;
-}
-
-GLboolean isDXTcSRGB(GLenum format) {
-    switch (format) {
-        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            return 1;
-    }
-    return 0;
-}
-
-static GLboolean isDXTcAlpha(GLenum format) {
-    switch (format) {
-        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            return 1;
-    }
-    return 0;
-}
-
-GLvoid *uncompressDXTc(GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, int transparent0, int* simpleAlpha, int* complexAlpha, const GLvoid *data) {
-    // uncompress a DXTc image
-    // get pixel size of uncompressed image => fixed RGBA
-    int pixelsize = 4;
-    if (format == GL_COMPRESSED_RGB_S3TC_DXT1_EXT || format == GL_COMPRESSED_SRGB_S3TC_DXT1_EXT)
-        pixelsize = 3;
-    // check with the size of the input data stream if the stream is in fact uncompressed
-    if (imageSize == width*height*pixelsize || data==NULL) {
-        // uncompressed stream
-        return (GLvoid*)data;
-    }
-    // alloc memory
-    GLvoid *pixels = malloc(((width+3)&~3)*((height+3)&~3)*pixelsize);
-    // uncompress loop
-    int blocksize;
-    switch (format) {
-        case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-            blocksize = 8;
-            break;
-        case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-        case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-            blocksize = 16;
-            break;
-    }
-    uintptr_t src = (uintptr_t) data;
-    for (int y=0; y<height; y+=4) {
-        for (int x=0; x<width; x+=4) {
-            switch(format) {
-                case GL_COMPRESSED_RGB_S3TC_DXT1_EXT:
-                case GL_COMPRESSED_RGBA_S3TC_DXT1_EXT:
-                case GL_COMPRESSED_SRGB_S3TC_DXT1_EXT:
-                case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT:
-                    DecompressBlockDXT1(x, y, width, (uint8_t*)src, transparent0, simpleAlpha, complexAlpha, (uint32_t*)pixels);
-                    break;
-                case GL_COMPRESSED_RGBA_S3TC_DXT3_EXT:
-                case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT3_EXT:
-                    DecompressBlockDXT3(x, y, width, (uint8_t*)src, transparent0, simpleAlpha, complexAlpha, (uint32_t*)pixels);
-                    break;
-                case GL_COMPRESSED_RGBA_S3TC_DXT5_EXT:
-                case GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT5_EXT:
-                    DecompressBlockDXT5(x, y, width, (uint8_t*)src, transparent0, simpleAlpha, complexAlpha, (uint32_t*)pixels);
-                    break;
-            }
-            src+=blocksize;
-        }
-    }
-    return pixels;
-}
-
-void CompressedTexImage2D(GLenum target, GLint level, GLenum internalformat,
-                            GLsizei width, GLsizei height, GLint border,
-                            GLsizei imageSize, const GLvoid *data) 
-{
-    if (internalformat==GL_RGBA8)
-        internalformat = GL_COMPRESSED_RGBA_S3TC_DXT1_EXT;
-
-	if ((width<=0) || (height<=0)) {
-        return;
-    }
-
-	bool hasAlpha = (internalformat != GL_COMPRESSED_RGB_S3TC_DXT1_EXT) && (internalformat != GL_COMPRESSED_SRGB_S3TC_DXT1_EXT);
-
-   	GLenum format = hasAlpha ? GL_RGBA : GL_RGB;
-	GLenum intformat = hasAlpha ? GL_RGBA8 : GL_RGB8;
-	GLenum type = GL_UNSIGNED_BYTE;
-	GLvoid *pixels = NULL;
-
-    if (isDXTc(internalformat))
-    {
-        int srgb = isDXTcSRGB(internalformat);
-        int simpleAlpha = 0;
-        int complexAlpha = 0;
-        int transparent0 = (internalformat==GL_COMPRESSED_RGBA_S3TC_DXT1_EXT || internalformat==GL_COMPRESSED_SRGB_ALPHA_S3TC_DXT1_EXT)?1:0;
-        if (data) {
-            pixels = uncompressDXTc(width, height, internalformat, imageSize, transparent0, &simpleAlpha, &complexAlpha, data);
-        } else {
-            if(isDXTcAlpha(internalformat)) {
-                simpleAlpha = complexAlpha = 1;
-            }
-        }
-
-		if( srgb )
-			intformat = hasAlpha ? GL_SRGB8_ALPHA8 : GL_SRGB8;
-	}
-
-	gGL->glTexImage2D(target, level, intformat, width, height, border, format, type, pixels);
-	if( data != pixels )
-		free(pixels);
-}
-
 // TexSubImage should work properly on every driver stack and GPU--enabling by default.
 ConVar	gl_enabletexsubimage( "gl_enabletexsubimage", "1" );
+
+// Set GL_TEXTURE_MAX_LEVEL / GL_TEXTURE_BASE_LEVEL on the texture object.
+// Returns true when the driver accepted it.  On failure the target is latched
+// off permanently (DisableCoreTexLevelClamp) so the renderer falls back to the
+// sampler-side GL_TEXTURE_MAX_LOD clamp and never issues the call again.
+//
+// The error check must not use a bare glGetError() right after the call:
+// glGetError returns the OLDEST pending error, which may have been generated
+// by an earlier unrelated call, so stale errors are drained first.  Otherwise
+// a single foreign error would be misattributed to this call and spam the log
+// on every subsequent texture write.
+static bool GLMSetTexLevelClamp( GLenum target, GLenum pname, GLint value, GLMContext *pCtx, CGLMTex *pTex )
+{
+	while ( gGL->glGetError() != GL_NO_ERROR )
+	{
+	}
+
+	gGL->glTexParameteri( target, pname, value );
+	const GLenum err = gGL->glGetError();
+	if ( err == GL_NO_ERROR )
+		return true;
+
+	gGL->DisableCoreTexLevelClamp( target );
+	if ( pCtx && pTex )
+		pCtx->InvalidateSamplersForTex( pTex );
+
+#if defined(_DEBUG) || defined(GLMDEBUG)
+	GLMDebugPrintf( "WriteTexels: glTexParameteri(level-clamp pname 0x%X=%d) failed with 0x%X; texture-object level clamp disabled for target 0x%X\n", pname, value, err, target );
+#endif
+	return false;
+}
 
 void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDataWrite )
 {
@@ -3595,14 +3660,33 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 	{
 		m_maxActiveMip = desc->m_req.m_mip;
 
-		gGL->glTexParameteri( target, GL_TEXTURE_MAX_LEVEL, desc->m_req.m_mip);
+		// GL_TEXTURE_MAX_LEVEL is core in desktop GL and GLES 3.0+ (on GLES 2.0
+		// it requires GL_APPLE_texture_max_level), but some mobile GLES drivers
+		// reject the pname with GL_INVALID_ENUM anyway (Mali-G31 r13p0) - the
+		// per-target capability was probed at startup (HaveCoreTexLevelClamp).
+		// On targets that accept it, set the cap on the texture object; on the
+		// others the coarse cap is supplied via the sampler-side
+		// GL_TEXTURE_MAX_LOD computed at flush time (see FlushDrawStates).
+		// Mark bound samplers dirty so the new effective MAX_LOD actually
+		// gets re-emitted on the next draw in the fallback case.
+		if ( gGL->HaveCoreTexLevelClamp( target ) )
+		{
+			GLMSetTexLevelClamp( target, GL_TEXTURE_MAX_LEVEL, desc->m_req.m_mip, m_ctx, this );
+		}
+		else
+		{
+			m_ctx->InvalidateSamplersForTex( this );
+		}
 	}
-	
+
 	if (desc->m_req.m_mip < m_minActiveMip)
 	{
 		m_minActiveMip = desc->m_req.m_mip;
-		
-		gGL->glTexParameteri( target, GL_TEXTURE_BASE_LEVEL, desc->m_req.m_mip);
+
+		if ( gGL->HaveCoreTexLevelClamp( target ) )
+		{
+			GLMSetTexLevelClamp( target, GL_TEXTURE_BASE_LEVEL, desc->m_req.m_mip, m_ctx, this );
+		}
 	}
 
 	if (needsExpand && !m_mapped)
@@ -3624,9 +3708,9 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 				// transfer RG's to RGB's
 				while(expandSize>0)
 				{
-					*dst = *src++;	// move first byte
-					*dst = *src++;	// move second byte
-					*reinterpret_cast<uint8*>(dst) = 0xBB;	// pad third byte
+					*dst++ = *src++;	// move first byte
+					*dst++ = *src++;	// move second byte
+					*dst++ = 0xBB;		// pad third byte
 					
 					expandSize -= 3;
 				}
@@ -3644,6 +3728,31 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 		
 	}
 
+	// GL treats the upload data pointer as a client address only while no
+	// buffer is bound to GL_PIXEL_UNPACK_BUFFER.  Dynamic textures keep their
+	// PBO bound through WriteTexels (the caller unbinds it afterwards), so:
+	//  - when the source is the mapped PBO region (sliceAddress == m_mapped),
+	//    the pointer must be passed as a byte offset into the PBO (0 - each
+	//    lock maps its slice at PBO offset 0);
+	//  - when the source is a separate client buffer (e.g. the V8U8 expansion
+	//    temp above), the PBO must be unbound for the duration of the upload.
+	// Without this, the first upload of a dynamic texture (kSliceValid == 0
+	// forces the glTexImage* path) passed a host address as a PBO byte offset
+	// -> GL_INVALID_OPERATION and a failed upload (garbage/black slice until
+	// the next lock takes the subimage path).
+	bool bUploadPBOBound = ( m_mapped != NULL );
+	void *uploadData = noDataWrite ? NULL : sliceAddress;
+	if ( bUploadPBOBound )
+	{
+		if ( sliceAddress == m_mapped )
+			uploadData = 0;
+		else
+		{
+			gGL->glBindBuffer( GL_PIXEL_UNPACK_BUFFER, 0 );
+			bUploadPBOBound = false;
+		}
+	}
+
 	// set up the client storage now, one way or another
 	// If this extension isn't supported, we just end up with two copies of the texture, one in the GL and one in app memory.
 	//  So it's safe to just go on as if this extension existed and hold the possibly-unnecessary extra RAM.
@@ -3657,15 +3766,12 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 		case GL_TEXTURE_2D:
 		{
 			// check compressed or not
-			if (format->m_chunkSize != 1)
+			if (format->m_blockWidth != 1 || format->m_blockHeight != 1)
 			{
 				Assert( writeWholeSlice );	//subimage not implemented in this path yet
 				// compressed path
-				// http://www.opengl.org/sdk/docs/man/xhtml/glCompressedTexImage2D.xml
-				if( gGL->m_bHave_GL_EXT_texture_compression_dxt1 )
-					gGL->glCompressedTexImage2D( target, desc->m_req.m_mip, intformat, slice->m_xSize, slice->m_ySize, 0, slice->m_storageSize, sliceAddress );
-				else
-					CompressedTexImage2D( target, desc->m_req.m_mip, intformat, slice->m_xSize, slice->m_ySize, 0, slice->m_storageSize, sliceAddress );
+				// http://www.opengl.org/sdk/docs/man/xhtml/glCompressedTexImage2D
+					gGL->glCompressedTexImage2D( target, desc->m_req.m_mip, intformat, slice->m_xSize, slice->m_ySize, 0, slice->m_storageSize, uploadData );
 			}
 			else
 			{
@@ -3708,7 +3814,7 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 										writeBox.ymax - writeBox.ymin,	// height	(was slice->m_ySize)
 										glDataFormat,					// format
 										glDataType,						// type
-										0
+										uploadData						// byte offset into the bound PBO, or client ptr if the PBO was unbound (V8U8 expansion)
 										);
 					}
 				}
@@ -3716,7 +3822,7 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 				{					
 					// uncompressed path
 					// http://www.opengl.org/documentation/specs/man_pages/hardcopy/GL/html/gl/teximage2d.html
-					convert_texture(intformat, m_layout->m_slices[ desc->m_sliceIndex ].m_xSize, m_layout->m_slices[ desc->m_sliceIndex ].m_ySize, glDataFormat, glDataType, noDataWrite ? NULL : sliceAddress);
+					convert_texture(intformat, m_layout->m_slices[ desc->m_sliceIndex ].m_xSize, m_layout->m_slices[ desc->m_sliceIndex ].m_ySize, glDataFormat, glDataType, bUploadPBOBound ? NULL : uploadData);
 					
 					gGL->glTexImage2D(			target,						// target
 											desc->m_req.m_mip,			// level
@@ -3726,7 +3832,7 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 											0,							// border
 											glDataFormat,				// dataformat
 											glDataType,					// datatype
-											noDataWrite ? NULL : sliceAddress );	// data (optionally suppressed in case ResetSRGB desires)
+											uploadData );				// data (byte offset into the bound PBO, or client pointer)
 
 					if (m_layout->m_key.m_texFlags & kGLMTexMultisampled)
 					{
@@ -3746,7 +3852,7 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 		case GL_TEXTURE_3D:
 		{
 			// check compressed or not
-			if (format->m_chunkSize != 1)
+			if (format->m_blockWidth != 1 || format->m_blockHeight != 1)
 			{
 				// compressed path
 				// http://www.opengl.org/sdk/docs/man/xhtml/glCompressedTexImage3D.xml
@@ -3759,11 +3865,11 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 										slice->m_zSize,				// depth
 										0,							// border
 										slice->m_storageSize,		// imageSize
-										sliceAddress );				// data
+										uploadData );				// data (byte offset into the bound PBO, or client pointer)
 			}
 			else
 			{
-				convert_texture(intformat, m_layout->m_slices[ desc->m_sliceIndex ].m_xSize, m_layout->m_slices[ desc->m_sliceIndex ].m_ySize, glDataFormat, glDataType, noDataWrite ? NULL : sliceAddress);				
+				convert_texture(intformat, m_layout->m_slices[ desc->m_sliceIndex ].m_xSize, m_layout->m_slices[ desc->m_sliceIndex ].m_ySize, glDataFormat, glDataType, bUploadPBOBound ? NULL : uploadData);				
 				gGL->glTexImage3D(			target,						// target
 										desc->m_req.m_mip,			// level
 										intformat,					// internalformat
@@ -3773,7 +3879,7 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 										0,							// border
 										glDataFormat,				// dataformat
 										glDataType,					// datatype
-										noDataWrite ? NULL : sliceAddress );	// data (optionally suppressed in case ResetSRGB desires)
+										uploadData );				// data (byte offset into the bound PBO, or client pointer)
 			}
 		}
 		break;
@@ -3782,6 +3888,57 @@ void CGLMTex::WriteTexels( GLMTexLockDesc *desc, bool writeWholeSlice, bool noDa
 	if ( expandTemp )
 	{
 		free( expandTemp );
+	}
+
+	// Textures created with kGLMTexMippedAuto (D3DUSAGE_AUTOGENMIPMAP) only ever get their base mip
+	// uploaded by the engine - D3D forbids locking levels > 0 on auto-mipmap textures. On GLES we
+	// must explicitly invoke glGenerateMipmap (it is core since GLES 2.0) to regenerate the upper
+	// mip chain from the freshly uploaded base data; otherwise those upper levels hold either the
+	// constructor's uninitialized content (now skipped - see pre-fill loop above) or the tile
+	// buffer's cleared garbage on TBDR GPUs like Mali-G31. That garbage dominates the bilinear/
+	// trilinear blend the moment the sampler's LOD crosses mip level 1, manifesting as a harsh
+	// quality/black transition at the spherical LOD distance around the camera - most visible on
+	// small / non-square textures such as 256x64 because the upper mips are tiny and produce sharp
+	// artifact edges. Do this AFTER the per-slice glTexImage2D/glTexSubImage2D so the base level is
+	// resident in GL; also bump m_maxActiveMip up to the full chain so the flush-time coarse-cap
+	// (MIN(m_maxLOD, m_maxActiveMip)) opens up the upper levels instead of clamping the sampler to
+	// base level only. Note: this also catches the very first base-mip upload because the constructor
+	// pre-fill skipped mips > 0 when kGLMTexMippedAuto is set, leaving m_maxActiveMip at 0.
+	if ( desc->m_req.m_mip == 0 && ( m_layout->m_key.m_texFlags & kGLMTexMippedAuto ) )
+	{
+		// Ensure this texture is bound to TMU 0 (the actual sampling-time bind is irrelevant here -
+		// glGenerateMipmap operates on the currently bound texture object for this target). The
+		// earlier m_ctx->BindTexToTMU( this, 0 ) at the top of WriteTexels already handles this,
+		// and nothing inside WriteTexels re-binds a texture since (the PBO binds are a different
+		// binding point), so only re-bind when the mirror disagrees - the defensive re-bind was
+		// up to 3 glBindTexture calls per auto-mip upload.
+		if ( m_ctx->m_samplers[0].m_pBoundTex != this )
+		{
+			m_ctx->BindTexToTMU( this, 0 );
+		}
+
+		// Relax the level clamp before generating: the base-mip upload above capped
+		// GL_TEXTURE_MAX_LEVEL at 0, and glGenerateMipmap may respect that cap on
+		// some drivers, which would regenerate nothing and leave the upper mips
+		// sampling stale tile-buffer contents.
+		if ( gGL->HaveCoreTexLevelClamp( m_layout->m_key.m_texGLTarget ) && m_layout->m_mipCount > 1 )
+		{
+			GLMSetTexLevelClamp( m_layout->m_key.m_texGLTarget, GL_TEXTURE_MAX_LEVEL, m_layout->m_mipCount - 1, m_ctx, this );
+		}
+		gGL->glGenerateMipmap( m_layout->m_key.m_texGLTarget );
+
+		int fullMipCount = m_layout->m_mipCount;
+		if ( fullMipCount > 1 && (int)m_maxActiveMip < fullMipCount - 1 )
+		{
+			m_maxActiveMip = fullMipCount - 1;
+			// On targets without the texture-object level cap the flush-time
+			// MAX_LOD cap picks up the relaxed m_maxActiveMip on the next draw
+			// via the sampler-object invalidation done below.
+			if ( !gGL->HaveCoreTexLevelClamp( m_layout->m_key.m_texGLTarget ) )
+			{
+				m_ctx->InvalidateSamplersForTex( this );
+			}
+		}
 	}
 
 	m_ctx->BindTexToTMU( pPrevTex, 0 );
@@ -3828,25 +3985,26 @@ void CGLMTex::Lock( GLMTexLockParams *params, char** addressOut, int* yStrideOut
 	// d - the params of the lock request have been saved in the lock table (in the context)
 	
 	// so step 1 is unambiguous.  If there's no backing storage, make some.
+	// Acquire from the context's scratch slab pool: the old malloc-per-lock +
+	// free-per-unlock churned the heap on every streaming/procedural texture
+	// update (client storage is off on Mali, so a full-mip-chain buffer was
+	// allocated and freed per lock cycle).
 	if (!m_backing && !(m_layout->m_key.m_texFlags & kGLMTexDynamic))
 	{
+		uint32_t unStorageSize = m_layout->m_storageTotalSize;
 		if ( gl_pow2_tempmem.GetBool() )
 		{
-			uint32_t unStoragePow2 = m_layout->m_storageTotalSize;
 			// Round up to next power of 2
-			unStoragePow2--;
-			unStoragePow2 |= unStoragePow2 >> 1;
-			unStoragePow2 |= unStoragePow2 >> 2;
-			unStoragePow2 |= unStoragePow2 >> 4;
-			unStoragePow2 |= unStoragePow2 >> 8;
-			unStoragePow2 |= unStoragePow2 >> 16;
-			unStoragePow2++;
-			m_backing = (char *)malloc( unStoragePow2 );
+			unStorageSize--;
+			unStorageSize |= unStorageSize >> 1;
+			unStorageSize |= unStorageSize >> 2;
+			unStorageSize |= unStorageSize >> 4;
+			unStorageSize |= unStorageSize >> 8;
+			unStorageSize |= unStorageSize >> 16;
+			unStorageSize++;
 		}
-		else
-		{
-			m_backing = (char *)malloc( m_layout->m_storageTotalSize );
-		}
+		m_backing = (char *)m_ctx->AcquireTexScratch( unStorageSize );
+		m_nBackingSize = unStorageSize;
 
 		// clear the kSliceStorageValid bit on all slices
 		for( int i=0; i<m_layout->m_sliceCount; i++)
@@ -3922,6 +4080,8 @@ void CGLMTex::Lock( GLMTexLockParams *params, char** addressOut, int* yStrideOut
 	desc->m_active = true;
 	desc->m_sliceIndex = sliceIndex;
 	desc->m_sliceBaseOffset = m_layout->m_slices[sliceIndex].m_storageOffset;
+	desc->m_pReadbackBuffer = NULL;
+	desc->m_bReadbackIsPBO = false;
 
 	// to calculate the additional offset we need to look at the rect's min corner
 	// combined with the per-texel size and Y/Z stride
@@ -4025,6 +4185,29 @@ void CGLMTex::Unlock( GLMTexLockParams *params )
 				{
 					GLMStop();
 				}
+
+				// Read-only locks carry no new texel data (the slice storage
+				// was copied OUT of the texture), so there is nothing to
+				// upload - and for dynamic textures there is no backing store
+				// to upload FROM, so skipping avoids uploading stale PBO data.
+				if ( desc->m_req.m_readonly )
+				{
+					// If the readback went through a pack PBO
+					// (gl_tex_readback_pbo), the returned pointer is a
+					// mapping - unmap it now.  Plain client-memory scratch is
+					// per-texture persistent and needs nothing.
+					if ( desc->m_bReadbackIsPBO )
+					{
+						gGL->glBindBuffer( GL_PIXEL_PACK_BUFFER, m_pReadbackPBO );
+						gGL->glUnmapBuffer( GL_PIXEL_PACK_BUFFER );
+						gGL->glBindBuffer( GL_PIXEL_PACK_BUFFER, 0 );
+					}
+					desc->m_pReadbackBuffer = NULL;
+					desc->m_bReadbackIsPBO = false;
+
+					m_ctx->m_texLocks.FastRemove( j );
+					continue;
+				}
 				
 				// write the texels
 				bool fullyDirty = false;
@@ -4080,10 +4263,21 @@ void CGLMTex::Unlock( GLMTexLockParams *params )
 		// because it reuploads the whole thing each slice; we only use 3D textures
 		// for the 32x32x32 colorpsace conversion lookups and debugging the problem
 		// would not save any more memory.
+		// Backing buffers acquired from the context scratch pool are recycled
+		// there instead of being freed - the next lock of any texture reuses
+		// the slab without heap churn.
 		if ( !m_texClientStorage && ( m_texGLTarget == GL_TEXTURE_2D ) && m_backing )
 		{
-			free(m_backing);
+			if ( m_nBackingSize )
+			{
+				m_ctx->ReleaseTexScratch( m_backing, m_nBackingSize );
+			}
+			else
+			{
+				free( m_backing );
+			}
 			m_backing = NULL;
+			m_nBackingSize = 0;
 		}
 	}
 }

@@ -32,6 +32,7 @@
 #include "tier1/fmtstr.h"
 #include "tier1/KeyValues.h"
 #include "tier0/fasttimer.h"
+#include "tier1/checksum_md5.h"
 
 #if GLMDEBUG && defined( _MSC_VER )
 #include <direct.h>
@@ -44,6 +45,10 @@
 #define GLM_FREE_SHADER_TEXT 0
 #else
 #define GLM_FREE_SHADER_TEXT 1
+#endif
+
+#ifndef GL_PROGRAM_BINARY_LENGTH
+#define GL_PROGRAM_BINARY_LENGTH 0x8741
 #endif
 
 //===============================================================================
@@ -202,6 +207,23 @@ void	CGLMProgram::SetProgramText( char *text )
 	
 	m_text = strdup( text );
 	Assert( m_text != NULL );	
+
+	// -gl_dumpshaders: write the translated GLSL text to shaderdump/ for
+	// debugging generated shaders on device.  The text carries the
+	// "// trans#N label:..." comment identifying the shader.
+	if ( CommandLine()->FindParm( "-gl_dumpshaders" ) )
+	{
+		static int s_nShaderDumpCount = 0;
+		char szPath[256];
+		V_snprintf( szPath, sizeof( szPath ), "shaderdump/%s_%03d.glsl",
+			m_type == kGLMVertexProgram ? "vs" : "ps", s_nShaderDumpCount++ );
+		FILE *pFile = fopen( szPath, "w" );
+		if ( pFile )
+		{
+			fprintf( pFile, "%s", m_text );
+			fclose( pFile );
+		}
+	}
 
 	#if GLMDEBUG
 		// create editable text item, if it does not already exist
@@ -579,7 +601,14 @@ bool CGLMProgram::CheckValidity( EGLMProgramLang lang )
 			
 			GLenum glslStage = GLMProgTypeToGLSLEnum( m_type ); glslStage;
 
-			Assert( glslDesc->m_compiled );
+			// When the program was loaded from a cached binary, the individual
+			// shader objects were never compiled.  Just mark valid — the link
+			// status of the program object is the real authority.
+			if ( !glslDesc->m_compiled )
+			{
+				glslDesc->m_valid = true;
+				return true;
+			}
 	
 			glslDesc->m_valid = true;	// assume success til we see otherwise
 
@@ -694,9 +723,15 @@ CGLMShaderPair::CGLMShaderPair( GLMContext *ctx  )
 
 	m_locVertexParams = -1;
 	m_locAlphaRef = -1;
+	m_alphaRefValue = -1.0f;
 	m_locVertexBoneParams = -1;
 	m_locVertexScreenParams = -1;
 	m_nScreenWidthHeight = 0xFFFFFFFF;
+	m_locClipPlane0 = -1;
+	m_locClipPlane1 = -1;
+	memset( m_flClipPlaneUploaded, 0, sizeof( m_flClipPlaneUploaded ) );
+	memset( m_bClipPlaneUploaded, 0, sizeof( m_bClipPlaneUploaded ) );
+	m_nClipPlaneStateRevision = 0xFFFFFFFF;
 	m_locVertexInteger0 = -1;	// "i0"
 	memset( m_locVertexBool, 0xFF, sizeof( m_locVertexBool ) );
 	memset( m_locFragmentBool, 0xFF, sizeof( m_locFragmentBool ) );
@@ -712,6 +747,10 @@ CGLMShaderPair::CGLMShaderPair( GLMContext *ctx  )
 	m_valid = false;
 	m_bCheckLinkStatus = false;
 	m_revision = 0;				// bumps to 1 once linked
+	m_nProgramParamRevisionEpoch = 0;
+	memset( m_uploadedProgramParamRevisionF, 0xFF, sizeof( m_uploadedProgramParamRevisionF ) );
+	memset( m_uploadedProgramParamRevisionB, 0xFF, sizeof( m_uploadedProgramParamRevisionB ) );
+	memset( m_uploadedProgramParamRevisionI, 0xFF, sizeof( m_uploadedProgramParamRevisionI ) );
 }
 
 CGLMShaderPair::~CGLMShaderPair( )
@@ -790,10 +829,16 @@ bool CGLMShaderPair::ValidateProgramPair()
 			m_locVertexParams = gGL->glGetUniformLocation( m_program, "vc" );
 			m_locVertexBoneParams = gGL->glGetUniformLocation( m_program, "vcbones" );
 			m_locVertexScreenParams = gGL->glGetUniformLocation( m_program, "vcscreen" );
+			m_locClipPlane0 = gGL->glGetUniformLocation( m_program, "uClipPlane0" );
+			m_locClipPlane1 = gGL->glGetUniformLocation( m_program, "uClipPlane1" );
 			if( !gGL->m_bHave_GL_QCOM_alpha_test )
 				m_locAlphaRef = gGL->glGetUniformLocation( m_program, "alpha_ref" );
+			m_alphaRefValue = -1.0f;
 
 			m_nScreenWidthHeight = 0xFFFFFFFF;
+			memset( m_flClipPlaneUploaded, 0, sizeof( m_flClipPlaneUploaded ) );
+			memset( m_bClipPlaneUploaded, 0, sizeof( m_bClipPlaneUploaded ) );
+			m_nClipPlaneStateRevision = 0xFFFFFFFF;
 
 			m_locVertexInteger0 = gGL->glGetUniformLocation( m_program, "i0" );
 
@@ -821,33 +866,12 @@ bool CGLMShaderPair::ValidateProgramPair()
 
 			m_locFragmentParams = gGL->glGetUniformLocation( m_program, "pc" );
 
-			for (uint i = 0; i < kGLMNumProgramTypes; i++)
-			{
-				m_NumUniformBufferParams[i] = 0;
-
-				if (i == kGLMVertexProgram)
-				{
-					if (m_locVertexParams < 0)
-						continue;
-				}
-				else if (m_locFragmentParams < 0)
-					continue;
-
-				const uint nNum = (i == kGLMVertexProgram) ? m_vertexProg->m_descs[kGLMGLSL].m_highWater : m_fragmentProg->m_descs[kGLMGLSL].m_highWater;
-
-				uint j;
-				for (j = 0; j < nNum; j++)
-				{
-					char buf[256];
-					V_snprintf( buf, sizeof(buf), "%cc[%i]", "vp"[i], j );
-					// Grab the handle of each array element, so we can more efficiently update array elements in the middle.
-					int l = m_UniformBufferParams[i][j] = gGL->glGetUniformLocation( m_program, buf );
-					if (l < 0)
-						break;
-				}
-
-				m_NumUniformBufferParams[i] = j;
-			}
+			// No per-element location queries: for a uniform array the elements
+			// occupy contiguous locations (GL spec), so the flush addresses
+			// vc[i]/pc[i] as m_locVertexParams/m_locFragmentParams + i. This
+			// removes ~256 glGetUniformLocation driver round-trips per program,
+			// which dominated the startup precache (267 pairs x ~500 calls).
+			m_NumUniformBufferParams[0] = m_NumUniformBufferParams[1] = 0;
 
 			m_locFragmentFakeSRGBEnable = gGL->glGetUniformLocation( m_program, "flSRGBWrite" );
 			m_fakeSRGBEnableValue = -1.0f;
@@ -868,9 +892,16 @@ bool CGLMShaderPair::ValidateProgramPair()
 		else
 		{
 			m_locVertexParams = -1;
+			m_locAlphaRef = -1;
+			m_alphaRefValue = -1.0f;
 			m_locVertexBoneParams = -1;
 			m_locVertexScreenParams = -1;
+			m_locClipPlane0 = -1;
+			m_locClipPlane1 = -1;
 			m_nScreenWidthHeight = 0xFFFFFFFF;
+			memset( m_flClipPlaneUploaded, 0, sizeof( m_flClipPlaneUploaded ) );
+			memset( m_bClipPlaneUploaded, 0, sizeof( m_bClipPlaneUploaded ) );
+			m_nClipPlaneStateRevision = 0xFFFFFFFF;
 
 			m_locVertexInteger0 = -1;
 			memset( m_locVertexBool, 0xFF, sizeof(m_locVertexBool) );
@@ -896,6 +927,185 @@ bool CGLMShaderPair::ValidateProgramPair()
 	return m_valid;
 }
 
+// glProgramBinary on-disk cache.
+//
+// Mali's GLSL compiler is slow; without a binary cache every launch re-links
+// every shader pair from source, producing long load hitches and first-frame
+// stutter.  GLES 3.0 exposes glGetProgramBinary / glProgramBinary, so we cache
+// the driver-native program binary to disk keyed on an MD5 of (driver version
+// string + renderer string + vertex source + fragment source).  The driver
+// string is part of the key so a driver/GPU change invalidates the cache
+// automatically.  If glProgramBinary ever fails (corrupt/stale binary), we fall
+// back to the normal source attach+link path, so this is always safe.
+// -----------------------------------------------------------------------------
+// gl_program_binary_cache: 0 = off, 1 = on, 2 = on + verbose per-pair logging.
+// On warm starts every pair hit skips shader source attach+compile+link, which
+// is the dominant cost on Mali's slow compiler.
+static ConVar gl_program_binary_cache( "gl_program_binary_cache", "1", FCVAR_NONE, "Cache compiled GL program binaries to disk to skip relinking on startup (0=off, 1=on, 2=on+verbose)" );
+
+static int s_nProgramBinaryHits = 0;
+static int s_nProgramBinaryMisses = 0;
+static int s_nProgramBinarySaves = 0;
+
+static void ReportProgramBinaryCacheStats( const char *pszPairName, bool bHit, uint nMicros )
+{
+	if ( bHit )
+		++s_nProgramBinaryHits;
+	else
+		++s_nProgramBinaryMisses;
+
+	const int nTotal = s_nProgramBinaryHits + s_nProgramBinaryMisses;
+	if ( gl_program_binary_cache.GetInt() >= 2 )
+	{
+		Msg( "[glshadercache] %s %s in %u us (hits=%d misses=%d)\n",
+			pszPairName ? pszPairName : "?",
+			bHit ? "HIT" : "MISS", nMicros,
+			s_nProgramBinaryHits, s_nProgramBinaryMisses );
+	}
+	if ( ( nTotal % 256 ) == 0 )
+	{
+		Msg( "[glshadercache] cumulative: %d hits, %d misses, %d saves (hit rate %.1f%%)\n",
+			s_nProgramBinaryHits, s_nProgramBinaryMisses, s_nProgramBinarySaves,
+			s_nProgramBinaryHits * 100.0 / nTotal );
+	}
+}
+
+#define GL_PROGRAM_BINARY_CACHE_DIR "glshadercache"
+
+static void ComputeShaderPairHash( CGLMProgram *vp, CGLMProgram *fp, MD5Value_t &outHash )
+{
+	MD5Context_t ctx;
+	MD5Init( &ctx );
+
+	// Fold the driver version + renderer strings into the key so a driver update
+	// or different GPU invalidates the cache (binaries are not portable).
+	const char *versionStr  = gGL->m_pGLDriverStrings[cGLVersionString]  ? gGL->m_pGLDriverStrings[cGLVersionString]  : "";
+	const char *rendererStr = gGL->m_pGLDriverStrings[cGLRendererString] ? gGL->m_pGLDriverStrings[cGLRendererString] : "";
+	MD5Update( &ctx, (const unsigned char *)versionStr,  (unsigned int)V_strlen( versionStr ) );
+	MD5Update( &ctx, (const unsigned char *)rendererStr, (unsigned int)V_strlen( rendererStr ) );
+
+	// Hash the actual GLSL source text of both shaders (offset+length into m_text).
+	for ( int pass = 0; pass < 2; ++pass )
+	{
+		CGLMProgram *p = (pass == 0) ? vp : fp;
+		if ( !p || !p->m_text )
+			continue;
+		GLMShaderDesc *desc = &p->m_descs[kGLMGLSL];
+		const char *section = p->m_text + desc->m_textOffset;
+		MD5Update( &ctx, (const unsigned char *)section, (unsigned int)desc->m_textLength );
+	}
+
+	MD5Final( outHash.bits, &ctx );
+}
+
+static void ShaderPairCacheFileName( const MD5Value_t &hash, char *out, int outLen )
+{
+	char hex[33];
+	for ( int i = 0; i < MD5_DIGEST_LENGTH; ++i )
+	{
+		V_snprintf( hex + i*2, sizeof(hex) - i*2, "%02x", hash.bits[i] );
+	}
+	hex[32] = 0;
+	V_snprintf( out, outLen, "%s/%s.bin", GL_PROGRAM_BINARY_CACHE_DIR, hex );
+}
+
+// Attempt to load a cached binary into m_program.  Returns true on success
+// (program is linked and ready); false on any failure (caller falls back to
+// source attach+link).  The GL context must be current.
+static bool LoadCachedProgramBinary( GLuint program, const MD5Value_t &hash )
+{
+	if ( !gGL->glProgramBinary )
+		return false;
+
+	char path[MAX_PATH];
+	ShaderPairCacheFileName( hash, path, sizeof(path) );
+
+	if ( !g_pFullFileSystem->FileExists( path, "MOD" ) )
+		return false;
+
+	FileHandle_t fh = g_pFullFileSystem->Open( path, "rb", "MOD" );
+	if ( fh == FILESYSTEM_INVALID_HANDLE )
+		return false;
+
+	// File layout: 4-byte GLenum binaryFormat, then the binary blob.
+	GLenum binaryFormat = 0;
+	if ( g_pFullFileSystem->Read( &binaryFormat, sizeof(binaryFormat), fh ) != sizeof(binaryFormat) )
+	{
+		g_pFullFileSystem->Close( fh );
+		return false;
+	}
+
+	int binLen = g_pFullFileSystem->Size( fh ) - (int)sizeof(binaryFormat);
+	if ( binLen <= 0 )
+	{
+		g_pFullFileSystem->Close( fh );
+		return false;
+	}
+
+	void *binary = malloc( binLen );
+	if ( !binary )
+	{
+		g_pFullFileSystem->Close( fh );
+		return false;
+	}
+
+	if ( g_pFullFileSystem->Read( binary, binLen, fh ) != binLen )
+	{
+		free( binary );
+		g_pFullFileSystem->Close( fh );
+		return false;
+	}
+	g_pFullFileSystem->Close( fh );
+
+	gGL->glProgramBinary( program, binaryFormat, binary, binLen );
+	free( binary );
+
+	// Verify the binary actually linked.  If not, the binary was stale/corrupt
+	// (e.g. driver upgrade with a colliding hash path) -> caller falls back.
+	GLint linked = GL_FALSE;
+	gGL->glGetProgramiv( program, GL_LINK_STATUS, &linked );
+	return linked == GL_TRUE;
+}
+
+// After a successful source link, retrieve the program binary and persist it.
+// Best-effort: silently ignores any failure.
+static void SaveCachedProgramBinary( GLuint program, const MD5Value_t &hash )
+{
+	if ( !gGL->glGetProgramBinary )
+		return;
+
+	GLint binLen = 0;
+	gGL->glGetProgramiv( program, GL_PROGRAM_BINARY_LENGTH, &binLen );
+	if ( binLen <= 0 )
+		return;
+
+	void *binary = malloc( binLen );
+	if ( !binary )
+		return;
+
+	GLenum binaryFormat = 0;
+	GLsizei written = 0;
+	gGL->glGetProgramBinary( program, binLen, &written, &binaryFormat, binary );
+	if ( written <= 0 )
+	{
+		free( binary );
+		return;
+	}
+
+	g_pFullFileSystem->CreateDirHierarchy( GL_PROGRAM_BINARY_CACHE_DIR, "MOD" );
+
+	char path[MAX_PATH];
+	ShaderPairCacheFileName( hash, path, sizeof(path) );
+	FileHandle_t fh = g_pFullFileSystem->Open( path, "wb", "MOD" );
+	if ( fh != FILESYSTEM_INVALID_HANDLE )
+	{
+		g_pFullFileSystem->Write( &binaryFormat, sizeof(binaryFormat), fh );
+		g_pFullFileSystem->Write( binary, written, fh );
+		g_pFullFileSystem->Close( fh );
+	}
+	free( binary );
+}
+
 // glUseProgram() will be called as a side effect!
 bool CGLMShaderPair::SetProgramPair( CGLMProgram *vp, CGLMProgram *fp )
 {
@@ -908,6 +1118,13 @@ bool CGLMShaderPair::SetProgramPair( CGLMProgram *vp, CGLMProgram *fp )
 	}
 	
 	m_valid	= false;			// assume failure
+	// Linking creates fresh uniform storage even when the CGLMShaderPair object
+	// itself is reused.  Force one complete refresh in the context's current
+	// revision epoch before any pair-local comparisons are trusted.
+	m_nProgramParamRevisionEpoch = 0;
+	memset( m_uploadedProgramParamRevisionF, 0xFF, sizeof( m_uploadedProgramParamRevisionF ) );
+	memset( m_uploadedProgramParamRevisionB, 0xFF, sizeof( m_uploadedProgramParamRevisionB ) );
+	memset( m_uploadedProgramParamRevisionI, 0xFF, sizeof( m_uploadedProgramParamRevisionI ) );
 	
 	// No need to check that vp and fp are valid at this point (ie shader compile succeed)
 	// It is permissible to attach a shader object to a program before source code has been loaded
@@ -944,19 +1161,16 @@ bool CGLMShaderPair::SetProgramPair( CGLMProgram *vp, CGLMProgram *fp )
 			gGL->glDetachShader(m_program, m_fragmentProg->m_descs[kGLMGLSL].m_object.glsl);
 			m_fragmentProg = NULL;			
 		}
-		
-		// now attach
-		
-		gGL->glAttachShader( m_program, vp->m_descs[kGLMGLSL].m_object.glsl );
-		m_vertexProg = vp;
 
-		gGL->glAttachShader( m_program, fp->m_descs[kGLMGLSL].m_object.glsl );
+		// Record the pair now (needed by the uniform-location query path even
+		// when we link from a cached binary, since it reads m_vertexProg/m_fragmentProg).
+		m_vertexProg = vp;
 		m_fragmentProg = fp;
-	
+
 		// force the locations for input attributes v0-vN to be at locations 0-N
 		// use the vertex attrib map to know which slots are live or not... oy!  we don't have that map yet... but it's OK.
 		// fallback - just force v0-v15 to land in locations 0-15 as a standard.
-		
+		// (Must be done before BOTH glLinkProgram and glProgramBinary.)
 		for( int i = 0; i < 16; i++ )
 		{
 			char tmp[16];
@@ -964,40 +1178,93 @@ bool CGLMShaderPair::SetProgramPair( CGLMProgram *vp, CGLMProgram *fp )
 				
 			gGL->glBindAttribLocation( m_program, i, tmp );
 		}
-#if !GLM_FREE_SHADER_TEXT
-		if (CommandLine()->CheckParm("-dumpallshaders"))
+
+		// Try to load a cached, driver-native program binary first.  This skips
+		// the source attach + compile + link entirely on warm starts, which is
+		// the dominant cost on Mali's slow compiler.  On any failure (no cache
+		// file, stale/corrupt binary, driver changed) we fall through to the
+		// normal source attach+link path, so this is always safe.
+		bool bUsedBinaryCache = false;
+		if ( gl_program_binary_cache.GetInt() && gGL->glProgramBinary && gGL->glGetProgramBinary )
 		{
-			// Dump all shaders, for debugging.
-			FILE* pFile = fopen("shaderdump.txt", "a+");
-			if (pFile)
+			MD5Value_t pairHash;
+			ComputeShaderPairHash( vp, fp, pairHash );
+
+			CFastTimer binaryCacheTimer;
+			binaryCacheTimer.Start();
+			const bool bLoaded = LoadCachedProgramBinary( m_program, pairHash );
+			binaryCacheTimer.End();
+			ReportProgramBinaryCacheStats( vp->m_shaderName, bLoaded, binaryCacheTimer.GetDuration().GetMicroseconds() );
+
+			if ( bLoaded )
 			{
-				fprintf(pFile, "--------------VP:%s\n%s\n", vp->m_shaderName, vp->m_text);
-				fprintf(pFile, "--------------FP:%s\n%s\n", fp->m_shaderName, fp->m_text);
-				fclose(pFile);
+				bUsedBinaryCache = true;
+				m_bCheckLinkStatus = true;	// ValidateProgramPair will confirm m_valid + query uniforms
 			}
 		}
+
+		if ( !bUsedBinaryCache )
+		{
+#if !GLM_FREE_SHADER_TEXT
+			if (CommandLine()->CheckParm("-dumpallshaders"))
+			{
+				// Dump all shaders, for debugging.
+				FILE* pFile = fopen("shaderdump.txt", "a+");
+				if (pFile)
+				{
+					fprintf(pFile, "--------------VP:%s\n%s\n", vp->m_shaderName, vp->m_text);
+					fprintf(pFile, "--------------FP:%s\n%s\n", fp->m_shaderName, fp->m_text);
+					fclose(pFile);
+				}
+			}
 #endif
 
-		// now link
-		gGL->glLinkProgram( m_program );
+			// Deferred compile: NewProgram skipped CompileActiveSources().
+			// We only need the compiled shader objects on the cache-miss path.
+			if ( !vp->m_descs[kGLMGLSL].m_compiled )
+				vp->CompileActiveSources();
+			if ( !fp->m_descs[kGLMGLSL].m_compiled )
+				fp->CompileActiveSources();
 
-		GLint isLinked = 0;
-		gGL->glGetProgramiv(m_program, GL_LINK_STATUS, &isLinked);
-		if(isLinked == GL_FALSE)
-		{
-			GLint maxLength = 0;
-			gGL->glGetShaderiv(m_program, GL_INFO_LOG_LENGTH, &maxLength);
+			// now attach
+			gGL->glAttachShader( m_program, vp->m_descs[kGLMGLSL].m_object.glsl );
+			gGL->glAttachShader( m_program, fp->m_descs[kGLMGLSL].m_object.glsl );
 
-			GLchar  log[4096];
-			gGL->glGetProgramInfoLog( m_program, sizeof(log), &maxLength, log );
-			if( maxLength )
+			// now link
+			gGL->glLinkProgram( m_program );
+
+			GLint isLinked = 0;
+			gGL->glGetProgramiv(m_program, GL_LINK_STATUS, &isLinked);
+			if(isLinked == GL_FALSE)
 			{
-				Msg("vp: \n%s\nfp: \n%s\n", vp->m_text, fp->m_text );
-				Msg("shader %d link log: %s\n", m_program, log);
+				GLint maxLength = 0;
+				// m_program is a PROGRAM handle: glGetShaderiv would raise
+				// GL_INVALID_VALUE here and the link-failure log would never
+				// be fetched.
+				gGL->glGetProgramiv(m_program, GL_INFO_LOG_LENGTH, &maxLength);
+
+				GLchar  log[4096];
+				gGL->glGetProgramInfoLog( m_program, sizeof(log), &maxLength, log );
+				if( maxLength )
+				{
+					Msg("vp: \n%s\nfp: \n%s\n", vp->m_text, fp->m_text );
+					Msg("shader %d link log: %s\n", m_program, log);
+				}
 			}
+			else
+			{
+				// Link succeeded from source: persist the binary for next launch.
+				if ( gl_program_binary_cache.GetInt() && gGL->glGetProgramBinary )
+				{
+					MD5Value_t pairHash;
+					ComputeShaderPairHash( vp, fp, pairHash );
+					SaveCachedProgramBinary( m_program, pairHash );
+					++s_nProgramBinarySaves;
+				}
+			}
+			
+			m_bCheckLinkStatus = true;
 		}
-		
-		m_bCheckLinkStatus = true;
 	}
 	else
 	{
@@ -1065,8 +1332,23 @@ CGLMShaderPairCache::CGLMShaderPairCache( GLMContext *ctx  )
 	m_rowsMask = m_rows - 1;
 
 	m_waysLg2 = gl_shaderpair_cacheways_lg2.GetInt();
-	if (m_waysLg2 < 5)
-		m_waysLg2 = 5;
+	if ( V_stristr(gGL->m_pGLDriverStrings[cGLVendorString], "arm") != NULL )
+	{
+		// On mobile TBDR GPUs (Mali G31 etc.), 8 ways (lg2=3) is ample
+		// and saves ~960 KiB per context (32,768→4,096 entries × 40 B).
+		// The desktop default (lg2=5 → 32 ways) wastes RAM with no culling
+		// benefit on low-vertex-count mobile workloads.  Users who set the
+		// convar explicitly still get their value as long as it's ≥3.
+		if (m_waysLg2 < 3)
+			m_waysLg2 = 3;
+		if (m_waysLg2 == 5)		// convar likely still at default "5"
+			m_waysLg2 = 3;
+	}
+	else
+	{
+		if (m_waysLg2 < 5)
+			m_waysLg2 = 5;
+	}
 	m_ways = 1<<m_waysLg2;
 
 	m_entryCount = m_rows * m_ways;

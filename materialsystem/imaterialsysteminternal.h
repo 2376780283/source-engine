@@ -16,6 +16,7 @@
 #include "materialsystem/imaterialsystem.h"
 #include "tier1/callqueue.h"
 #include "tier1/memstack.h"
+#include "tier1/utlvector.h"
 
 class IMaterialInternal;
 
@@ -36,39 +37,34 @@ public:
 		m_Allocator.Init( IsX360() ? 2*1024*1024 : 8*1024*1024, 64*1024, 256*1024, 16 );
 #endif
 		m_FunctorFactory.SetAllocator( &m_Allocator );
-		m_pHead = m_pTail = NULL;
+		// Queued rendering dispatches thousands of small calls per frame. Keep
+		// their pointers contiguous so the render thread can walk them without
+		// chasing a second allocator-backed linked list on cache-starved CPUs.
+		m_QueuedFunctors.EnsureCapacity( 4096 );
 	}
 
 	size_t GetMemoryUsed()
 	{
-		return m_Allocator.GetUsed();
+		return m_Allocator.GetUsed() + m_QueuedFunctors.NumAllocated() * sizeof( CFunctor * );
 	}
 
 	int Count()
 	{
-		int i = 0;
-		Elem_t *pCurrent = m_pHead;
-		while ( pCurrent )
-		{
-			i++;
-			pCurrent = pCurrent->pNext;
-		}
-		return i;
+		return m_QueuedFunctors.Count();
 	}
 
 	void CallQueued()
 	{
-		if ( !m_pHead )
+		const int nCount = m_QueuedFunctors.Count();
+		if ( nCount == 0 )
 		{
 			return;
 		}
 
-		CFunctor *pFunctor;
-
-		Elem_t *pCurrent = m_pHead;
-		while ( pCurrent )
+		CFunctor **ppFunctors = m_QueuedFunctors.Base();
+		for ( int i = 0; i < nCount; ++i )
 		{
-			pFunctor = pCurrent->pFunctor;
+			CFunctor *pFunctor = ppFunctors[i];
 #ifdef _DEBUG
 			if ( pFunctor->m_nUserID == m_nBreakSerialNumber)
 			{
@@ -77,10 +73,9 @@ public:
 #endif
 			(*pFunctor)();
 			pFunctor->Release();
-			pCurrent = pCurrent->pNext;
 		}
 		m_Allocator.FreeAll( false );
-		m_pHead = m_pTail = NULL;
+		m_QueuedFunctors.RemoveAll();
 	}
 
 	void QueueFunctor( CFunctor *pFunctor )
@@ -91,23 +86,20 @@ public:
 
 	void Flush()
 	{
-		if ( !m_pHead )
+		const int nCount = m_QueuedFunctors.Count();
+		if ( nCount == 0 )
 		{
 			return;
 		}
 
-		CFunctor *pFunctor;
-
-		Elem_t *pCurrent = m_pHead;
-		while ( pCurrent )
+		CFunctor **ppFunctors = m_QueuedFunctors.Base();
+		for ( int i = 0; i < nCount; ++i )
 		{
-			pFunctor = pCurrent->pFunctor;
-			pFunctor->Release();
-			pCurrent = pCurrent->pNext;
+			ppFunctors[i]->Release();
 		}
 
 		m_Allocator.FreeAll( false );
-		m_pHead = m_pTail = NULL;
+		m_QueuedFunctors.RemoveAll();
 	}
 
 	#define DEFINE_MATCALLQUEUE_NONMEMBER_QUEUE_CALL(N) \
@@ -148,28 +140,10 @@ private:
 		pFunctor->m_nUserID = m_nCurSerialNumber++;
 #endif
 		MEM_ALLOC_CREDIT_( "CMatCallQueue.m_Allocator" );
-		Elem_t *pNew = (Elem_t *)m_Allocator.Alloc( sizeof(Elem_t) );
-		if ( m_pTail )
-		{
-			m_pTail->pNext = pNew;
-			m_pTail = pNew;
-		}
-		else
-		{
-			m_pHead = m_pTail = pNew;
-		}
-		pNew->pNext = NULL;
-		pNew->pFunctor = pFunctor;
+		m_QueuedFunctors.AddToTail( pFunctor );
 	}
 
-	struct Elem_t
-	{
-		Elem_t *pNext;
-		CFunctor *pFunctor;
-	};
-
-	Elem_t *m_pHead;
-	Elem_t *m_pTail;
+	CUtlVector<CFunctor *> m_QueuedFunctors;
 
 	CMemoryStack m_Allocator;
 	CCustomizedFunctorFactory<CMemoryStack, CRefCounted1<CFunctor, CRefCountServiceDestruct< CRefST > > > m_FunctorFactory;

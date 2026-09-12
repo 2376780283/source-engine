@@ -170,6 +170,14 @@ private:
 	CUtlBuffer *m_pBufParamCode;
 	CUtlBuffer *m_pBufALUCode;
 
+	// Tracked string lengths of the append-style output buffers.  The old
+	// strcat_s-based appends rescanned the whole accumulated buffer per
+	// write, making shader translation O(n^2) in output size.  Append via
+	// memcpy at Base()+len instead; these lengths are the running cursors.
+	int m_nALUCodeLen;
+	int m_nParamCodeLen;
+	int m_nAttribCodeLen;
+
 	char *m_pFinalAssignmentsCode;
 	int m_nFinalAssignmentsBufSize;
 
@@ -205,7 +213,18 @@ private:
 	void StrcatToALUCode( const char *pBuf );
 	void StrcatToParamCode( const char *pBuf );
 	void StrcatToAttribCode( const char *pBuf );
-	void PrintToBufWithIndents( CUtlBuffer &buf, const char *pFormat, ... );
+
+	// O(1) appends: memcpy at the tracked cursor instead of rescanning
+	// strcat_s.  AppendIndentation writes m_NumIndentTabs tabs.
+	void AppendToBuf( CUtlBuffer *pBuf, int *pnLen, const char *pStr );
+	void AppendIndentation( CUtlBuffer *pBuf, int *pnLen );
+
+	void PrintToALUCode( const char *pFormat, ... );
+	void PrintToALUCodeWithIndents( const char *pFormat, ... );
+	void PrintToParamCode( const char *pFormat, ... );
+	void PrintToParamCodeWithIndents( const char *pFormat, ... );
+	void PrintToAttribCode( const char *pFormat, ... );
+	void PrintToAttribCodeWithIndents( const char *pFormat, ... );
 
 	// This helps write the token hex codes into the output stream for debugging.
 	void AddTokenHexCodeToBuffer( char *pBuffer, int nSize, int nLastStrlen );
@@ -224,12 +243,10 @@ private:
 	void PrintParameterToString ( uint32 dwToken, uint32 dwSourceOrDest, char *pRegisterName, int nBufLen, bool bForceScalarSource, int *pARLDestReg );
 
 	void InsertMoveFromAddressRegister( CUtlBuffer *pCode, int nARLComp0, int nARLComp1, int nARLComp2 = ARL_DEST_NONE );
-	void InsertMoveInstruction( CUtlBuffer *pCode, int nARLComponent );
 	void FlagIndirectRegister( uint32 dwToken, int *pARLDestReg );
 
 	// Utilities for decoding tokens in to strings according to GLSL syntax
 	bool OpenIntrinsic( uint32 inst, char* buff, int nBufLen, uint32 destDimension, uint32 nArgumentDimension );
-	void PrintIndentation( char *pBuf, int nBufLen );
 
 	uint32 MaintainAttributeMap( uint32 dwToken, uint32 dwRegToken );
 

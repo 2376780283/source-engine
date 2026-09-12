@@ -409,6 +409,7 @@ public:
 	virtual bool FakeSRGBWrite() const				{ return false; }
 	virtual bool CanDoSRGBReadFromRTs() const		{ return true; }
 	virtual bool SupportsGLMixedSizeTargets() const	{ return false; }
+	virtual bool HasFramebufferFetch() const			{ return false; }
 	virtual bool IsAAEnabled() const				{ return false; }
 	virtual int GetVertexTextureCount() const		{ return 0; }
 	virtual int GetMaxVertexTextureDimension() const { return 0; }

@@ -41,6 +41,79 @@ static ConVar mat_showenvmapmask( "mat_showenvmapmask", "0" );
 static ConVar mat_debugdepth( "mat_debugdepth", "0" );
 extern ConVar mat_supportflashlight;
 
+#define SHADER_SYSTEM_PERF_ANALYSIS 0
+
+#if SHADER_SYSTEM_PERF_ANALYSIS
+struct CShaderSystemPerfStats
+{
+	CCycleCount m_TotalTime;
+	CCycleCount m_SetupTime;
+	CCycleCount m_SetDefaultStateTime;
+	CCycleCount m_PrepTime;
+	CCycleCount m_BeginPassTime;
+	CCycleCount m_ShaderDrawTime;
+	CCycleCount m_DoneTime;
+	uint64 m_nDraws;
+	uint64 m_nEmptyDraws;
+
+	void Reset()
+	{
+		m_TotalTime.Init();
+		m_SetupTime.Init();
+		m_SetDefaultStateTime.Init();
+		m_PrepTime.Init();
+		m_BeginPassTime.Init();
+		m_ShaderDrawTime.Init();
+		m_DoneTime.Init();
+		m_nDraws = 0;
+		m_nEmptyDraws = 0;
+	}
+};
+
+static CShaderSystemPerfStats s_ShaderSystemPerfStats;
+
+class CShaderSystemTotalPerfTimer
+{
+public:
+	CShaderSystemTotalPerfTimer()
+	{
+		m_Timer.Start();
+		++s_ShaderSystemPerfStats.m_nDraws;
+	}
+
+	~CShaderSystemTotalPerfTimer()
+	{
+		m_Timer.End();
+		s_ShaderSystemPerfStats.m_TotalTime += m_Timer.GetDuration();
+	}
+
+private:
+	CFastTimer m_Timer;
+};
+
+CON_COMMAND( mat_dump_shadersystem_stats, "Print shader-system draw timing; pass 1 to reset after printing." )
+{
+	const double flDraws = (double)s_ShaderSystemPerfStats.m_nDraws;
+	const double flTotalMS = s_ShaderSystemPerfStats.m_TotalTime.GetMillisecondsF();
+	ConMsg( "ShaderSystem: Draws: %llu (%llu empty) Total: %4.3fms (%4.6fms/draw) Setup: %4.3fms DefaultState: %4.3fms Prep: %4.3fms BeginPass: %4.3fms ShaderDraw: %4.3fms Done: %4.3fms\n",
+		(unsigned long long)s_ShaderSystemPerfStats.m_nDraws,
+		(unsigned long long)s_ShaderSystemPerfStats.m_nEmptyDraws,
+		flTotalMS,
+		flDraws ? flTotalMS / flDraws : 0.0,
+		s_ShaderSystemPerfStats.m_SetupTime.GetMillisecondsF(),
+		s_ShaderSystemPerfStats.m_SetDefaultStateTime.GetMillisecondsF(),
+		s_ShaderSystemPerfStats.m_PrepTime.GetMillisecondsF(),
+		s_ShaderSystemPerfStats.m_BeginPassTime.GetMillisecondsF(),
+		s_ShaderSystemPerfStats.m_ShaderDrawTime.GetMillisecondsF(),
+		s_ShaderSystemPerfStats.m_DoneTime.GetMillisecondsF() );
+
+	if ( args.ArgC() == 2 && args.Arg(1)[0] != '0' )
+	{
+		s_ShaderSystemPerfStats.Reset();
+	}
+}
+#endif
+
 //-----------------------------------------------------------------------------
 // Implementation of the shader system
 //-----------------------------------------------------------------------------
@@ -1562,13 +1635,27 @@ void CShaderSystem::DrawElements( IShader *pShader, IMaterialVar **params,
 {
 	VPROF("CShaderSystem::DrawElements");
 
+#if SHADER_SYSTEM_PERF_ANALYSIS
+	CShaderSystemTotalPerfTimer totalDrawTimer;
+	CFastTimer drawPhaseTimer;
+	drawPhaseTimer.Start();
+#endif
 	g_pShaderAPI->InvalidateDelayedShaderConstants();
 	// Compute modulation...
 	int mod = pShader->ComputeModulationFlags( params, g_pShaderAPI );
+#if SHADER_SYSTEM_PERF_ANALYSIS
+	drawPhaseTimer.End();
+	s_ShaderSystemPerfStats.m_SetupTime += drawPhaseTimer.GetDuration();
+#endif
 
 	// No snapshots? do nothing.
 	if ( pRenderState->m_pSnapshots[mod].m_nPassCount == 0 )
+	{
+#if SHADER_SYSTEM_PERF_ANALYSIS
+		++s_ShaderSystemPerfStats.m_nEmptyDraws;
+#endif
 		return;
+	}
 
 	// If we're rendering a model, gotta have skinning matrices
 	int materialVarFlags = params[FLAGS]->GetIntValue();
@@ -1612,7 +1699,15 @@ void CShaderSystem::DrawElements( IShader *pShader, IMaterialVar **params,
 #endif
 	else
 	{
+#if SHADER_SYSTEM_PERF_ANALYSIS
+		drawPhaseTimer.Start();
+#endif
 		g_pShaderAPI->SetDefaultState();
+#if SHADER_SYSTEM_PERF_ANALYSIS
+		drawPhaseTimer.End();
+		s_ShaderSystemPerfStats.m_SetDefaultStateTime += drawPhaseTimer.GetDuration();
+		drawPhaseTimer.Start();
+#endif
 
 		// If we're rendering flat, turn on flat mode...
 		if (materialVarFlags & MATERIAL_VAR_FLAT)
@@ -1621,7 +1716,16 @@ void CShaderSystem::DrawElements( IShader *pShader, IMaterialVar **params,
 		}
 
 		PrepForShaderDraw( pShader, params, pRenderState, mod );
+#if SHADER_SYSTEM_PERF_ANALYSIS
+		drawPhaseTimer.End();
+		s_ShaderSystemPerfStats.m_PrepTime += drawPhaseTimer.GetDuration();
+		drawPhaseTimer.Start();
+#endif
 		g_pShaderAPI->BeginPass( CurrentStateSnapshot() );
+#if SHADER_SYSTEM_PERF_ANALYSIS
+		drawPhaseTimer.End();
+		s_ShaderSystemPerfStats.m_BeginPassTime += drawPhaseTimer.GetDuration();
+#endif
 		
 		CBasePerMaterialContextData ** pContextDataPtr = 
 			&( m_pRenderState->m_pSnapshots[m_nModulation].m_pContextData[m_nRenderPass] );
@@ -1632,10 +1736,22 @@ void CShaderSystem::DrawElements( IShader *pShader, IMaterialVar **params,
 			(*pContextDataPtr)->m_nVarChangeID = nMaterialVarChangeTimeStamp;
 		}
 
+#if SHADER_SYSTEM_PERF_ANALYSIS
+		drawPhaseTimer.Start();
+#endif
 		pShader->DrawElements( 
 			params, mod, 0, g_pShaderAPI, vertexCompression,
 			&( m_pRenderState->m_pSnapshots[m_nModulation].m_pContextData[m_nRenderPass] ) );
+#if SHADER_SYSTEM_PERF_ANALYSIS
+		drawPhaseTimer.End();
+		s_ShaderSystemPerfStats.m_ShaderDrawTime += drawPhaseTimer.GetDuration();
+		drawPhaseTimer.Start();
+#endif
 		DoneWithShaderDraw();
+#if SHADER_SYSTEM_PERF_ANALYSIS
+		drawPhaseTimer.End();
+		s_ShaderSystemPerfStats.m_DoneTime += drawPhaseTimer.GetDuration();
+#endif
 	}
 
 	MaterialSystem()->ForceDepthFuncEquals( false );
